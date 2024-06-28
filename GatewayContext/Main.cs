@@ -1,9 +1,5 @@
 ﻿using NetGuard.Engine;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace GatewayContext
@@ -21,7 +17,7 @@ namespace GatewayContext
         {
             AsyncServer asyncServer = new AsyncServer();
 
-            await asyncServer.StartAsync("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayServer);
+            asyncServer.Start("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayServer);
 
             await Task.Delay(1);
         }

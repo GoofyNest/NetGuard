@@ -9,9 +9,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>GatewayContext</RootNamespace>
     <AssemblyName>GatewayContext</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -44,19 +45,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Engine\SilkroadSecurityAPI\Blowfish.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\Extension.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\Packet.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\PacketReader.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\PacketWriter.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\Security.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\TransferBuffer.cs" />
+    <Compile Include="Engine\SilkroadSecurityAPI\Utility.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Engine\AsyncServer.cs" />
     <Compile Include="Engine\Classes\GatewayClient.cs" />
     <Compile Include="Engine\Framework\PacketType.cs" />
     <Compile Include="Engine\GatewayContext.cs" />
-    <Compile Include="Engine\SecurityApi\Blowfish.cs" />
-    <Compile Include="Engine\SecurityApi\Extension.cs" />
-    <Compile Include="Engine\SecurityApi\Packet.cs" />
-    <Compile Include="Engine\SecurityApi\PacketReader.cs" />
-    <Compile Include="Engine\SecurityApi\PacketWriter.cs" />
-    <Compile Include="Engine\SecurityApi\Security.cs" />
-    <Compile Include="Engine\SecurityApi\TransferBuffer.cs" />
-    <Compile Include="Engine\SecurityApi\Utility.cs" />
     <Compile Include="Engine\Services\CustomConsole.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

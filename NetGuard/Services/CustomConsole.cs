@@ -54,14 +54,14 @@ namespace NetGuard.Services
 
                 if (tempMsg == "[C->S]")
                 {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.ForegroundColor = ConsoleColor.Gray;
                     Console.Write(tempMsg+" ");
                     Console.ResetColor();
                     continue;
                 }
                 else if(tempMsg == "[S->C]")
                 {
-                    Console.ForegroundColor = ConsoleColor.Gray;
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
                     Console.Write(tempMsg+" ");
                     Console.ResetColor();
                     continue;

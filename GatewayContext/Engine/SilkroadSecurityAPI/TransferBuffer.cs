@@ -1,4 +1,4 @@
-﻿namespace Framework
+﻿namespace SilkroadSecurityAPI
 {
     public class TransferBuffer
     {

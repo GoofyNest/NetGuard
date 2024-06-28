@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Framework
+namespace SilkroadSecurityAPI
 {
     public static class ByteArrayExtension
     {

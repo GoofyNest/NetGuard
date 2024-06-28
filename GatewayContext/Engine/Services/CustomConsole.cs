@@ -48,21 +48,21 @@ namespace NetGuard.Services
             var splitMessage = message.Split(' ');
 
             var newMessage = "";
-            for(var i = 0; i< splitMessage.Length; i++)
+            for (var i = 0; i < splitMessage.Length; i++)
             {
                 var tempMsg = splitMessage[i];
 
                 if (tempMsg == "[C->S]")
                 {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.Write(tempMsg+" ");
+                    Console.ForegroundColor = ConsoleColor.Gray;
+                    Console.Write(tempMsg + " ");
                     Console.ResetColor();
                     continue;
                 }
-                else if(tempMsg == "[S->C]")
+                else if (tempMsg == "[S->C]")
                 {
-                    Console.ForegroundColor = ConsoleColor.Gray;
-                    Console.Write(tempMsg+" ");
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write(tempMsg + " ");
                     Console.ResetColor();
                     continue;
                 }

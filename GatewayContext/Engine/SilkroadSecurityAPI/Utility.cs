@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Text;
 
-namespace Framework
+namespace SilkroadSecurityAPI
 {
     public class Utility
     {

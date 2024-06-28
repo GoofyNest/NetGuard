@@ -2,7 +2,7 @@
 using System.Text;
 using System.IO;
 
-namespace Framework
+namespace SilkroadSecurityAPI
 {
     public class Packet
     {

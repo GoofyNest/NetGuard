@@ -5,9 +5,7 @@
         public class Client
         {
             public const ushort
-                GLOBAL_IDENTIFICATION = 0x2001,
                 CLIENT_GLOBAL_PING = 0x2002,
-                LOGIN_SERVER_HANDSHAKE = 0x5000,
                 CLIENT_ACCEPT_HANDSHAKE = 0x9000,
 
                 CLIENT_GATEWAY_PATCH_REQUEST = 0x6100,
