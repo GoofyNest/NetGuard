@@ -35,7 +35,7 @@ namespace NetGuard.Engine
                 Custom.WriteLine($"Redirect settings for {bindAddr}:{port} were loaded!");
 
                 _listenerSocket.Bind(new IPEndPoint(IPAddress.Parse(bindAddr), port));
-                _listenerSocket.Listen(100);
+                _listenerSocket.Listen(200);
 
                 _acceptTask = AcceptConnectionsAsync(_cancellationTokenSource.Token);
                 await _acceptTask;

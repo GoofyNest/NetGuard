@@ -6,8 +6,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using static Engine.Framework.Opcodes.Client;
 using static Engine.Framework.Opcodes.Server;
+
 namespace NetGuard.Engine
 {
     public class FixedSizeQueue<T>
@@ -37,51 +40,50 @@ namespace NetGuard.Engine
 
     sealed class AgentContext
     {
-        private Socket _clientSocket = null;
-        AsyncServer.delClientDisconnect _delDisconnect;
+        private Socket _clientSocket;
+        private readonly AsyncServer.DelClientDisconnect _delDisconnect;
+        private readonly object _lock = new object();
+        private Socket _moduleSocket;
+        private readonly AsyncServer.E_ServerType _handlerType;
 
-        object m_Lock = new object();
+        private byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
+        private byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
-        Socket _moduleSocket = null;
-        AsyncServer.E_ServerType _handlerType;
-
-        byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
-        byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
-
-        Security _localSecurity = new Security();
-        Security _remoteSecurity = new Security();
-
-        //Thread m_TransferPoolThread = null;
+        private readonly Security _localSecurity = new Security();
+        private readonly Security _remoteSecurity = new Security();
 
         public static FixedSizeQueue<Packet> _lastPackets = new FixedSizeQueue<Packet>(100);
         private ulong _bytesReceivedFromClient = 0;
-        private DateTime _startTime = DateTime.Now;
-
+        private readonly DateTime _startTime = DateTime.Now;
         private AgentClient _client;
 
-        public AgentContext(Socket clientSocket, AsyncServer.delClientDisconnect delDisconnect)
+        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+
+        public AgentContext(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
         {
-            this._clientSocket = clientSocket;
-            this._delDisconnect = delDisconnect;
-            this._handlerType = AsyncServer.E_ServerType.AgentServer;
-            this._moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _clientSocket = clientSocket;
+            _delDisconnect = delDisconnect;
+            _handlerType = AsyncServer.E_ServerType.AgentServer;
+            _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            this._client = new AgentClient();
-
-            this._client.ip = ((IPEndPoint)_clientSocket.RemoteEndPoint).Address.ToString();
+            _client = new AgentClient
+            {
+                ip = ((IPEndPoint)_clientSocket.RemoteEndPoint).Address.ToString()
+            };
 
             Custom.WriteLine($"New connection {_client.ip}", ConsoleColor.Cyan);
 
             try
             {
-                this._moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5884));
-                this._localSecurity.GenerateSecurity(true, true, true);
-                this.DoReceiveFromClient();
-                Send(false);
+                _moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5779));
+                _localSecurity.GenerateSecurity(true, true, true);
+                _ = DoReceiveFromClientAsync();
+                //_ = DoReceiveFromServerAsync();
+                _ = SendAsync(false);
             }
-            catch
+            catch (Exception ex)
             {
-                Custom.WriteLine("Remote host (100.127.205.174:5884) is unreachable.", ConsoleColor.Red);
+                Custom.WriteLine($"Remote host (100.127.205.174:5779) is unreachable. Exception: {ex}", ConsoleColor.Red);
             }
         }
 
@@ -95,169 +97,162 @@ namespace NetGuard.Engine
         {
             try
             {
-                if (this._moduleSocket != null)
-                {
-                    this._moduleSocket.Close();
-                }
-                this._moduleSocket = null;
+                _moduleSocket?.Close();
+                _moduleSocket = null;
             }
-            catch
+            catch (Exception ex)
             {
-                Custom.WriteLine("Error occurred while disconnecting module socket.", ConsoleColor.Red);
+                Custom.WriteLine($"Error occurred while disconnecting module socket. Exception: {ex}", ConsoleColor.Red);
             }
         }
 
-        void OnReceiveFromServer(IAsyncResult iar)
+        private async Task DoReceiveFromServerAsync()
         {
-            lock (m_Lock)
+            try
             {
-                try
+                while (true)
                 {
-                    int nReceived = _moduleSocket.EndReceive(iar);
-                    if (nReceived != 0)
+                    int nReceived = await _moduleSocket.ReceiveAsync(new ArraySegment<byte>(_remoteBuffer), SocketFlags.None);
+                    if (nReceived > 0)
                     {
-                        this._remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
-                        var remotePackets = _remoteSecurity.TransferIncoming();
-
-                        if (remotePackets != null)
-                        {
-                            for (int i = 0; i < remotePackets.Count; i++)
-                            {
-                                var packet = remotePackets[i];
-
-                                //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                                Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
-
-
-
-                                this._localSecurity.Send(packet);
-                                Send(false);
-                            }
-                        }
+                        HandleReceivedDataFromServer(nReceived);
                     }
                     else
                     {
-                        this.DisconnectModuleSocket();
-                        this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                        DisconnectModuleSocket();
+                        _delDisconnect.Invoke(ref _clientSocket, _handlerType);
                         return;
                     }
-
-                    DoReceiveFromServer();
                 }
-                catch
+            }
+            catch (Exception ex)
+            {
+                DisconnectModuleSocket();
+                _delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                Custom.WriteLine($"Exception in DoReceiveFromServerAsync: {ex}", ConsoleColor.Red);
+            }
+        }
+
+        private void HandleReceivedDataFromServer(int nReceived)
+        {
+            lock (_lock)
+            {
+                _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
+                var remotePackets = _remoteSecurity.TransferIncoming();
+
+                if (remotePackets != null)
                 {
-                    this.DisconnectModuleSocket();
-                    this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                    for (int i = 0; i < remotePackets.Count; i++)
+                    {
+                        var packet = remotePackets[i];
+                        Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+
+                        switch (packet.Opcode)
+                        {
+                            case LOGIN_SERVER_HANDSHAKE:
+                                {
+                                    _ = SendAsync(true);
+                                    continue;
+                                }
+                        }
+
+                        _localSecurity.Send(packet);
+                        _ = SendAsync(false);
+                    }
                 }
             }
         }
 
-        void Send(bool toHost)
+        private async Task SendAsync(bool toHost)
         {
-            lock (m_Lock)
-                foreach (var p in (toHost ? _remoteSecurity : _localSecurity).TransferOutgoing())
+            await _sendLock.WaitAsync();
+            try
+            {
+                var security = toHost ? _remoteSecurity : _localSecurity;
+                foreach (var packet in security.TransferOutgoing())
                 {
-                    Socket socket = (toHost ? _moduleSocket : _clientSocket);
+                    var socket = toHost ? _moduleSocket : _clientSocket;
 
-                    socket.Send(p.Key.Buffer);
+                    await socket.SendAsync(new ArraySegment<byte>(packet.Key.Buffer), SocketFlags.None);
 
                     if (toHost)
                     {
                         try
                         {
-                            _bytesReceivedFromClient += (ulong)p.Key.Size;
-
+                            _bytesReceivedFromClient += (ulong)packet.Key.Size;
                             double bytesPerSecond = GetBytesPerSecondFromClient();
                             if (bytesPerSecond > 1000)
                             {
                                 Custom.WriteLine($"Client({_client.ip}) disconnected for flooding.", ConsoleColor.Yellow);
 
-                                this.DisconnectModuleSocket();
-                                this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                                DisconnectModuleSocket();
+                                _delDisconnect.Invoke(ref _clientSocket, _handlerType);
                                 return;
                             }
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            this.DisconnectModuleSocket();
-                            this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                            Custom.WriteLine($"Exception in SendAsync (toHost): {ex}", ConsoleColor.Red);
+                            DisconnectModuleSocket();
+                            _delDisconnect.Invoke(ref _clientSocket, _handlerType);
                         }
                     }
                 }
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
 
-        void OnReceiveFromClient(IAsyncResult iar)
+        private async Task DoReceiveFromClientAsync()
         {
-            lock (m_Lock)
+            try
             {
-                try
+                while (true)
                 {
-                    int nReceived = _clientSocket.EndReceive(iar);
-
-                    if (nReceived != 0)
+                    int nReceived = await _clientSocket.ReceiveAsync(new ArraySegment<byte>(_localBuffer), SocketFlags.None);
+                    if (nReceived > 0)
                     {
-                        _localSecurity.Recv(_localBuffer, 0, nReceived);
-                        var receivedPackets = _localSecurity.TransferIncoming();
-
-                        if (receivedPackets != null)
-                        {
-                            for (int i = 0; i < receivedPackets.Count; i++)
-                            {
-                                var packet = receivedPackets[i];
-
-                                //Custom.WriteLine($"[C->S] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                                Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
-
-
-
-                                Packet CopyOfPacket = packet;
-                                _lastPackets.Enqueue(CopyOfPacket);
-                                this._remoteSecurity.Send(packet);
-                                Send(true);
-                            }
-                        }
-
+                        HandleReceivedDataFromClient(nReceived);
                     }
                     else
                     {
-                        this.DisconnectModuleSocket();
-                        this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                        DisconnectModuleSocket();
+                        _delDisconnect.Invoke(ref _clientSocket, _handlerType);
                         return;
                     }
-
-                    this.DoReceiveFromClient();
                 }
-                catch
+            }
+            catch (Exception ex)
+            {
+                DisconnectModuleSocket();
+                _delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                Custom.WriteLine($"Exception in DoReceiveFromClientAsync: {ex}", ConsoleColor.Red);
+            }
+        }
+
+        private async Task HandleReceivedDataFromClient(int nReceived)
+        {
+            lock (_lock)
+            {
+                _localSecurity.Recv(_localBuffer, 0, nReceived);
+                var receivedPackets = _localSecurity.TransferIncoming();
+
+                if (receivedPackets != null)
                 {
-                    this.DisconnectModuleSocket();
-                    this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                    for (int i = 0; i < receivedPackets.Count; i++)
+                    {
+                        var packet = receivedPackets[i];
+                        Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+
+
+                        Packet copyOfPacket = packet;
+                        _lastPackets.Enqueue(copyOfPacket);
+                        _remoteSecurity.Send(packet);
+                        _ = SendAsync(true);
+                    }
                 }
-            }
-        }
-
-        void DoReceiveFromServer()
-        {
-            try
-            {
-                this._moduleSocket.BeginReceive(_remoteBuffer, 0, _remoteBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceiveFromServer), null);
-            }
-            catch
-            {
-                this.DisconnectModuleSocket();
-                this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
-            }
-        }
-
-        void DoReceiveFromClient()
-        {
-            try
-            {
-                this._clientSocket.BeginReceive(_localBuffer, 0, _localBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceiveFromClient), null);
-            }
-            catch
-            {
-                this.DisconnectModuleSocket();
-                this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
             }
         }
     }

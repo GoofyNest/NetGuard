@@ -16,8 +16,7 @@ namespace AgentContext
         public async void startGateway()
         {
             AsyncServer _server = new AsyncServer();
-
-            _server.Start("100.127.205.174", 15884, AsyncServer.E_ServerType.AgentServer);
+            await _server.StartAsync("100.127.205.174", 15884, AsyncServer.E_ServerType.AgentServer);
 
             await Task.Delay(1);
         }
