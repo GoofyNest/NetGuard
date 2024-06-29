@@ -17,7 +17,7 @@ namespace NetGuard.Engine
 
         public enum E_ServerType : byte
         {
-            GatewayServer
+            AgentServer
         }
 
         public delegate void delClientDisconnect(ref Socket ClientSocket, E_ServerType HandlerType);
@@ -92,10 +92,10 @@ namespace NetGuard.Engine
             {
                 switch (m_ServerType)
                 {
-                    case E_ServerType.GatewayServer:
+                    case E_ServerType.AgentServer:
                         {
                             // Add context
-                            new GatewayContext(ClientSocket, OnClientDisconnect);
+                            new AgentContext(ClientSocket, OnClientDisconnect);
                         }
                         break;
                     default:

@@ -35,7 +35,7 @@ namespace NetGuard.Engine
         }
     }
 
-    sealed class GatewayContext
+    sealed class AgentContext
     {
         private Socket _clientSocket = null;
         AsyncServer.delClientDisconnect _delDisconnect;
@@ -57,16 +57,16 @@ namespace NetGuard.Engine
         private ulong _bytesReceivedFromClient = 0;
         private DateTime _startTime = DateTime.Now;
 
-        private GatewayClient _client;
+        private AgentClient _client;
 
-        public GatewayContext(Socket clientSocket, AsyncServer.delClientDisconnect delDisconnect)
+        public AgentContext(Socket clientSocket, AsyncServer.delClientDisconnect delDisconnect)
         {
             this._clientSocket = clientSocket;
             this._delDisconnect = delDisconnect;
-            this._handlerType = AsyncServer.E_ServerType.GatewayServer;
+            this._handlerType = AsyncServer.E_ServerType.AgentServer;
             this._moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            this._client = new GatewayClient();
+            this._client = new AgentClient();
 
             this._client.ip = ((IPEndPoint)_clientSocket.RemoteEndPoint).Address.ToString();
 
@@ -74,14 +74,14 @@ namespace NetGuard.Engine
 
             try
             {
-                this._moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5779));
+                this._moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5884));
                 this._localSecurity.GenerateSecurity(true, true, true);
                 this.DoReceiveFromClient();
                 Send(false);
             }
             catch
             {
-                Custom.WriteLine("Remote host (100.127.205.174:5779) is unreachable.", ConsoleColor.Red);
+                Custom.WriteLine("Remote host (100.127.205.174:5884) is unreachable.", ConsoleColor.Red);
             }
         }
 
@@ -128,27 +128,7 @@ namespace NetGuard.Engine
                                 //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
                                 Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
 
-                                switch (packet.Opcode)
-                                {
-                                    case LOGIN_SERVER_HANDSHAKE:
-                                        {
-                                            Send(true);
-                                            continue;
-                                        }
 
-                                    case SERVER_GATEWAY_PATCH_RESPONSE:
-                                        _client.sent_id = 1;
-                                        break;
-
-                                    case SERVER_GATEWAY_SHARD_LIST_RESPONSE:
-                                        _client.sent_list = 1;
-                                        break;
-
-                                    default:
-                                        Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                                        //Custom.WriteLine($"[S->C] Unknown packet {packet.Opcode:X4} {packet.GetBytes().Length}", ConsoleColor.Yellow);
-                                        break;
-                                }
 
                                 this._localSecurity.Send(packet);
                                 Send(false);
@@ -228,116 +208,7 @@ namespace NetGuard.Engine
                                 //Custom.WriteLine($"[C->S] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
                                 Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
 
-                                switch (packet.Opcode)
-                                {
-                                    case LOGIN_SERVER_HANDSHAKE:
-                                    case CLIENT_ACCEPT_HANDSHAKE:
-                                        {
-                                            Send(false);
-                                            continue;
-                                        }
 
-                                    case CLIENT_GATEWAY_PATCH_REQUEST:
-                                        {
-                                            try
-                                            {
-                                                byte contentID = packet.ReadUInt8();
-                                                string ModuleName = packet.ReadAscii();
-                                                UInt32 version = packet.ReadUInt32();
-                                            }
-                                            catch (Exception ex)
-                                            {
-                                                Custom.WriteLine(ex.ToString(), ConsoleColor.Red);
-                                                Custom.WriteLine($"Wrong packet structure for CLIENT_GATEWAY_PATCH_REQUEST", ConsoleColor.Red);
-                                                this.DisconnectModuleSocket();
-                                                return;
-                                            }
-                                        }
-                                        break;
-
-                                    case CLIENT_GATEWAY_SHARD_LIST_REQUEST:
-                                        {
-                                            if (packet.GetBytes().Length > 0)
-                                            {
-                                                Custom.WriteLine($"Ignore packet CLIENT_GATEWAY_SHARD_LIST_REQUEST from {_client.ip}", ConsoleColor.Yellow);
-                                                continue;
-                                            }
-
-                                            Custom.WriteLine($"CLIENT_GATEWAY_SHARD_LIST_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
-                                        }
-                                        break;
-
-                                    case CLIENT_GATEWAY_LOGIN_REQUEST:
-                                        {
-                                            byte locale = packet.ReadUInt8();
-                                            _client.StrUserID = packet.ReadAscii();
-                                            _client.password = packet.ReadAscii();
-                                            _client.serverID = packet.ReadUInt16();
-
-                                            if (_client.sent_id != 1 || _client.sent_list != 1)
-                                            {
-                                                Custom.WriteLine($"Disconnected user {_client.StrUserID} {_client.password} {_client.ip} for exploiting", ConsoleColor.Yellow);
-                                                this.DisconnectModuleSocket();
-                                                return;
-                                            }
-                                        }
-                                        break;
-
-                                    case CLIENT_GATEWAY_NOTICE_REQUEST:
-                                        {
-                                            byte contentID = packet.ReadUInt8();
-
-                                            if (packet.GetBytes().Length > 1)
-                                            {
-                                                Custom.WriteLine($"Ignore packet CLIENT_GATEWAY_NOTICE_REQUEST from {_client.ip}", ConsoleColor.Yellow);
-                                                continue;
-                                            }
-
-                                            Custom.WriteLine($"CLIENT_GATEWAY_NOTICE_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
-                                        }
-                                        break;
-
-                                    case CLIENT_GATEWAY_SHARD_LIST_PING_REQUEST:
-                                        {
-                                            Custom.WriteLine($"CLIENT_GATEWAY_SHARD_LIST_PING_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
-                                        }
-                                        break;
-
-                                    case CLIENT_GATEWAY_LOGIN_IBUV_ANSWER:
-                                        {
-                                            string code = packet.ReadAscii();
-                                        }
-                                        break;
-
-                                    case GLOBAL_IDENTIFICATION:
-                                        {
-                                            if (packet.GetBytes().Length != 12)
-                                            {
-                                                Custom.WriteLine($"Ignore packet GLOBAL_IDENTIFICATION from {_client.ip}", ConsoleColor.Yellow);
-                                                continue;
-                                            }
-
-                                            this.DoReceiveFromServer();
-                                            continue;
-                                        }
-
-                                    case CLIENT_GLOBAL_PING:
-                                        {
-                                            if (packet.GetBytes().Length != 0)
-                                            {
-                                                Custom.WriteLine($"Ignore packet CLIENT_GLOBAL_PING from {_client.ip}", ConsoleColor.Yellow);
-                                                continue;
-                                            }
-                                        }
-                                        break;
-
-                                    default:
-                                        {
-                                            //var test = $"[C->S][{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                                            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                                            continue;
-                                        }
-                                }
 
                                 Packet CopyOfPacket = packet;
                                 _lastPackets.Enqueue(CopyOfPacket);

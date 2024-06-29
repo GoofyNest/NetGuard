@@ -2,13 +2,13 @@
 using System;
 using System.Threading.Tasks;
 
-namespace GatewayContext
+namespace AgentContext
 {
     public class Main
     {
         public void StartProgram(string discordId, string discordName, string date)
         {
-            Console.Title = "NetGuard | GatewayContext";
+            Console.Title = "NetGuard | AgentContext";
 
             startGateway();
         }
@@ -17,7 +17,7 @@ namespace GatewayContext
         {
             AsyncServer _server = new AsyncServer();
 
-            _server.Start("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayServer);
+            _server.Start("100.127.205.174", 15884, AsyncServer.E_ServerType.AgentServer);
 
             await Task.Delay(1);
         }
