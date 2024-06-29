@@ -7,118 +7,138 @@ using System.Threading.Tasks;
 
 namespace NetGuard.Engine
 {
-    public sealed class AsyncServer : IDisposable
+    public sealed class AsyncServer
     {
-        private Socket _listenerSocket = null;
-        private E_ServerType _serverType;
-        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-        private Task _acceptTask;
+        Socket m_ListenerSock = null;
+        E_ServerType m_ServerType;
+
+        ManualResetEvent m_Waiter = new ManualResetEvent(false);
+        Thread m_AcceptInitThread = null;
 
         public enum E_ServerType : byte
         {
             GatewayServer
         }
 
-        public delegate void DelClientDisconnect(ref Socket clientSocket, E_ServerType handlerType);
+        public delegate void delClientDisconnect(ref Socket ClientSocket, E_ServerType HandlerType);
 
-        public async Task StartAsync(string bindAddr, int port, E_ServerType servType)
+        public bool Start(string BindAddr, int nPort, E_ServerType ServType)
         {
-            if (_listenerSocket != null)
+            bool res = false;
+            if (m_ListenerSock != null)
             {
                 throw new Exception("Trying to start server on socket which is already in use");
             }
 
-            _serverType = servType;
-            _listenerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            m_ServerType = ServType;
+            m_ListenerSock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             try
             {
-                Custom.WriteLine($"Redirect settings for {bindAddr}:{port} were loaded!");
+                Custom.WriteLine("Redirect settings for {" + BindAddr + ":" + nPort + "} was loaded!");
 
-                _listenerSocket.Bind(new IPEndPoint(IPAddress.Parse(bindAddr), port));
-                _listenerSocket.Listen(200);
+                m_ListenerSock.Bind(new IPEndPoint(IPAddress.Parse(BindAddr), nPort));
+                m_ListenerSock.Listen(200);
 
-                _acceptTask = AcceptConnectionsAsync(_cancellationTokenSource.Token);
-                await _acceptTask;
+                m_AcceptInitThread = new Thread(AcceptInitThread);
+                m_AcceptInitThread.Start();
             }
-            catch (SocketException socketEx)
+            catch (SocketException SocketEx)
             {
-                Custom.WriteLine($"Could not bind/listen/accept socket. Exception: {socketEx}", ConsoleColor.Red);
+                Custom.WriteLine($"Could not bind/listen/BeginAccept socket. Exception: {SocketEx.ToString()}", ConsoleColor.Red);
             }
+
+            return res;
         }
 
-        private async Task AcceptConnectionsAsync(CancellationToken cancellationToken)
+        void AcceptInitThread()
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (m_ListenerSock != null)
             {
+                m_Waiter.Reset();
                 try
                 {
-                    var clientSocket = await _listenerSocket.AcceptAsync();
-                    _ = Task.Run(() => HandleClientAsync(clientSocket), cancellationToken);
+                    m_ListenerSock.BeginAccept(
+                        new AsyncCallback(AcceptConnectionCallback), null
+                        );
                 }
-                catch (Exception ex)
-                {
-                    Custom.WriteLine($"Exception in AcceptConnectionsAsync: {ex.ToString()}", ConsoleColor.Red);
-                }
+                catch { }
+                m_Waiter.WaitOne();
             }
         }
 
-        private async Task HandleClientAsync(Socket clientSocket)
+        void AcceptConnectionCallback(IAsyncResult iar)
         {
+            Socket ClientSocket = null;
+
+            //AcceptInitThread sleeps...
+            m_Waiter.Set();
+
             try
             {
-                switch (_serverType)
+                ClientSocket = m_ListenerSock.EndAccept(iar);
+            }
+
+            catch (SocketException SocketEx)
+            {
+                Custom.WriteLine($"AcceptConnectionCallback()::SocketException while EndAccept. Exception: {SocketEx.ToString()}", ConsoleColor.Red);
+
+            }
+            catch (ObjectDisposedException ObjDispEx)
+            {
+                Custom.WriteLine($"AcceptConnectionCallback()::ObjectDisposedException while EndAccept. Is server shutting down ? Exception: {ObjDispEx.ToString()}", ConsoleColor.Red);
+            }
+
+            try
+            {
+                switch (m_ServerType)
                 {
                     case E_ServerType.GatewayServer:
-                        new GatewayContext(clientSocket, OnClientDisconnect);
+                        {
+                            // Add context
+                            new GatewayContext(ClientSocket, OnClientDisconnect);
+                        }
                         break;
                     default:
-                        Custom.WriteLine("Unknown server type", ConsoleColor.Red);
+                        {
+                            Custom.WriteLine("AcceptConnectionCallback()::Unknown server type", ConsoleColor.Red);
+                        }
                         break;
                 }
             }
-            catch (SocketException socketEx)
+            catch (SocketException SocketEx)
             {
-                Custom.WriteLine($"Error while starting context. Exception: {socketEx}", ConsoleColor.Red);
+                Custom.WriteLine($"AcceptConnectionCallback()::Error while starting context. Exception: {SocketEx.ToString()}", ConsoleColor.Red);
             }
         }
 
-        private void OnClientDisconnect(ref Socket clientSocket, E_ServerType handlerType)
+        void OnClientDisconnect(ref Socket ClientSock, E_ServerType HandlerType)
         {
-            if (clientSocket == null) return;
+            // Check
+            if (ClientSock == null)
+            {
+                return;
+            }
 
             try
             {
-                clientSocket.Close();
+                ClientSock.Close();
             }
-            catch (Exception ex)
+            catch (SocketException SocketEx)
             {
-                Custom.WriteLine($"OnClientDisconnect()::Error closing socket. Exception: {ex}", ConsoleColor.Red);
+                Custom.WriteLine($"OnClientDisconnect()::Error closing socket. Exception: {SocketEx.ToString()}", ConsoleColor.Red);
+            }
+            catch (ObjectDisposedException ObjDispEx)
+            {
+                Custom.WriteLine($"OnClientDisconnect()::Error closing socket (socket already disposed?). Exception: {ObjDispEx.ToString()}", ConsoleColor.Red);
+            }
+            catch
+            {
+                Custom.WriteLine("Something went wrong with Async systems.", ConsoleColor.Red);
             }
 
-            clientSocket = null;
+
+            ClientSock = null;
             GC.Collect();
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        private void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _cancellationTokenSource.Cancel();
-                _listenerSocket?.Close();
-                _listenerSocket = null;
-                _acceptTask?.Wait();
-            }
-        }
-
-        ~AsyncServer()
-        {
-            Dispose(false);
         }
     }
 }

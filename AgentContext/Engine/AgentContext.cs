@@ -75,7 +75,7 @@ namespace NetGuard.Engine
 
             try
             {
-                _moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5779));
+                _moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5884));
                 _localSecurity.GenerateSecurity(true, true, true);
                 _ = DoReceiveFromClientAsync();
                 //_ = DoReceiveFromServerAsync();
@@ -83,7 +83,7 @@ namespace NetGuard.Engine
             }
             catch (Exception ex)
             {
-                Custom.WriteLine($"Remote host (100.127.205.174:5779) is unreachable. Exception: {ex}", ConsoleColor.Red);
+                Custom.WriteLine($"Remote host (100.127.205.174:5884) is unreachable. Exception: {ex}", ConsoleColor.Red);
             }
         }
 
