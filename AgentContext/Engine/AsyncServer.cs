@@ -52,16 +52,17 @@ namespace NetGuard.Engine
 
         void AcceptInitThread()
         {
-            while (m_ListenerSock != null)
+            while (true)
             {
                 m_Waiter.Reset();
                 try
                 {
-                    m_ListenerSock.BeginAccept(
-                        new AsyncCallback(AcceptConnectionCallback), null
-                        );
+                    m_ListenerSock.BeginAccept(new AsyncCallback(AcceptConnectionCallback), null);
                 }
-                catch { }
+                catch (SocketException ex)
+                {
+                    Console.WriteLine($"SocketException in AcceptInitThread: {ex.Message}");
+                }
                 m_Waiter.WaitOne();
             }
         }

@@ -15,9 +15,8 @@ namespace GatewayContext
 
         public async void startGateway()
         {
-            AsyncServer _server = new AsyncServer();
-
-            _server.Start("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayServer);
+            AsyncServer server = new AsyncServer();
+            await server.StartAsync("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayServer);
 
             await Task.Delay(1);
         }
