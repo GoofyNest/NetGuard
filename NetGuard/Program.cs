@@ -72,11 +72,10 @@ namespace NetGuard
             {
                 Custom.WriteLine($"No settings found, creating new example configuration", ConsoleColor.Cyan);
 
+                _config._gatewayModules.Add(new GatewaySettings() { name = "Example #1" });
+
                 for (var i = 0; i<3; i++)
-                {
-                    _config._gatewayModules.Add(new GatewaySettings() { name = "Example #"+i });
                     _config._agentModules.Add(new AgentSettings() { name = "Example #" + i });
-                }
 
                 File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
             }
