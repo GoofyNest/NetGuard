@@ -41,7 +41,7 @@ namespace NetGuard.Engine
     sealed class GatewayContext
     {
         private Socket _clientSocket = null;
-        AsyncServer.delClientDisconnect _delDisconnect;
+        private AsyncServer.DelClientDisconnect _delDisconnect;
 
         object m_Lock = new object();
 
@@ -60,7 +60,7 @@ namespace NetGuard.Engine
 
         private GatewayClient _client;
 
-        public GatewayContext(Socket clientSocket, AsyncServer.delClientDisconnect delDisconnect)
+        public GatewayContext(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
         {
             _clientSocket = clientSocket;
             _delDisconnect = delDisconnect;
@@ -184,17 +184,30 @@ namespace NetGuard.Engine
         void Send(bool toHost)
         {
             lock (m_Lock)
-                foreach (var p in (toHost ? _remoteSecurity : _localSecurity).TransferOutgoing())
+            {
+                var security = toHost ? _remoteSecurity : _localSecurity;
+
+                if (security == null)
+                    return;
+
+                var socket = toHost ? _moduleSocket : _clientSocket;
+                if (socket == null)
+                    return;
+
+                var outgoing = security.TransferOutgoing();
+                if (outgoing == null)
+                    return;
+
+                for (var i = 0; i < outgoing.Count; i++)
                 {
-                    Socket socket = (toHost ? _moduleSocket : _clientSocket);
+                    var packet = outgoing[i];
 
-                    socket.Send(p.Key.Buffer);
-
-                    if (toHost)
+                    try
                     {
-                        try
+                        socket.Send(packet.Key.Buffer);
+                        if (toHost)
                         {
-                            _bytesReceivedFromClient += (ulong)p.Key.Size;
+                            _bytesReceivedFromClient += (ulong)packet.Key.Size;
 
                             double bytesPerSecond = GetBytesPerSecondFromClient();
                             if (bytesPerSecond > 1000)
@@ -206,13 +219,15 @@ namespace NetGuard.Engine
                                 return;
                             }
                         }
-                        catch
-                        {
-                            this.DisconnectModuleSocket();
-                            this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
-                        }
+
+                    }
+                    catch
+                    {
+                        this.DisconnectModuleSocket();
+                        this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
                     }
                 }
+            }
         }
 
         private void OnReceiveFromClientAsync(IAsyncResult iar)

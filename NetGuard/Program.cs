@@ -107,7 +107,7 @@ namespace NetGuard
 
             //var _module = _config._gatewayModules[moduleIndex];
 
-            byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayContext\\bin\\Debug\\GatewayContext.dll");
+            byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayContext\\bin\\Release\\GatewayContext.dll");
             var _reponse = Convert.ToBase64String(dllBytes);
 
             _appDomain.SetData("Assembly", dllBytes);
