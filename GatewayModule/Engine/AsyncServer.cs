@@ -16,7 +16,7 @@ namespace NetGuard.Engine
 
         public enum E_ServerType : byte
         {
-            AgentServer
+            GatewayModule
         }
 
         public delegate void DelClientDisconnect(ref Socket clientSocket, E_ServerType handlerType);
@@ -35,7 +35,7 @@ namespace NetGuard.Engine
                 Custom.WriteLine($"Redirect settings for {bindAddr}:{port} were loaded!");
 
                 _listenerSocket.Bind(new IPEndPoint(IPAddress.Parse(bindAddr), port));
-                _listenerSocket.Listen(200);
+                _listenerSocket.Listen(100);
 
                 _acceptTask = AcceptConnectionsAsync(_cancellationTokenSource.Token);
                 await _acceptTask;
@@ -68,8 +68,8 @@ namespace NetGuard.Engine
             {
                 switch (_serverType)
                 {
-                    case E_ServerType.AgentServer:
-                        new AgentContext(clientSocket, OnClientDisconnect);
+                    case E_ServerType.GatewayModule:
+                        new GatewayModule(clientSocket, OnClientDisconnect);
                         break;
                     default:
                         Custom.WriteLine("Unknown server type", ConsoleColor.Red);

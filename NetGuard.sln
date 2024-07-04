@@ -5,9 +5,9 @@ VisualStudioVersion = 17.10.34916.146
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetGuard", "NetGuard\NetGuard.csproj", "{067BB60C-BB7E-433E-8D03-12DE4C6D6AA5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GatewayContext", "GatewayContext\GatewayContext.csproj", "{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GatewayModule", "GatewayModule\GatewayModule.csproj", "{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentContext", "AgentContext\AgentContext.csproj", "{48E676C0-369B-4339-9EB0-253804FB151B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentModule", "AgentModule\AgentModule.csproj", "{48E676C0-369B-4339-9EB0-253804FB151B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Threading;
 
-namespace NetGuard.Functions
+namespace NetGuardLoader.Functions
 {
     public static class SingleApplicationDetector
     {

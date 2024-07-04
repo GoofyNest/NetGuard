@@ -16,7 +16,7 @@ namespace NetGuard.Engine
 
         public enum E_ServerType : byte
         {
-            GatewayServer
+            AgentModule
         }
 
         public delegate void DelClientDisconnect(ref Socket clientSocket, E_ServerType handlerType);
@@ -68,8 +68,8 @@ namespace NetGuard.Engine
             {
                 switch (_serverType)
                 {
-                    case E_ServerType.GatewayServer:
-                        new GatewayContext(clientSocket, OnClientDisconnect);
+                    case E_ServerType.AgentModule:
+                        new AgentModule(clientSocket, OnClientDisconnect);
                         break;
                     default:
                         Custom.WriteLine("Unknown server type", ConsoleColor.Red);

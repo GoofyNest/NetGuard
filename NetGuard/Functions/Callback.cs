@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace NetGuard.Functions
+namespace NetGuardLoader.Functions
 {
     internal class Callback
     {
@@ -10,7 +10,7 @@ namespace NetGuard.Functions
             byte[] assemblyToLoad = (byte[])AppDomain.CurrentDomain.GetData("Assembly");
             Program._assembly = Assembly.Load(assemblyToLoad);
 
-            Type _dll = Program._assembly.GetType("GatewayContext.Main");
+            Type _dll = Program._assembly.GetType("Module.Main");
             object _instance = Activator.CreateInstance(_dll);
 
             MethodInfo _programFunction = _dll.GetMethod("StartProgram", BindingFlags.Public | BindingFlags.Instance);

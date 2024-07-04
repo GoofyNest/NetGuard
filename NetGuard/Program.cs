@@ -1,6 +1,6 @@
-﻿using NetGuard.Classes;
-using NetGuard.Functions;
-using NetGuard.Services;
+﻿using NetGuardLoader.Classes;
+using NetGuardLoader.Functions;
+using NetGuardLoader.Services;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -9,8 +9,13 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace NetGuard
+namespace NetGuardLoader
 {
+    public interface IPlugin
+    {
+        int Execute(object[] args);
+    }
+
     internal class Program
     {
         public static string discordId = "";
@@ -104,14 +109,6 @@ namespace NetGuard
                 }
             }
 
-            //var _module = _config._gatewayModules[moduleIndex];
-
-            byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayContext\\bin\\Release\\GatewayContext.dll");
-            var _reponse = Convert.ToBase64String(dllBytes);
-
-            _appDomain.SetData("Assembly", dllBytes);
-            _appDomain.DoCallBack(Callback.init);
-
             if (args.Length <= 0)
             {
                 Custom.WriteLine("You need to start the loader with arguments", ConsoleColor.Cyan);
@@ -142,13 +139,13 @@ namespace NetGuard
                         {
                             try
                             {
-                                //var _module = _config._gatewayModules[moduleIndex];
-                                //
-                                //byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayContext\\bin\\Debug\\GatewayContext.dll");
-                                //var _reponse = Convert.ToBase64String(dllBytes);
-                                //
-                                //_appDomain.SetData("Assembly", dllBytes);
-                                //_appDomain.DoCallBack(Callback.init);
+                                var _module = _config._gatewayModules[moduleIndex];
+                                
+                                byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayModule\\bin\\Release\\GatewayModule.dll");
+                                var _reponse = Convert.ToBase64String(dllBytes);
+                                
+                                _appDomain.SetData("Assembly", dllBytes);
+                                _appDomain.DoCallBack(Callback.init);
                             }
                             catch(Exception ex) {
                                 Custom.WriteLine($"Could not load the gatewayModule", ConsoleColor.Red);
@@ -161,13 +158,13 @@ namespace NetGuard
                         {
                             try
                             {
-                                //var _module = _config._agentModules[moduleIndex];
+                                var _module = _config._agentModules[moduleIndex];
 
-                                //byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayContext\\bin\\Debug\\GatewayContext.dll");
-                                //var _reponse = Convert.ToBase64String(dllBytes);
-                                //
-                                //_appDomain.SetData("Assembly", dllBytes);
-                                //_appDomain.DoCallBack(Callback.init);
+                                byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\AgentModule\\bin\\Release\\AgentModule.dll");
+                                var _reponse = Convert.ToBase64String(dllBytes);
+                                
+                                _appDomain.SetData("Assembly", dllBytes);
+                                _appDomain.DoCallBack(Callback.init);
                             }
                             catch (Exception ex)
                             {
@@ -195,7 +192,7 @@ namespace NetGuard
             //_appDomain.SetData("Assembly", dllBytes);
             //_appDomain.DoCallBack(Callback.init);
 
-            new Thread(ConsolePoolThread).Start();
+            //new Thread(ConsolePoolThread).Start();
         }
     }
 }

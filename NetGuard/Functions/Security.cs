@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 #pragma warning disable CS0168
 
-namespace NetGuard.Functions
+namespace NetGuardLoader.Functions
 {
     public static class b64
     {

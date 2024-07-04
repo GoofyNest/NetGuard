@@ -1,11 +1,14 @@
-﻿using NetGuard.Services;
+﻿using Module;
+using NetGuard.Services;
 using SilkroadSecurityAPI;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using static Engine.Framework.Opcodes.Client;
@@ -38,7 +41,7 @@ namespace NetGuard.Engine
         }
     }
 
-    sealed class GatewayContext
+    sealed class GatewayModule
     {
         private Socket _clientSocket = null;
         private AsyncServer.DelClientDisconnect _delDisconnect;
@@ -60,11 +63,11 @@ namespace NetGuard.Engine
 
         private GatewayClient _client;
 
-        public GatewayContext(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
+        public GatewayModule(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
         {
             _clientSocket = clientSocket;
             _delDisconnect = delDisconnect;
-            _handlerType = AsyncServer.E_ServerType.GatewayServer;
+            _handlerType = AsyncServer.E_ServerType.GatewayModule;
             _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             _client = new GatewayClient
@@ -150,8 +153,11 @@ namespace NetGuard.Engine
                 {
                     var packet = remotePackets[i];
 
+                    var msg = $"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
                     //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                    Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+                    Custom.WriteLine(msg, ConsoleColor.Yellow);
+
+                    //File.AppendAllText($"gateway_{Main.unixTimestamp}_server.txt", "\n" + msg);
 
                     switch (packet.Opcode)
                     {
@@ -167,6 +173,43 @@ namespace NetGuard.Engine
 
                         case SERVER_GATEWAY_SHARD_LIST_RESPONSE:
                             _client.sent_list = 1;
+                            break;
+
+                        case SERVER_GATEWAY_LOGIN_RESPONSE:
+                            {
+                                byte res = packet.ReadUInt8();
+
+                                if(res == 1)
+                                {
+                                    uint id = packet.ReadUInt32();
+                                    string host = packet.ReadAscii();
+                                    int port = packet.ReadUInt16();
+
+                                    var index = Main._config._agentModules.FindIndex(m => m.moduleIP == host && m.modulePort == port);
+                                    if(index == -1)
+                                        continue;
+
+                                    var guardModule = Main._config._agentModules[index];
+
+                                    Custom.WriteLine($"Using {guardModule.guardIP} {guardModule.guardPort}", ConsoleColor.Cyan);
+
+                                    Packet spoof = new Packet(0xA102, true);
+                                    spoof.WriteUInt8(res);
+                                    spoof.WriteUInt32(id);
+
+                                    spoof.WriteAscii(guardModule.guardIP);
+                                    spoof.WriteUInt16(guardModule.guardPort);
+                                    spoof.WriteUInt32((uint)0);
+                                    spoof.Lock();
+
+                                    _localSecurity.Send(spoof);
+                                    Send(false);
+                                }
+
+
+
+
+                            }
                             break;
 
                         default:
@@ -269,7 +312,14 @@ namespace NetGuard.Engine
                 for (int i = 0; i < receivedPackets.Count; i++)
                 {
                     var packet = receivedPackets[i];
-                    Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+
+                    //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+
+                    var msg = $"[C->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
+                    //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
+                    Custom.WriteLine(msg, ConsoleColor.Yellow);
+
+                    //File.AppendAllText($"gateway_{Main.unixTimestamp}_client.txt", "\n" + msg);
 
                     switch (packet.Opcode)
                     {
@@ -287,6 +337,10 @@ namespace NetGuard.Engine
                                     byte contentID = packet.ReadUInt8();
                                     string ModuleName = packet.ReadAscii();
                                     UInt32 version = packet.ReadUInt32();
+
+                                    Custom.WriteLine($"contentID {contentID}");
+                                    Custom.WriteLine($"ModuleName {ModuleName}");
+                                    Custom.WriteLine($"version {version}");
                                 }
                                 catch (Exception ex)
                                 {
@@ -313,6 +367,7 @@ namespace NetGuard.Engine
                         case CLIENT_GATEWAY_LOGIN_REQUEST:
                             {
                                 byte locale = packet.ReadUInt8();
+                                Custom.WriteLine($"locale: {locale}", ConsoleColor.DarkMagenta);
                                 _client.StrUserID = packet.ReadAscii();
                                 _client.password = packet.ReadAscii();
                                 _client.serverID = packet.ReadUInt16();
