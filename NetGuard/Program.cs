@@ -1,13 +1,12 @@
-﻿using NetGuardLoader.Classes;
-using NetGuardLoader.Functions;
-using NetGuardLoader.Services;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
-using System.Threading.Tasks;
+using NetGuardLoader.Classes;
+using NetGuardLoader.Functions;
+using NetGuardLoader.Services;
+using Newtonsoft.Json;
 
 namespace NetGuardLoader
 {
