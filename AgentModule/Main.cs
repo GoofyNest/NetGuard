@@ -30,7 +30,7 @@ namespace Module
             }
         }
 
-        public void StartProgram(string discordId, string discordName, string date)
+        public async void StartProgram(string discordId, string discordName, string date)
         {
             
             //_appDomain.SetData("Assembly", null);
@@ -69,15 +69,15 @@ namespace Module
             //    Console.WriteLine(script.ToString());
             //}
 
-            startAgent();
+            await startAgent();
 
             new Thread(ConsolePoolThread).Start();
         }
 
-        async void startAgent()
+        async Task startAgent()
         {
             AsyncServer _server = new AsyncServer();
-            _server.StartAsync("100.127.205.174", 15884, AsyncServer.E_ServerType.AgentModule);
+            await _server.StartAsync("100.127.205.174", 15884, AsyncServer.E_ServerType.AgentModule);
         }
     }
 }

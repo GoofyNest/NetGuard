@@ -1,80 +1,118 @@
-﻿namespace SilkroadSecurityAPI
+﻿using System;
+
+namespace SilkroadSecurityAPI
 {
     public class TransferBuffer
     {
-        byte[] m_buffer;
-        int m_offset;
-        int m_size;
-        object m_lock;
+        private byte[] _buffer;
+        private int _offset;
+        private int _size;
+        private readonly object _lock = new object();
 
         public byte[] Buffer
         {
-            get { return m_buffer; }
-            set { lock (m_lock) { m_buffer = value; } }
+            get
+            {
+                lock (_lock)
+                {
+                    return _buffer;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    _buffer = value;
+                }
+            }
         }
 
         public int Offset
         {
-            get { return m_offset; }
-            set { lock (m_lock) { m_offset = value; } }
+            get
+            {
+                lock (_lock)
+                {
+                    return _offset;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    _offset = value;
+                }
+            }
         }
 
         public int Size
         {
-            get { return m_size; }
-            set { lock (m_lock) { m_size = value; } }
+            get
+            {
+                lock (_lock)
+                {
+                    return _size;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    _size = value;
+                }
+            }
         }
 
         public TransferBuffer(TransferBuffer rhs)
         {
-            lock (rhs.m_lock)
+            if (rhs == null) throw new ArgumentNullException(nameof(rhs));
+
+            lock (rhs._lock)
             {
-                m_buffer = new byte[rhs.m_buffer.Length];
-                System.Buffer.BlockCopy(rhs.m_buffer, 0, m_buffer, 0, m_buffer.Length);
-                m_offset = rhs.m_offset;
-                m_size = rhs.m_size;
-                m_lock = new object();
+                _buffer = new byte[rhs._buffer.Length];
+                System.Buffer.BlockCopy(rhs._buffer, 0, _buffer, 0, rhs._buffer.Length);
+                _offset = rhs._offset;
+                _size = rhs._size;
             }
         }
 
         public TransferBuffer()
         {
-            m_buffer = null;
-            m_offset = 0;
-            m_size = 0;
-            m_lock = new object();
+            _buffer = Array.Empty<byte>();
+            _offset = 0;
+            _size = 0;
         }
 
         public TransferBuffer(int length, int offset, int size)
         {
-            m_buffer = new byte[length];
-            m_offset = offset;
-            m_size = size;
-            m_lock = new object();
+            if (length < 0 || offset < 0 || size < 0 || offset + size > length)
+                throw new ArgumentOutOfRangeException("Invalid length, offset, or size values.");
+
+            _buffer = new byte[length];
+            _offset = offset;
+            _size = size;
         }
 
-        public TransferBuffer(int length)
-        {
-            m_buffer = new byte[length];
-            m_offset = 0;
-            m_size = 0;
-            m_lock = new object();
-        }
+        public TransferBuffer(int length) : this(length, 0, 0) { }
 
         public TransferBuffer(byte[] buffer, int offset, int size, bool assign)
         {
+            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (offset < 0 || size < 0 || offset + size > buffer.Length)
+                throw new ArgumentOutOfRangeException("Invalid offset or size values.");
+
             if (assign)
             {
-                m_buffer = buffer;
+                _buffer = buffer;
             }
             else
             {
-                m_buffer = new byte[buffer.Length];
-                System.Buffer.BlockCopy(buffer, 0, m_buffer, 0, buffer.Length);
+                _buffer = new byte[buffer.Length];
+                System.Buffer.BlockCopy(buffer, 0, _buffer, 0, buffer.Length);
             }
-            m_offset = offset;
-            m_size = size;
-            m_lock = new object();
+
+            _offset = offset;
+            _size = size;
         }
     }
 }

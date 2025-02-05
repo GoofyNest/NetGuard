@@ -26,7 +26,7 @@ namespace Module
             }
         }
 
-        public void StartProgram(string discordId, string discordName, string date)
+        public async void StartProgram(string discordId, string discordName, string date)
         {
             Console.Title = "NetGuard | GatewayModule";
 
@@ -46,15 +46,15 @@ namespace Module
                 _config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(settingsPath));
             }
 
-            startGateway();
+            await startGateway();
 
             new Thread(ConsolePoolThread).Start();
         }
 
-        public async void startGateway()
+        public async Task startGateway()
         {
             AsyncServer server = new AsyncServer();
-            server.StartAsync("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayModule);
+            await server.StartAsync("100.127.205.174", 15779, AsyncServer.E_ServerType.GatewayModule);
         }
     }
 }
