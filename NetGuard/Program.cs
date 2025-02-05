@@ -42,7 +42,7 @@ namespace NetGuardLoader
             }
         }
 
-        static async Task Main(string[] args)
+        static void Main(string[] args)
         {
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.Title = "NetGuard | Loader";

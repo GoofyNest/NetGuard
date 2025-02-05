@@ -62,7 +62,7 @@ namespace NetGuard.Engine
             }
         }
 
-        private async Task HandleClientAsync(Socket clientSocket)
+        private void HandleClientAsync(Socket clientSocket)
         {
             try
             {

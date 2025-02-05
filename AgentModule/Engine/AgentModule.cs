@@ -382,7 +382,7 @@ namespace NetGuard.Engine
             }
         }
 
-        private async void HandleReceivedDataFromClient(int nReceived)
+        private void HandleReceivedDataFromClient(int nReceived)
         {
             _localSecurity.Recv(_localBuffer, 0, nReceived);
             var receivedPackets = _localSecurity.TransferIncoming();
@@ -440,7 +440,6 @@ namespace NetGuard.Engine
                                 Send(false);
                                 continue;
                             }
-                            break;
 
                         case LOGIN_SERVER_HANDSHAKE:
                         case CLIENT_ACCEPT_HANDSHAKE:
