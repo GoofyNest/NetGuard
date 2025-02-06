@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using SilkroadSecurityAPI;
 
 namespace SilkroadSecurityAPI
 {
@@ -53,17 +54,24 @@ namespace SilkroadSecurityAPI
         // Returns a SecurityFlags object from a byte.
         static SecurityFlags ToSecurityFlags(byte value)
         {
-            return new SecurityFlags
-            {
-                none = (byte)(value & 1),
-                blowfish = (byte)((value >> 1) & 1),
-                security_bytes = (byte)((value >> 2) & 1),
-                handshake = (byte)((value >> 3) & 1),
-                handshake_response = (byte)((value >> 4) & 1),
-                _6 = (byte)((value >> 5) & 1),
-                _7 = (byte)((value >> 6) & 1),
-                _8 = (byte)((value >> 7) & 1)
-            };
+            SecurityFlags flags = new SecurityFlags();
+            flags.none = (byte)(value & 1);
+            value >>= 1;
+            flags.blowfish = (byte)(value & 1);
+            value >>= 1;
+            flags.security_bytes = (byte)(value & 1);
+            value >>= 1;
+            flags.handshake = (byte)(value & 1);
+            value >>= 1;
+            flags.handshake_response = (byte)(value & 1);
+            value >>= 1;
+            flags._6 = (byte)(value & 1);
+            value >>= 1;
+            flags._7 = (byte)(value & 1);
+            value >>= 1;
+            flags._8 = (byte)(value & 1);
+            value >>= 1;
+            return flags;
         }
         #endregion
 
@@ -141,32 +149,35 @@ namespace SilkroadSecurityAPI
             };
 
             using (MemoryStream in_memory_stream = new MemoryStream(base_security_table, false))
-            using (BinaryReader reader = new BinaryReader(in_memory_stream))
             {
-                int index = 0;
-                uint edx = reader.ReadUInt32(); // Read this only once outside the loop
-                for (int edi = 0; edi < 1024; edi += 4)
+                using (BinaryReader reader = new BinaryReader(in_memory_stream))
                 {
-                    for (uint ecx = 0; ecx < 256; ++ecx)
+                    int index = 0;
+                    for (int edi = 0; edi < 1024; edi += 4)
                     {
-                        uint eax = ecx >> 1;
-                        if ((ecx & 1) != 0)
+                        uint edx = reader.ReadUInt32();
+                        for (uint ecx = 0; ecx < 256; ++ecx)
                         {
-                            eax ^= edx;
-                        }
-
-                        for (int bit = 0; bit < 7; ++bit)
-                        {
-                            eax >>= 1;
-                            if ((eax & 1) != 0)
+                            uint eax = ecx >> 1;
+                            if ((ecx & 1) != 0)
                             {
                                 eax ^= edx;
                             }
+                            for (int bit = 0; bit < 7; ++bit)
+                            {
+                                if ((eax & 1) != 0)
+                                {
+                                    eax >>= 1;
+                                    eax ^= edx;
+                                }
+                                else
+                                {
+                                    eax >>= 1;
+                                }
+                            }
+                            security_table[index++] = eax;
                         }
-                        security_table[index++] = eax;
                     }
-                    if (edi + 4 < 1024) // Read the next value for edx if necessary
-                        edx = reader.ReadUInt32();
                 }
             }
 
@@ -293,15 +304,7 @@ namespace SilkroadSecurityAPI
         {
             for (int i = 0; i < 32; ++i)
             {
-                // Calculate the XOR value once to avoid repeating the same calculation multiple times
-                uint xorVal = (val >> 2) ^ val;
-                xorVal = (xorVal >> 2) ^ xorVal;
-                xorVal = (xorVal >> 1) ^ xorVal;
-                xorVal = (xorVal >> 1) ^ xorVal;
-                xorVal = (xorVal >> 1) ^ xorVal;
-
-                // Combine the result with the original value and adjust as necessary
-                val = (xorVal & 1) | ((val & 1) << 31) | (val >> 1);
+                val = (((((((((((val >> 2) ^ val) >> 2) ^ val) >> 1) ^ val) >> 1) ^ val) >> 1) ^ val) & 1) | ((((val & 1) << 31) | (val >> 1)) & 0xFFFFFFFE);
             }
             return val;
         }

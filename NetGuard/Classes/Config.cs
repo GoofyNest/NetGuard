@@ -15,6 +15,7 @@ namespace NetGuardLoader.Classes
         public int guardPort { get; set; } = 15779;
         public string moduleIP { get; set; } = "127.0.0.1";
         public int modulePort { get; set; } = 5779;
+        public string dllPath { get; set; } = "C:\\Users\\admin\\source\\repos\\NetGuard\\GatewayModule\\bin\\Debug\\GatewayModule.dll";
     }
 
     public class AgentSettings
@@ -24,5 +25,6 @@ namespace NetGuardLoader.Classes
         public int guardPort { get; set; } = 15884;
         public string moduleIP { get; set; } = "127.0.0.1";
         public int modulePort { get; set; } = 5884;
+        public string dllPath { get; set; } = "C:\\Users\\admin\\source\\repos\\NetGuard\\AgentModule\\bin\\Debug\\AgentModule.dll";
     }
 }

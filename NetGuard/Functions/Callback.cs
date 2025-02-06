@@ -15,7 +15,7 @@ namespace NetGuardLoader.Functions
 
             MethodInfo _programFunction = _dll.GetMethod("StartProgram", BindingFlags.Public | BindingFlags.Instance);
 
-            object[] args = new[] { Program.discordId, Program.discordName, Program.date };
+            object[] args = (object[])AppDomain.CurrentDomain.GetData("args");
 
             _programFunction.Invoke(_instance, args);
         }

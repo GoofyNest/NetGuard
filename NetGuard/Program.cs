@@ -108,6 +108,8 @@ namespace NetGuardLoader
                 }
             }
 
+            //args = new string[] { "gateway"};
+
             if (args.Length <= 0)
             {
                 Custom.WriteLine("You need to start the loader with arguments", ConsoleColor.Cyan);
@@ -140,9 +142,12 @@ namespace NetGuardLoader
                             {
                                 var _module = _config._gatewayModules[moduleIndex];
                                 
-                                byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayModule\\bin\\Release\\GatewayModule.dll");
+                                byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
                                 var _reponse = Convert.ToBase64String(dllBytes);
-                                
+
+                                object[] SharedArgs = new object[] { _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
+                                _appDomain.SetData("args", SharedArgs);
+
                                 _appDomain.SetData("Assembly", dllBytes);
                                 _appDomain.DoCallBack(Callback.init);
                             }
@@ -159,9 +164,12 @@ namespace NetGuardLoader
                             {
                                 var _module = _config._agentModules[moduleIndex];
 
-                                byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\AgentModule\\bin\\Release\\AgentModule.dll");
+                                byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
                                 var _reponse = Convert.ToBase64String(dllBytes);
-                                
+
+                                object[] SharedArgs = new object[] { _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
+                                _appDomain.SetData("args", SharedArgs);
+
                                 _appDomain.SetData("Assembly", dllBytes);
                                 _appDomain.DoCallBack(Callback.init);
                             }
@@ -178,20 +186,6 @@ namespace NetGuardLoader
                         break;
                 }
             }
-
-            //Custom.WriteLine($"Loading settings");
-
-
-
-
-
-            //byte[] dllBytes = File.ReadAllBytes("C:\\Users\\computer\\source\\repos\\NetGuard\\GatewayContext\\bin\\Debug\\GatewayContext.dll");
-            //var _reponse = Convert.ToBase64String(dllBytes);
-            //
-            //_appDomain.SetData("Assembly", dllBytes);
-            //_appDomain.DoCallBack(Callback.init);
-
-            //new Thread(ConsolePoolThread).Start();
         }
     }
 }

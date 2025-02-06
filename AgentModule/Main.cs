@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using AgentModule.Engine.Classes;
 using NetGuard.Engine;
 
 namespace Module
@@ -17,6 +18,8 @@ namespace Module
         public static List<Plugin> _clientPlugins = new List<Plugin>();
         public static List<Plugin> _serverPlugins = new List<Plugin>();
 
+        public static ModuleSettings _moduleSettings = null;
+
         static void ConsolePoolThread()
         {
             while (true)
@@ -27,25 +30,22 @@ namespace Module
             }
         }
 
-        public async void StartProgram(string discordId, string discordName, string date)
+        public void StartProgram(string guardIP, int guardPort, string moduleIP, int modulePort)
         {
-            
-            //_appDomain.SetData("Assembly", null);
-
-            var path = "C:\\Users\\computer\\source\\repos\\NetGuard\\scripting\\agent";
-
-            var clientPath = Path.Combine(path, "client");
-            var serverPath = Path.Combine(path, "server");
-
             Console.Title = "NetGuard | AgentModule";
 
-            _clientPlugins.Add(new Plugin
-            {
-                ID = 0,
-                name = "SamplePlugin",
-                sourceCode = File.ReadAllText(Path.Combine(clientPath, "inCharSelection.csx")),
-                filePath = Path.Combine(clientPath, "inCharSelection.csx")
-            });
+            // Use these values in your method as needed
+            Console.WriteLine($"Guard IP: {guardIP}, Guard Port: {guardPort}, Module IP: {moduleIP}, Module Port: {modulePort}");
+
+            _moduleSettings = new ModuleSettings { guardIP = guardIP, guardPort = guardPort, moduleIP = moduleIP, modulePort = modulePort };
+
+            //_clientPlugins.Add(new Plugin
+            //{
+            //    ID = 0,
+            //    name = "SamplePlugin",
+            //    sourceCode = File.ReadAllText(Path.Combine(clientPath, "inCharSelection.csx")),
+            //    filePath = Path.Combine(clientPath, "inCharSelection.csx")
+            //});
 
             //_clientPlugins.Add(0x3333, new Dictionary<string, object> {
             //    { "name", "SamplePlugin" },
@@ -66,15 +66,15 @@ namespace Module
             //    Console.WriteLine(script.ToString());
             //}
 
-            await startAgent();
+            startAgent();
 
             new Thread(ConsolePoolThread).Start();
         }
 
-        async Task startAgent()
+        async void startAgent()
         {
             AsyncServer _server = new AsyncServer();
-            await _server.StartAsync("100.127.205.174", 15884, AsyncServer.E_ServerType.AgentModule);
+            await _server.StartAsync(_moduleSettings.guardIP, _moduleSettings.guardPort, AsyncServer.E_ServerType.AgentModule);
         }
     }
 }

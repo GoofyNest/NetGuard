@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using AgentModule.Engine.Classes;
+using Module;
 using NetGuard.Services;
 using SilkroadSecurityAPI;
 using static Engine.Framework.Opcodes.Client;
@@ -62,6 +64,8 @@ namespace NetGuard.Engine
         private ulong _bytesReceivedFromClient = 0;
         private DateTime _startTime = DateTime.Now;
 
+        private ModuleSettings _moduleSettings = Main._moduleSettings;
+
         private AgentClient _client;
 
         public AgentModule(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
@@ -80,7 +84,7 @@ namespace NetGuard.Engine
 
             try
             {
-                _moduleSocket.Connect(new IPEndPoint(IPAddress.Parse("100.127.205.174"), 5884));
+                _moduleSocket.Connect(new IPEndPoint(IPAddress.Parse(_moduleSettings.moduleIP), _moduleSettings.modulePort));
                 _localSecurity.GenerateSecurity(true, true, true);
                 DoReceiveFromClient();
                 //_ = DoReceiveFromServerAsync();
@@ -88,7 +92,7 @@ namespace NetGuard.Engine
             }
             catch (Exception ex)
             {
-                Custom.WriteLine($"Remote host (100.127.205.174:5884) is unreachable. Exception: {ex}", ConsoleColor.Red);
+                Custom.WriteLine($"Remote host ({_moduleSettings.moduleIP}:{_moduleSettings.modulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
             }
         }
 
@@ -127,8 +131,6 @@ namespace NetGuard.Engine
                     }
                     else
                     {
-                        DisconnectModuleSocket();
-                        _delDisconnect.Invoke(ref _clientSocket, _handlerType);
                         return;
                     }
 
@@ -136,9 +138,7 @@ namespace NetGuard.Engine
                 }
                 catch (Exception ex)
                 {
-                    DisconnectModuleSocket();
-                    _delDisconnect.Invoke(ref _clientSocket, _handlerType);
-                    Custom.WriteLine($"Exception in DoReceiveFromServerAsync: {ex}", ConsoleColor.Red);
+                    Custom.WriteLine($"Exception in OnReceiveFromServerAsync: {ex}", ConsoleColor.Red);
                 }
             }
         }
@@ -341,10 +341,9 @@ namespace NetGuard.Engine
                         }
 
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        this.DisconnectModuleSocket();
-                        this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                        Custom.WriteLine($"Exception in Send: {ex}", ConsoleColor.Red);
                     }
                 }
             }
@@ -356,6 +355,12 @@ namespace NetGuard.Engine
             {
                 try
                 {
+                    if (_clientSocket == null)
+                    {
+                        Custom.WriteLine("Error: _clientSocket is null.", ConsoleColor.Red);
+                        return;
+                    }
+
                     int nReceived = _clientSocket.EndReceive(iar);
                     if (nReceived != 0)
                     {
@@ -363,8 +368,6 @@ namespace NetGuard.Engine
                     }
                     else
                     {
-                        DisconnectModuleSocket();
-                        _delDisconnect.Invoke(ref _clientSocket, _handlerType);
                         return;
                     }
 
@@ -372,9 +375,7 @@ namespace NetGuard.Engine
                 }
                 catch (Exception ex)
                 {
-                    DisconnectModuleSocket();
-                    _delDisconnect.Invoke(ref _clientSocket, _handlerType);
-                    Custom.WriteLine($"Exception in DoReceiveFromClientAsync: {ex}", ConsoleColor.Red);
+                    Custom.WriteLine($"Exception in OnReceiveFromClientAsync: {ex}", ConsoleColor.Red);
                 }
             }
         }
@@ -521,10 +522,9 @@ namespace NetGuard.Engine
             {
                 _moduleSocket.BeginReceive(_remoteBuffer, 0, _remoteBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceiveFromServerAsync), null);
             }
-            catch
+            catch (Exception ex)
             {
-                DisconnectModuleSocket();
-                _delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                Custom.WriteLine($"Exception in DoReceiveFromServer: {ex}", ConsoleColor.Red);
             }
         }
 
@@ -534,10 +534,9 @@ namespace NetGuard.Engine
             {
                 _clientSocket.BeginReceive(_localBuffer, 0, _localBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceiveFromClientAsync), null);
             }
-            catch
+            catch (Exception ex)
             {
-                this.DisconnectModuleSocket();
-                this._delDisconnect.Invoke(ref _clientSocket, _handlerType);
+                Custom.WriteLine($"Exception in DoReceiveFromClient: {ex}", ConsoleColor.Red);
             }
         }
     }

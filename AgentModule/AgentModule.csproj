@@ -69,6 +69,7 @@
   <ItemGroup>
     <Compile Include="Engine\AsyncServer.cs" />
     <Compile Include="Engine\Classes\AgentClient.cs" />
+    <Compile Include="Engine\Classes\ModuleSettings.cs" />
     <Compile Include="Engine\Classes\Globals.cs" />
     <Compile Include="Engine\Classes\Plugin.cs" />
     <Compile Include="Engine\Framework\PacketType.cs" />

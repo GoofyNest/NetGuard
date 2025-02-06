@@ -55,9 +55,13 @@ namespace NetGuard.Engine
                     var clientSocket = await _listenerSocket.AcceptAsync();
                     _ = Task.Run(() => HandleClientAsync(clientSocket), cancellationToken);
                 }
+                catch (SocketException) when (cancellationToken.IsCancellationRequested)
+                {
+                    Custom.WriteLine("Server shutting down gracefully.", ConsoleColor.Yellow);
+                }
                 catch (Exception ex)
                 {
-                    Custom.WriteLine($"Exception in AcceptConnectionsAsync: {ex.ToString()}", ConsoleColor.Red);
+                    Custom.WriteLine($"Exception in AcceptConnectionsAsync: {ex}", ConsoleColor.Red);
                 }
             }
         }
