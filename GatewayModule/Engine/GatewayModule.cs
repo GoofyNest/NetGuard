@@ -431,14 +431,15 @@ namespace NetGuard.Engine
                 if (outgoing == null)
                     return;  // Early return if no outgoing packets
 
-                // Loop through and send each packet
-                foreach (var packet in outgoing)
+                int count = outgoing.Count;
+
+                for (int i = 0; i < count; i++)
                 {
                     try
                     {
+                        var packet = outgoing[i];
                         socket.Send(packet.Key.Buffer);
 
-                        // Handle additional client-specific logic if sending to the host
                         if (toHost)
                         {
                             _bytesReceivedFromClient += (ulong)packet.Key.Size;
