@@ -1,4 +1,4 @@
-﻿namespace Engine.Framework
+﻿namespace Framework
 {
     class Opcodes
     {

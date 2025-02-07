@@ -1,6 +1,6 @@
-﻿namespace NetGuard.Engine
+﻿namespace NetGuard.Engine.Classes
 {
-    public class GatewayClient
+    public class SessionData
     {
         public string ip { get; set; }
         public string StrUserID { get; set; } = "";

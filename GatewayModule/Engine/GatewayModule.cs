@@ -1,71 +1,33 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Framework;
 using GatewayModule.Classes;
 using Module;
+using NetGuard.Engine.Classes;
 using NetGuard.Services;
 using SilkroadSecurityAPI;
-using static Engine.Framework.Opcodes.Client;
-using static Engine.Framework.Opcodes.Server;
+using static Framework.Opcodes.Client;
+using static Framework.Opcodes.Server;
 
 namespace NetGuard.Engine
 {
-    public class FixedSizeQueue<T>
-    {
-        private readonly ConcurrentQueue<T> _queue = new ConcurrentQueue<T>();
-        private readonly int _maxSize;
-
-        public FixedSizeQueue(int maxSize)
-        {
-            _maxSize = maxSize;
-        }
-
-        public void Enqueue(T item)
-        {
-            _queue.Enqueue(item);
-            while (_queue.Count > _maxSize)
-            {
-                _queue.TryDequeue(out _);
-            }
-        }
-
-        public IEnumerable<T> GetAllItems()
-        {
-            return _queue.ToArray();
-        }
-    }
-
-    class SocketState
-    {
-        public Socket Socket { get; set; }
-        public byte[] Buffer { get; set; }
-
-        public SocketState(Socket socket, byte[] buffer)
-        {
-            Socket = socket;
-            Buffer = buffer;
-        }
-    }
-
     sealed class GatewayModule
     {
-        private Socket _clientSocket = null;
-        private AsyncServer.DelClientDisconnect _delDisconnect;
+        private Socket _clientSocket;
+        private AsyncServer.DelClientDisconnect _clientDisconnectHandler;
+        private object _lock = new object();
 
-        object m_Lock = new object();
+        private Socket _moduleSocket;
+        private AsyncServer.E_ServerType _handlerType;
 
-        Socket _moduleSocket = null;
-        AsyncServer.E_ServerType _handlerType;
+        private byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
+        private byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
-        byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
-        byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
-
-        Security _localSecurity = new Security();
-        Security _remoteSecurity = new Security();
+        private Security _localSecurity = new Security();
+        private Security _remoteSecurity = new Security();
 
         public static FixedSizeQueue<Packet> _lastPackets = new FixedSizeQueue<Packet>(100);
         private ulong _bytesReceivedFromClient = 0;
@@ -73,16 +35,17 @@ namespace NetGuard.Engine
 
         private ModuleSettings _moduleSettings = Main._moduleSettings;
 
-        private GatewayClient _client;
+        private SessionData _client;
 
         public GatewayModule(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
         {
             _clientSocket = clientSocket;
-            _delDisconnect = delDisconnect;
+            _clientDisconnectHandler = delDisconnect;
+
             _handlerType = AsyncServer.E_ServerType.GatewayModule;
             _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            _client = new GatewayClient
+            _client = new SessionData
             {
                 ip = ((IPEndPoint)_clientSocket.RemoteEndPoint).Address.ToString()
             };
@@ -105,16 +68,41 @@ namespace NetGuard.Engine
         void HandleReceivedDataFromServer(int nReceived)
         {
             _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
-            var remotePackets = _remoteSecurity.TransferIncoming();
+            var ReceivePacketFromServer = _remoteSecurity.TransferIncoming();
 
-            if (remotePackets == null)
+            if (ReceivePacketFromServer == null)
                 return;
 
-            int count = remotePackets.Count;
+            int count = ReceivePacketFromServer.Count;
 
             for (int i = 0; i < count; i++)
             {
-                var packet = remotePackets[i];
+                Packet packet = ReceivePacketFromServer[i];
+
+                IPacketHandler handler = ServerPacketHandler.GetHandler(packet, _client);
+                
+                if(handler != null)
+                {
+                    bool continueProcessing = handler.Handle(packet, _client, out Packet modifiedPacket);
+                
+                    if (modifiedPacket != null)
+                    {
+                        // Send the modified packet instead of the original
+                        _localSecurity.Send(modifiedPacket);
+                        Send(false);
+                    }
+                    else
+                    {
+                        // Skip sending the packet if it's not modified
+                        continue;
+                    }
+                
+                    if (!continueProcessing)
+                    {
+                        // The packet was handled, and further processing is stopped
+                        continue;
+                    }
+                }
 
                 var msg = $"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
                 //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
@@ -139,47 +127,47 @@ namespace NetGuard.Engine
                         _client.sent_list = 1;
                         break;
 
-                    case SERVER_GATEWAY_LOGIN_RESPONSE:
-                        {
-                            byte res = packet.ReadUInt8();
-
-                            if (res == 1)
-                            {
-                                uint id = packet.ReadUInt32();
-                                string host = packet.ReadAscii();
-                                int port = packet.ReadUInt16();
-
-                                var index = Main._config._agentModules.FindIndex(m => m.moduleIP == host && m.modulePort == port);
-                                if (index == -1)
-                                {
-                                    Custom.WriteLine("Could not find agent bindings", ConsoleColor.Red);
-                                    continue;
-                                }
-
-                                var guardModule = Main._config._agentModules[index];
-
-                                Custom.WriteLine($"Using {guardModule.guardIP} {guardModule.guardPort}", ConsoleColor.Cyan);
-
-                                Packet spoof = new Packet(0xA102, true);
-                                spoof.WriteUInt8(res);
-                                spoof.WriteUInt32(id);
-
-                                spoof.WriteAscii(guardModule.guardIP);
-                                spoof.WriteUInt16(guardModule.guardPort);
-                                spoof.WriteUInt32((uint)0);
-                                spoof.Lock();
-
-                                _localSecurity.Send(spoof);
-                                Send(false);
-
-                                continue;
-                            }
-
-
-
-
-                        }
-                        break;
+                    //case SERVER_GATEWAY_LOGIN_RESPONSE:
+                    //    {
+                    //        byte res = packet.ReadUInt8();
+                    //
+                    //        if (res == 1)
+                    //        {
+                    //            uint id = packet.ReadUInt32();
+                    //            string host = packet.ReadAscii();
+                    //            int port = packet.ReadUInt16();
+                    //
+                    //            var index = Main._config._agentModules.FindIndex(m => m.moduleIP == host && m.modulePort == port);
+                    //            if (index == -1)
+                    //            {
+                    //                Custom.WriteLine("Could not find agent bindings", ConsoleColor.Red);
+                    //                continue;
+                    //            }
+                    //
+                    //            var guardModule = Main._config._agentModules[index];
+                    //
+                    //            Custom.WriteLine($"Using {guardModule.guardIP} {guardModule.guardPort}", ConsoleColor.Cyan);
+                    //
+                    //            Packet spoof = new Packet(0xA102, true);
+                    //            spoof.WriteUInt8(res);
+                    //            spoof.WriteUInt32(id);
+                    //
+                    //            spoof.WriteAscii(guardModule.guardIP);
+                    //            spoof.WriteUInt16(guardModule.guardPort);
+                    //            spoof.WriteUInt32((uint)0);
+                    //            //spoof.Lock();
+                    //
+                    //            _localSecurity.Send(spoof);
+                    //            Send(false);
+                    //
+                    //            continue;
+                    //        }
+                    //
+                    //
+                    //
+                    //
+                    //    }
+                    //    break;
 
                     default:
                         Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
@@ -415,7 +403,7 @@ namespace NetGuard.Engine
 
         void Send(bool toHost)
         {
-            lock (m_Lock)
+            lock (_lock)
             {
                 // Determine the security and socket to use based on 'toHost'
                 var security = toHost ? _remoteSecurity : _localSecurity;
@@ -511,7 +499,7 @@ namespace NetGuard.Engine
             DisconnectModuleSocket();
 
             // Notify other parts of the system, if delegate is set
-            _delDisconnect?.Invoke(ref _clientSocket, _handlerType);
+            _clientDisconnectHandler?.Invoke(ref _clientSocket, _handlerType);
         }
     }
 }

@@ -76,7 +76,6 @@
     <Compile Include="Engine\AgentModule.cs" />
     <Compile Include="Engine\Services\CustomConsole.cs" />
     <Compile Include="Engine\SilkroadSecurityAPI\Blowfish.cs" />
-    <Compile Include="Engine\SilkroadSecurityAPI\Extension.cs" />
     <Compile Include="Engine\SilkroadSecurityAPI\Packet.cs" />
     <Compile Include="Engine\SilkroadSecurityAPI\PacketReader.cs" />
     <Compile Include="Engine\SilkroadSecurityAPI\PacketWriter.cs" />
