@@ -1,77 +1,34 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using AgentModule.Engine.Classes;
+using Framework;
+using AgentModule.Classes;
 using Module;
+using NetGuard.Engine.Classes;
 using NetGuard.Services;
 using SilkroadSecurityAPI;
-using static Engine.Framework.Opcodes.Client;
-using static Engine.Framework.Opcodes.Server;
+using static Framework.Opcodes.Client;
+using static Framework.Opcodes.Server;
+using System.Linq;
 
 namespace NetGuard.Engine
 {
-    public class Globals
-    {
-        public string aids { get; set; }
-    }
-
-    public class FixedSizeQueue<T>
-    {
-        private readonly ConcurrentQueue<T> _queue = new ConcurrentQueue<T>();
-        private readonly int _maxSize;
-
-        public FixedSizeQueue(int maxSize)
-        {
-            _maxSize = maxSize;
-        }
-
-        public void Enqueue(T item)
-        {
-            _queue.Enqueue(item);
-            while (_queue.Count > _maxSize)
-            {
-                _queue.TryDequeue(out _);
-            }
-        }
-
-        public IEnumerable<T> GetAllItems()
-        {
-            return _queue.ToArray();
-        }
-    }
-
-    class SocketState
-    {
-        public Socket Socket { get; set; }
-        public byte[] Buffer { get; set; }
-
-        public SocketState(Socket socket, byte[] buffer)
-        {
-            Socket = socket;
-            Buffer = buffer;
-        }
-    }
-
     sealed class AgentModule
     {
-        private Socket _clientSocket = null;
-        private AsyncServer.DelClientDisconnect _delDisconnect;
+        private Socket _clientSocket;
+        private AsyncServer.DelClientDisconnect _clientDisconnectHandler;
+        private object _lock = new object();
 
-        object m_Lock = new object();
+        private Socket _moduleSocket;
+        private AsyncServer.E_ServerType _handlerType;
 
-        Socket _moduleSocket = null;
-        AsyncServer.E_ServerType _handlerType;
+        private byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
+        private byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
-        byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
-        byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
-
-        Security _localSecurity = new Security();
-        Security _remoteSecurity = new Security();
+        private Security _localSecurity = new Security();
+        private Security _remoteSecurity = new Security();
 
         public static FixedSizeQueue<Packet> _lastPackets = new FixedSizeQueue<Packet>(100);
         private ulong _bytesReceivedFromClient = 0;
@@ -79,16 +36,17 @@ namespace NetGuard.Engine
 
         private ModuleSettings _moduleSettings = Main._moduleSettings;
 
-        private AgentClient _client;
+        private SessionData _client;
 
         public AgentModule(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect)
         {
             _clientSocket = clientSocket;
-            _delDisconnect = delDisconnect;
+            _clientDisconnectHandler = delDisconnect;
+
             _handlerType = AsyncServer.E_ServerType.AgentModule;
             _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            _client = new AgentClient
+            _client = new SessionData
             {
                 ip = ((IPEndPoint)_clientSocket.RemoteEndPoint).Address.ToString()
             };
@@ -111,22 +69,50 @@ namespace NetGuard.Engine
         void HandleReceivedDataFromServer(int nReceived)
         {
             _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
-            var remotePackets = _remoteSecurity.TransferIncoming();
+            var ReceivePacketFromServer = _remoteSecurity.TransferIncoming();
 
-            if (remotePackets == null)
+            if (ReceivePacketFromServer == null)
                 return;
 
-            int count = remotePackets.Count;
+            int count = ReceivePacketFromServer.Count;
 
-            for (int i = 0; i < remotePackets.Count; i++)
+            for (int i = 0; i < count; i++)
             {
-                var packet = remotePackets[i];
+                Packet packet = ReceivePacketFromServer[i];
 
-                var msg = $"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                Custom.WriteLine(msg, ConsoleColor.Yellow);
+                IPacketHandler handler = ClientPacketManager.GetHandler(packet, _client);
 
-                //File.AppendAllText($"agent_{Main.unixTimestamp}_server.txt", "\n" + msg);
+                if (handler != null)
+                {
+                    var result = handler.Handle(packet, _client);
+                    switch (result.ResultType)
+                    {
+                        case PacketResultType.Block:
+                            Custom.WriteLine($"Prevented [{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
+                            continue;
+
+                        case PacketResultType.Disconnect:
+                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [{packet.Opcode}]", ConsoleColor.Red);
+                            HandleDisconnection();
+                            continue;
+
+                        case PacketResultType.Ban:
+                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
+                            continue;
+
+                        case PacketResultType.SkipSending:
+                            Send(result.SendImmediately);
+                            continue;
+                    }
+
+                    if (result.ModifiedPacket != null)
+                    {
+                        // Send the modified packet instead of the original
+                        _localSecurity.Send(result.ModifiedPacket);
+                        Send(result.SendImmediately);
+                        continue;
+                    }
+                }
 
                 switch (packet.Opcode)
                 {
@@ -278,17 +264,51 @@ namespace NetGuard.Engine
                 return;
 
             int count = receivedPackets.Count;
-            for (int i = 0; i < receivedPackets.Count; i++)
+
+            for (int i = 0; i < count; i++)
             {
                 var packet = receivedPackets[i];
 
-                var msg = $"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                Custom.WriteLine(msg, ConsoleColor.Yellow);
+                var copyOfPacket = packet;
 
-                //File.AppendAllText($"agent_{Main.unixTimestamp}_client.txt", "\n" + msg);
+                IPacketHandler handler = ClientPacketManager.GetHandler(packet, _client);
 
-                Packet copyOfPacket = packet;
+                if (handler != null)
+                {
+                    var result = handler.Handle(packet, _client);
+                    switch (result.ResultType)
+                    {
+                        case PacketResultType.Block:
+                            Custom.WriteLine($"Prevented [{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
+                            continue;
+
+                        case PacketResultType.Disconnect:
+                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [{packet.Opcode}]", ConsoleColor.Red);
+                            HandleDisconnection();
+                            continue;
+
+                        case PacketResultType.Ban:
+                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
+                            continue;
+
+                        case PacketResultType.SkipSending:
+                            Send(result.SendImmediately);
+                            continue;
+
+                        case PacketResultType.DoReceive:
+                            DoReceive(false);
+                            continue;
+                    }
+
+                    if (result.ModifiedPacket != null)
+                    {
+                        // Send the modified packet instead of the original
+                        _lastPackets.Enqueue(copyOfPacket);
+                        _remoteSecurity.Send(result.ModifiedPacket);
+                        Send(result.SendImmediately);
+                        continue;
+                    }
+                }
 
                 if (_client.inCharSelection)
                 {
@@ -404,7 +424,6 @@ namespace NetGuard.Engine
                 _remoteSecurity.Send(packet);
                 Send(true);
             }
-
         }
 
         void DoReceive(bool isClient)
@@ -484,7 +503,7 @@ namespace NetGuard.Engine
 
         void Send(bool toHost)
         {
-            lock (m_Lock)
+            lock (_lock)
             {
                 // Determine the security and socket to use based on 'toHost'
                 var security = toHost ? _remoteSecurity : _localSecurity;
@@ -580,7 +599,7 @@ namespace NetGuard.Engine
             DisconnectModuleSocket();
 
             // Notify other parts of the system, if delegate is set
-            _delDisconnect?.Invoke(ref _clientSocket, _handlerType);
+            _clientDisconnectHandler?.Invoke(ref _clientSocket, _handlerType);
         }
     }
 }

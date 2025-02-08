@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using AgentModule.Engine.Classes;
+using NetGuard.Engine.Classes;
 using NetGuard.Engine;
+using AgentModule.Classes;
 
 namespace Module
 {
@@ -14,9 +15,6 @@ namespace Module
 
         public static DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
         public static long unixTimestamp = dateTimeOffset.ToUnixTimeSeconds();
-
-        public static List<Plugin> _clientPlugins = new List<Plugin>();
-        public static List<Plugin> _serverPlugins = new List<Plugin>();
 
         public static ModuleSettings _moduleSettings = null;
 

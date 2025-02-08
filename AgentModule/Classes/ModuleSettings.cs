@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AgentModule.Engine.Classes
+namespace AgentModule.Classes
 {
     public class ModuleSettings
     {

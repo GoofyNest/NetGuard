@@ -79,34 +79,45 @@ namespace NetGuard.Engine
             {
                 Packet packet = ReceivePacketFromServer[i];
 
-                IPacketHandler handler = ServerPacketHandler.GetHandler(packet, _client);
+                IPacketHandler handler = ServerPacketManager.GetHandler(packet, _client);
                 
                 if(handler != null)
                 {
-                    bool continueProcessing = handler.Handle(packet, _client, out Packet modifiedPacket);
-                
-                    if (modifiedPacket != null)
+                    var result = handler.Handle(packet, _client);
+
+                    switch (result.ResultType)
+                    {
+                        case PacketResultType.Block:
+                            Custom.WriteLine($"Prevented [{packet.Opcode}] from being sent from {_client.ip}", ConsoleColor.Red);
+                            continue;
+
+                        case PacketResultType.Disconnect:
+                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [{packet.Opcode}]", ConsoleColor.Red);
+                            HandleDisconnection();
+                            continue;
+
+                        case PacketResultType.Ban:
+                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
+                            continue;
+
+                        case PacketResultType.SkipSending:
+                            Send(result.SendImmediately);
+                            continue;
+                    }
+
+                    if (result.ModifiedPacket != null)
                     {
                         // Send the modified packet instead of the original
-                        _localSecurity.Send(modifiedPacket);
-                        Send(false);
-                    }
-                    else
-                    {
-                        // Skip sending the packet if it's not modified
+                        _localSecurity.Send(result.ModifiedPacket);
+                        Send(result.SendImmediately);
                         continue;
                     }
-                
-                    if (!continueProcessing)
-                    {
-                        // The packet was handled, and further processing is stopped
-                        continue;
-                    }
+
                 }
 
-                var msg = $"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                Custom.WriteLine(msg, ConsoleColor.Yellow);
+                //var msg = $"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
+                ////Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
+                //Custom.WriteLine(msg, ConsoleColor.Yellow);
 
                 //File.AppendAllText($"gateway_{Main.unixTimestamp}_server.txt", "\n" + msg);
 
@@ -127,50 +138,8 @@ namespace NetGuard.Engine
                         _client.sent_list = 1;
                         break;
 
-                    //case SERVER_GATEWAY_LOGIN_RESPONSE:
-                    //    {
-                    //        byte res = packet.ReadUInt8();
-                    //
-                    //        if (res == 1)
-                    //        {
-                    //            uint id = packet.ReadUInt32();
-                    //            string host = packet.ReadAscii();
-                    //            int port = packet.ReadUInt16();
-                    //
-                    //            var index = Main._config._agentModules.FindIndex(m => m.moduleIP == host && m.modulePort == port);
-                    //            if (index == -1)
-                    //            {
-                    //                Custom.WriteLine("Could not find agent bindings", ConsoleColor.Red);
-                    //                continue;
-                    //            }
-                    //
-                    //            var guardModule = Main._config._agentModules[index];
-                    //
-                    //            Custom.WriteLine($"Using {guardModule.guardIP} {guardModule.guardPort}", ConsoleColor.Cyan);
-                    //
-                    //            Packet spoof = new Packet(0xA102, true);
-                    //            spoof.WriteUInt8(res);
-                    //            spoof.WriteUInt32(id);
-                    //
-                    //            spoof.WriteAscii(guardModule.guardIP);
-                    //            spoof.WriteUInt16(guardModule.guardPort);
-                    //            spoof.WriteUInt32((uint)0);
-                    //            //spoof.Lock();
-                    //
-                    //            _localSecurity.Send(spoof);
-                    //            Send(false);
-                    //
-                    //            continue;
-                    //        }
-                    //
-                    //
-                    //
-                    //
-                    //    }
-                    //    break;
-
                     default:
-                        Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
+                        //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
                         //Custom.WriteLine($"[S->C] Unknown packet {packet.Opcode:X4} {packet.GetBytes().Length}", ConsoleColor.Yellow);
                         break;
                 }
@@ -195,134 +164,63 @@ namespace NetGuard.Engine
             {
                 var packet = receivedPackets[i];
 
-                //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+                var copyOfPacket = packet;
 
-                var msg = $"[C->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                //Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                Custom.WriteLine(msg, ConsoleColor.Yellow);
+                IPacketHandler handler = ClientPacketManager.GetHandler(packet, _client);
 
-                //File.AppendAllText($"gateway_{Main.unixTimestamp}_client.txt", "\n" + msg);
-
-                switch (packet.Opcode)
+                if (handler != null)
                 {
-                    case LOGIN_SERVER_HANDSHAKE:
-                    case CLIENT_ACCEPT_HANDSHAKE:
-                        {
-                            Send(false);
-                            continue;
-                        }
-
-                    case CLIENT_GATEWAY_PATCH_REQUEST:
-                        {
-                            try
+                    var result = handler.Handle(packet, _client);
+                    switch (result.ResultType)
+                    {
+                        case PacketResultType.Block:
                             {
-                                byte contentID = packet.ReadUInt8();
-                                string ModuleName = packet.ReadAscii();
-                                UInt32 version = packet.ReadUInt32();
-
-                                Custom.WriteLine($"contentID {contentID}");
-                                Custom.WriteLine($"ModuleName {ModuleName}");
-                                Custom.WriteLine($"version {version}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Custom.WriteLine(ex.ToString(), ConsoleColor.Red);
-                                Custom.WriteLine($"Wrong packet structure for CLIENT_GATEWAY_PATCH_REQUEST", ConsoleColor.Red);
-                                this.DisconnectModuleSocket();
-                                return;
-                            }
-                        }
-                        break;
-
-                    case CLIENT_GATEWAY_SHARD_LIST_REQUEST:
-                        {
-                            if (packet.GetBytes().Length > 0)
-                            {
-                                Custom.WriteLine($"Ignore packet CLIENT_GATEWAY_SHARD_LIST_REQUEST from {_client.ip}", ConsoleColor.Yellow);
+                                Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
                                 continue;
                             }
 
-                            Custom.WriteLine($"CLIENT_GATEWAY_SHARD_LIST_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
-                        }
-                        break;
-
-                    case CLIENT_GATEWAY_LOGIN_REQUEST:
-                        {
-                            byte locale = packet.ReadUInt8();
-                            Custom.WriteLine($"locale: {locale}", ConsoleColor.DarkMagenta);
-                            _client.StrUserID = packet.ReadAscii();
-                            _client.password = packet.ReadAscii();
-                            _client.serverID = packet.ReadUInt16();
-
-                            //if (_client.sent_id != 1 || _client.sent_list != 1)
-                            //{
-                            //    Custom.WriteLine($"Sent id: {_client.sent_id} Sent list: {_client.sent_list}", ConsoleColor.Red);
-                            //    Custom.WriteLine($"Blocked potential exploit from {_client.StrUserID} {_client.password} {_client.ip} for exploiting", ConsoleColor.Yellow);
-                            //    continue;
-                            //}
-                        }
-                        break;
-
-                    case CLIENT_GATEWAY_NOTICE_REQUEST:
-                        {
-                            byte contentID = packet.ReadUInt8();
-
-                            if (packet.GetBytes().Length > 1)
+                        case PacketResultType.Disconnect:
                             {
-                                Custom.WriteLine($"Ignore packet CLIENT_GATEWAY_NOTICE_REQUEST from {_client.ip}", ConsoleColor.Yellow);
+                                Custom.WriteLine($"Disconnected  {_client.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
+                                HandleDisconnection();
                                 continue;
                             }
 
-                            Custom.WriteLine($"CLIENT_GATEWAY_NOTICE_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
-                        }
-                        break;
-
-                    case CLIENT_GATEWAY_SHARD_LIST_PING_REQUEST:
-                        {
-                            Custom.WriteLine($"CLIENT_GATEWAY_SHARD_LIST_PING_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
-                        }
-                        break;
-
-                    case CLIENT_GATEWAY_LOGIN_IBUV_ANSWER:
-                        {
-                            string code = packet.ReadAscii();
-                        }
-                        break;
-
-                    case GLOBAL_IDENTIFICATION:
-                        {
-                            if (packet.GetBytes().Length != 12)
+                        case PacketResultType.Ban:
                             {
-                                Custom.WriteLine($"Ignore packet GLOBAL_IDENTIFICATION from {_client.ip}", ConsoleColor.Yellow);
+                                Custom.WriteLine($"Not implemented", ConsoleColor.Red);
                                 continue;
                             }
 
-                            DoReceive(false);
-                            continue;
-                        }
-
-                    case CLIENT_GLOBAL_PING:
-                        {
-                            if (packet.GetBytes().Length != 0)
+                        case PacketResultType.SkipSending:
                             {
-                                Custom.WriteLine($"Ignore packet CLIENT_GLOBAL_PING from {_client.ip}", ConsoleColor.Yellow);
+                                Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                                Send(result.SendImmediately);
                                 continue;
                             }
-                        }
-                        break;
 
-                    default:
-                        {
-                            //var test = $"[C->S][{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                            continue;
-                        }
+                        case PacketResultType.DoReceive:
+                            {
+                                Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                                DoReceive(false);
+                                continue;
+                            }
+                    }
+
+                    if (result.ModifiedPacket != null)
+                    {
+                        // Send the modified packet instead of the original
+                        _lastPackets.Enqueue(copyOfPacket);
+                        _remoteSecurity.Send(result.ModifiedPacket);
+                        Send(result.SendImmediately);
+                        continue;
+                    }
                 }
 
-                Packet copyOfPacket = packet;
                 _lastPackets.Enqueue(copyOfPacket);
                 _remoteSecurity.Send(packet);
                 Send(true);
+                continue;
             }
         }
 

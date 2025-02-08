@@ -76,8 +76,21 @@
     <Compile Include="Engine\Classes\FixedSizeQueue.cs" />
     <Compile Include="Engine\Classes\SocketState.cs" />
     <Compile Include="Framework\IPacketHandler.cs" />
-    <Compile Include="PacketManager\Client\ClientPacketHandler.cs" />
-    <Compile Include="PacketManager\Server\ServerPacketHandler.cs" />
+    <Compile Include="Framework\PacketHandlingResult.cs" />
+    <Compile Include="PacketManager\Client\ClientPacketManager.cs" />
+    <Compile Include="PacketManager\Client\Handlers\_ClientDefaultHandler.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGatewayLoginIBUVAnswer.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGatewayLoginRequestHandler.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGatewayNoticeRequest.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGatewayPatchRequestHandler.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGatewayShardListRequestHandler.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGlobalIdentification.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGlobalPing.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientHandshakeHandler.cs" />
+    <Compile Include="PacketManager\Client\Handlers\ClientGatewayShardListPingRequestHandler.cs" />
+    <Compile Include="PacketManager\Client\Handlers\_ClientExampleHandler.cs" />
+    <Compile Include="PacketManager\Server\Handlers\ServerHandshakeHandler.cs" />
+    <Compile Include="PacketManager\Server\ServerPacketManager.cs" />
     <Compile Include="PacketManager\Server\Handlers\ServerLoginResponseHandler.cs" />
     <Compile Include="PacketManager\SilkroadSecurityAPI\Blowfish.cs" />
     <Compile Include="PacketManager\SilkroadSecurityAPI\Packet.cs" />
@@ -98,8 +111,6 @@
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="PacketManager\Client\Handlers\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -1,4 +1,4 @@
-﻿namespace NetGuard.Engine
+﻿namespace NetGuard.Engine.Classes
 {
     public class Plugin
     {

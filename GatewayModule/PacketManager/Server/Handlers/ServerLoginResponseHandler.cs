@@ -10,13 +10,15 @@ namespace PacketManager.Server.Handlers
 {
     public class ServerLoginResponseHandler : IPacketHandler
     {
-        public bool Handle(Packet packet, SessionData client, out Packet modifiedPacket)
+        public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            modifiedPacket = null;
+            PacketHandlingResult response = new PacketHandlingResult();
 
-            byte response = packet.ReadUInt8();
+            response.ModifiedPacket = null;
 
-            if(response == 1)
+            byte res = packet.ReadUInt8();
+
+            if(res == 1)
             {
                 uint id = packet.ReadUInt32();
                 string host = packet.ReadAscii();
@@ -26,7 +28,7 @@ namespace PacketManager.Server.Handlers
                 if (index == -1)
                 {
                     Custom.WriteLine("Could not find agent bindings", ConsoleColor.Red);
-                    return true;
+                    return response;
                 }
 
                 // If agent bindings are found, create the modified packet
@@ -34,20 +36,22 @@ namespace PacketManager.Server.Handlers
 
                 Custom.WriteLine($"Using {guardModule.guardIP} {guardModule.guardPort}", ConsoleColor.Cyan);
 
-                modifiedPacket = new Packet(SERVER_GATEWAY_LOGIN_RESPONSE, true);
-                modifiedPacket.WriteUInt8(response);
+                var modifiedPacket = new Packet(SERVER_GATEWAY_LOGIN_RESPONSE, true);
+                modifiedPacket.WriteUInt8(res);
                 modifiedPacket.WriteUInt32(id);
                 modifiedPacket.WriteAscii(guardModule.guardIP);
                 modifiedPacket.WriteUInt16(guardModule.guardPort);
                 modifiedPacket.WriteUInt32(0);  // Add any other modifications you need
                 // modifiedPacket.Lock(); Not sure if needed
 
-                return true; // Return true to indicate we modified the packet
+                response.ModifiedPacket = modifiedPacket;
+
+                return response; // Return true to indicate we modified the packet
 
 
             }
 
-            return false;
+            return response;
         }
     }
 }

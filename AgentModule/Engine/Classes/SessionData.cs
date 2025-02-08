@@ -1,8 +1,8 @@
 ﻿using SilkroadSecurityAPI;
 
-namespace NetGuard.Engine
+namespace NetGuard.Engine.Classes
 {
-    public class AgentClient
+    public class SessionData
     {
         public string ip { get; set; }
         public string StrUserID { get; set; } = "";
