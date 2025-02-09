@@ -4,6 +4,7 @@ using GatewayModule.Framework;
 using GatewayModule.Services;
 using SilkroadSecurityAPI;
 using Module;
+using static GatewayModule.Framework.Opcodes.Client;
 using static GatewayModule.Framework.Opcodes.Server;
 
 namespace GatewayModule.PacketManager.Server.Handlers
@@ -43,6 +44,8 @@ namespace GatewayModule.PacketManager.Server.Handlers
                 modifiedPacket.WriteUInt16(guardModule.guardPort);
                 modifiedPacket.WriteUInt32(0);  // Add any other modifications you need
                 // modifiedPacket.Lock(); Not sure if needed
+
+                response.SendImmediately = false;
 
                 response.ModifiedPacket = modifiedPacket;
 

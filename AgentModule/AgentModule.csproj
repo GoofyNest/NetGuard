@@ -84,6 +84,21 @@
     <Compile Include="Framework\IPacketHandler.cs" />
     <Compile Include="Framework\PacketHandlingResult.cs" />
     <Compile Include="Framework\PacketType.cs" />
+    <Compile Include="PacketManager\Client\Handlers\AuthRequest.cs" />
+    <Compile Include="PacketManager\Client\Handlers\DefaultBlock.cs" />
+    <Compile Include="PacketManager\Client\Handlers\Global_Identification.cs" />
+    <Compile Include="PacketManager\Client\Handlers\Handshake.cs" />
+    <Compile Include="PacketManager\Client\Handlers\LogoutRequest.cs" />
+    <Compile Include="PacketManager\Client\Handlers\SpoofLocaleVersion.cs" />
+    <Compile Include="PacketManager\Client\Handlers\_ExampleHandler.cs" />
+    <Compile Include="PacketManager\Server\Handlers\AuthResponse.cs" />
+    <Compile Include="PacketManager\Server\Handlers\CharacterSelectionResponse.cs" />
+    <Compile Include="PacketManager\Server\Handlers\CharData.cs" />
+    <Compile Include="PacketManager\Server\Handlers\CharDataLoadingEnd.cs" />
+    <Compile Include="PacketManager\Server\Handlers\CharDataLoadingStart.cs" />
+    <Compile Include="PacketManager\Server\Handlers\EnviromentCelestialPosition.cs" />
+    <Compile Include="PacketManager\Server\Handlers\Handshake.cs" />
+    <Compile Include="PacketManager\Server\Handlers\_ExampleHandler.cs" />
     <Compile Include="Services\CustomConsole.cs" />
     <Compile Include="PacketManager\Client\ClientPacketManager.cs" />
     <Compile Include="PacketManager\Server\ServerPacketManager.cs" />
@@ -94,9 +109,6 @@
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="PacketManager\Client\Handlers\" />
-    <Folder Include="PacketManager\Server\Handlers\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

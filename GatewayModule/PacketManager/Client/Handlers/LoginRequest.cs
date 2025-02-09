@@ -22,12 +22,14 @@ namespace GatewayModule.PacketManager.Client.Handlers
             client.password = packet.ReadAscii();
             client.serverID = packet.ReadUInt16();
 
-            //if (_client.sent_id != 1 || _client.sent_list != 1)
-            //{
-            //    Custom.WriteLine($"Sent id: {_client.sent_id} Sent list: {_client.sent_list}", ConsoleColor.Red);
-            //    Custom.WriteLine($"Blocked potential exploit from {_client.StrUserID} {_client.password} {_client.ip} for exploiting", ConsoleColor.Yellow);
-            //    continue;
-            //}
+            if (client.sent_id != 1 || client.sent_list != 1)
+            {
+                Custom.WriteLine($"Sent id: {client.sent_id}", ConsoleColor.DarkMagenta);
+                Custom.WriteLine($"Sent list: {client.sent_list}", ConsoleColor.DarkMagenta);
+
+                Custom.WriteLine($"Blocked potential exploit from {client.StrUserID} {client.password} {client.ip} for exploiting", ConsoleColor.Yellow);
+                response.ResultType = PacketResultType.Block;
+            }
 
             return response;
         }

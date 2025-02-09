@@ -150,6 +150,8 @@ namespace NetGuardLoader
                                 byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
                                 var _reponse = Convert.ToBase64String(dllBytes);
 
+                                Custom.WriteLine($"Loading dll {_module.dllPath}", ConsoleColor.DarkMagenta);
+
                                 object[] SharedArgs = new object[] { _module.name, _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
                                 _appDomain.SetData("args", SharedArgs);
 
@@ -171,6 +173,8 @@ namespace NetGuardLoader
 
                                 byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
                                 var _reponse = Convert.ToBase64String(dllBytes);
+
+                                Custom.WriteLine($"Loading dll {_module.dllPath}", ConsoleColor.DarkMagenta);
 
                                 object[] SharedArgs = new object[] { _module.name, _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
                                 _appDomain.SetData("args", SharedArgs);

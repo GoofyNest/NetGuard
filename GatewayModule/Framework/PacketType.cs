@@ -5,15 +5,15 @@
         public class Client
         {
             public const ushort
-                CLIENT_GLOBAL_PING = 0x2002,
-                CLIENT_ACCEPT_HANDSHAKE = 0x9000,
+                GLOBAL_PING = 0x2002,
+                ACCEPT_HANDSHAKE = 0x9000,
 
-                CLIENT_GATEWAY_PATCH_REQUEST = 0x6100,
-                CLIENT_GATEWAY_SHARD_LIST_REQUEST = 0x6101,
-                CLIENT_GATEWAY_LOGIN_REQUEST = 0x6102,
-                CLIENT_GATEWAY_NOTICE_REQUEST = 0x6104,
-                CLIENT_GATEWAY_SHARD_LIST_PING_REQUEST = 0x6106,
-                CLIENT_GATEWAY_LOGIN_IBUV_ANSWER = 0x6323;
+                GATEWAY_PATCH_REQUEST = 0x6100,
+                GATEWAY_SHARD_LIST_REQUEST = 0x6101,
+                GATEWAY_LOGIN_REQUEST = 0x6102,
+                GATEWAY_NOTICE_REQUEST = 0x6104,
+                GATEWAY_SHARD_LIST_PING_REQUEST = 0x6106,
+                GATEWAY_LOGIN_IBUV_ANSWER = 0x6323;
 
 
             // Add other packet types as needed

@@ -68,199 +68,20 @@ namespace AgentModule.Engine
             }
         }
 
-        void HandleReceivedDataFromServer(int nReceived)
+        void HandleReceivedData(int nReceived, bool isClient)
         {
-            _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
-            var ReceivePacketFromServer = _remoteSecurity.TransferIncoming();
-
-            if (ReceivePacketFromServer == null)
-                return;
-
-            int count = ReceivePacketFromServer.Count;
-
-            for (int i = 0; i < count; i++)
+            // Receive data based on whether it's from the client or server
+            if (isClient)
             {
-                Packet packet = ReceivePacketFromServer[i];
-
-                IPacketHandler handler = ServerPacketManager.GetHandler(packet, _client);
-
-                if (handler != null)
-                {
-                    var result = handler.Handle(packet, _client);
-                    switch (result.ResultType)
-                    {
-                        case PacketResultType.Block:
-                            Custom.WriteLine($"Prevented [{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
-                            continue;
-
-                        case PacketResultType.Disconnect:
-                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [{packet.Opcode}]", ConsoleColor.Red);
-                            HandleDisconnection();
-                            continue;
-
-                        case PacketResultType.Ban:
-                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
-                            continue;
-
-                        case PacketResultType.SkipSending:
-                            Send(result.SendImmediately);
-                            continue;
-                    }
-
-                    if (result.ModifiedPacket != null)
-                    {
-                        // Send the modified packet instead of the original
-                        _localSecurity.Send(result.ModifiedPacket);
-                        Send(result.SendImmediately);
-                        continue;
-                    }
-                }
-
-                switch (packet.Opcode)
-                {
-                    case 0x34A5:
-                        {
-                            _client.charData = null;
-                        }
-                        break;
-
-                    case SERVER_LOADING_END:
-                        {
-                            _client.inCharSelection = false;
-
-                            var _packet = _client.charData;
-
-                            _client.charData.Lock();
-
-                            var serverTime = _packet.ReadUInt32(); // * 4   uint    ServerTime               //SROTimeStamp
-                            var refObjId = _packet.ReadUInt32(); // 4   uint    RefObjID
-                            var scale = _packet.ReadUInt8(); // 1   byte    Scale
-                            var curLevel = _packet.ReadUInt8(); // 1   byte    CurLevel
-                            var maxLevel = _packet.ReadUInt8(); // 1   byte    MaxLevel
-                            var expOffset = _packet.ReadUInt64(); // 8   ulong   ExpOffset
-                            var sExpOffset = _packet.ReadUInt32(); // 4   uint    SExpOffset
-                            var remainGold = _packet.ReadUInt64(); // 8   ulong   RemainGold
-                            var remainSkillPoint = _packet.ReadUInt32(); // 4   uint    RemainSkillPoint
-                            var remainStatPoint = _packet.ReadUInt16(); // 2   ushort  RemainStatPoint
-                            var remainHwanCount = _packet.ReadUInt8(); // 1   byte    RemainHwanCount
-                            var gatheredExpPoint = _packet.ReadUInt32(); // 4   uint    GatheredExpPoint
-                            var hp = _packet.ReadUInt32(); // 4   uint    HP
-                            var mp = _packet.ReadUInt32(); // 4   uint    MP
-                            var autoInverstExp = _packet.ReadUInt8(); // 1   byte    AutoInverstExp
-                            var dailyPk = _packet.ReadUInt8(); // 1   byte    DailyPK
-                            var totalPk = _packet.ReadUInt16(); // 2   ushort  TotalPK
-                            var pkPenaltyPoint = _packet.ReadUInt32(); // 4   uint    PKPenaltyPoint
-                            var hwanLevel = _packet.ReadUInt8(); // 1   byte    HwanLevel
-                            var pvpCape = _packet.ReadUInt8(); // 1   byte    pvpCape
-
-                            // Inventory
-                            var inventorySize = _packet.ReadUInt8(); // 1   byte    Inventory.Size
-                            var inventoryItemCount = _packet.ReadUInt8(); // 1   byte    Inventory.ItemCount
-                            for (var d = 0; d < inventoryItemCount; d++) // for (int i = 0; i < Inventory.ItemCount; i++)
-                            {
-                                var itemSlot = _packet.ReadUInt8(); //     1   byte    item.Slot
-                                var itemRentType = _packet.ReadUInt32(); //     4   uint    item.RentType
-                                if (itemRentType == 1)
-                                {
-                                    var itemRentInfoCanDelete = _packet.ReadUInt16(); //         2   ushort  item.RentInfo.CanDelete
-                                    var itemRentInfoPeriodBeginTime =
-                                        _packet.ReadUInt32(); //         4   uint    item.RentInfo.PeriodBeginTime
-                                    var itemRentInfoPeriodEndTime =
-                                        _packet.ReadUInt32(); //         4   uint    item.RentInfo.PeriodEndTime        
-                                }
-                                else if (itemRentType == 2)
-                                {
-                                    var itemRentInfoCanDelete = _packet.ReadUInt16(); //         2   ushort  item.RentInfo.CanDelete
-                                    var itemRentInfoCanRecharge = _packet.ReadUInt16(); //         2   ushort  item.RentInfo.CanRecharge
-                                    var itemRentInfoMeterRateTime =
-                                        _packet.ReadUInt32(); //         4   uint    item.RentInfo.MeterRateTime        
-                                }
-                                else if (itemRentType == 3)
-                                {
-                                    var itemRentInfoCanDelete = _packet.ReadUInt16(); //         2   ushort  item.RentInfo.CanDelete
-                                    var itemRentInfoCanRecharge = _packet.ReadUInt16(); //         2   ushort  item.RentInfo.CanRecharge
-                                    var itemRentInfoPeriodBeginTime =
-                                        _packet.ReadUInt32(); //         4   uint    item.RentInfo.PeriodBeginTime
-                                    var itemRentInfoPeriodEndTime =
-                                        _packet.ReadUInt32(); //         4   uint    item.RentInfo.PeriodEndTime   
-                                    var itemRentInfoPackingTime =
-                                        _packet.ReadUInt32(); //         4   uint    item.RentInfo.PackingTime        
-                                }
-
-                                var itemRefItemId = _packet.ReadUInt32(); //     4   uint    item.RefItemID
-
-                                Console.WriteLine(itemRefItemId);
-                            }
-                        }
-                        break;
-
-                    case 0x3013:
-                        {
-                            if (_client.charData == null)
-                            {
-                                _client.charData = new Packet(0x0000);
-                            }
-
-                            for (var d = 0; d < packet.GetBytes().Length; d++)
-                                _client.charData.WriteUInt8(packet.ReadUInt8());
-                        }
-                        break;
-
-
-                    case LOGIN_SERVER_HANDSHAKE:
-                        {
-                            Send(true);
-                            continue;
-                        }
-
-                    case CLIENT_GLOBAL_PING:
-                        {
-
-                        }
-                        break;
-
-                    case SERVER_AGENT_ENVIROMMENT_CELESTIAL_POSITION:
-                        {
-                            UInt32 uniqueID = packet.ReadUInt32();
-                            ushort moonPhase = packet.ReadUInt16();
-                            byte hour = packet.ReadUInt8();
-                            byte minute = packet.ReadUInt8();
-
-                            _client.exploitIwaFix = false;
-                        }
-                        break;
-
-                    case SERVER_AGENT_CHARACTER_SELECTION_RESPONSE:
-                        _client.inCharSelection = true;
-                        break;
-
-                    case SERVER_AGENT_AUTH_RESPONSE:
-                        {
-                            byte errorCode = packet.ReadUInt8();
-
-                            if (errorCode == 0x01)
-                                _client.inCharSelection = true;
-
-                            Custom.WriteLine($"SERVER_AGENT_AUTH_RESPONSE {errorCode}", ConsoleColor.Cyan);
-                        }
-                        break;
-
-                    default:
-                        Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                        //Custom.WriteLine($"[S->C] Unknown packet {packet.Opcode:X4} {packet.GetBytes().Length}", ConsoleColor.Yellow);
-                        break;
-                }
-
-                _localSecurity.Send(packet);
-                Send(false);
+                _localSecurity.Recv(_localBuffer, 0, nReceived);
             }
-        }
+            else
+            {
+                _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
+            }
 
-        private void HandleReceivedDataFromClient(int nReceived)
-        {
-            _localSecurity.Recv(_localBuffer, 0, nReceived);
-
-            var receivedPackets = _localSecurity.TransferIncoming();
+            // Transfer the incoming packets
+            var receivedPackets = isClient ? _localSecurity.TransferIncoming() : _remoteSecurity.TransferIncoming();
 
             if (receivedPackets == null)
                 return;
@@ -270,10 +91,10 @@ namespace AgentModule.Engine
             for (int i = 0; i < count; i++)
             {
                 var packet = receivedPackets[i];
-
                 var copyOfPacket = packet;
 
-                IPacketHandler handler = ClientPacketManager.GetHandler(packet, _client);
+                // Get the appropriate packet handler
+                IPacketHandler handler = isClient ? ClientPacketManager.GetHandler(packet, _client) : ServerPacketManager.GetHandler(packet, _client);
 
                 if (handler != null)
                 {
@@ -281,11 +102,11 @@ namespace AgentModule.Engine
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
-                            Custom.WriteLine($"Prevented [{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
+                            Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
                             continue;
 
                         case PacketResultType.Disconnect:
-                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [{packet.Opcode}]", ConsoleColor.Red);
+                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
                             HandleDisconnection();
                             continue;
 
@@ -294,10 +115,12 @@ namespace AgentModule.Engine
                             continue;
 
                         case PacketResultType.SkipSending:
+                            Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
                             Send(result.SendImmediately);
                             continue;
 
                         case PacketResultType.DoReceive:
+                            Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
                             DoReceive(false);
                             continue;
                     }
@@ -305,126 +128,32 @@ namespace AgentModule.Engine
                     if (result.ModifiedPacket != null)
                     {
                         // Send the modified packet instead of the original
-                        _lastPackets.Enqueue(copyOfPacket);
-                        _remoteSecurity.Send(result.ModifiedPacket);
+                        if (isClient)
+                        {
+                            _lastPackets.Enqueue(copyOfPacket);
+                            _remoteSecurity.Send(result.ModifiedPacket);
+                        }
+                        else
+                        {
+                            _localSecurity.Send(result.ModifiedPacket);
+                        }
                         Send(result.SendImmediately);
                         continue;
                     }
                 }
 
-                if (_client.inCharSelection)
+                // Enqueue and send the original packet
+                if (isClient)
                 {
-                    switch (packet.Opcode)
-                    {
-                        case CLIENT_GLOBAL_PING:
-                        case CLIENT_AGENT_CHARACTER_SELECTION_JOIN_REQUEST:
-                        case CLIENT_AGENT_CHARACTER_SELECTION_ACTION_REQUEST:
-                            {
-                                _lastPackets.Enqueue(copyOfPacket);
-                                _remoteSecurity.Send(packet);
-                                Send(true);
-                            }
-                            break;
-
-                        default:
-                            {
-                                Custom.WriteLine($"Ignore packet {packet.Opcode:X4} from {_client.ip} Reason: Char Selection", ConsoleColor.DarkRed);
-                            }
-                            break;
-                    }
-                    continue;
+                    _lastPackets.Enqueue(copyOfPacket);
+                    _remoteSecurity.Send(packet);
+                }
+                else
+                {
+                    _localSecurity.Send(packet);
                 }
 
-                switch (packet.Opcode)
-                {
-                    case 0x3012:
-                        {
-
-                        }
-                        break;
-
-                    case 0x3014:
-                        {
-                            Custom.WriteLine("Different locale shit?");
-                            Packet spoof = new Packet(0x3012);
-                            _remoteSecurity.Send(spoof);
-                            Send(false);
-                            continue;
-                        }
-
-                    case LOGIN_SERVER_HANDSHAKE:
-                    case CLIENT_ACCEPT_HANDSHAKE:
-                        {
-                            Send(false);
-                            continue;
-                        }
-
-                    case CLIENT_AGENT_LOGOUT_REQUEST:
-                        {
-                            if (_client.exploitIwaFix)
-                            {
-                                Custom.WriteLine($"Ignore packet 0x{packet.Opcode:X4} from {_client.ip} Reason: Iwa exploit fix", ConsoleColor.DarkRed);
-                                continue;
-                            }
-
-                            byte action = packet.ReadUInt8();
-                            switch (action)
-                            {
-                                case 0x01:
-                                    // Exit delay
-                                    break;
-                                case 0x02:
-                                    // Restart delay
-                                    break;
-
-                                default:
-                                    {
-                                        Custom.WriteLine($"Ignore packet 0x{packet.Opcode:X4} from {_client.ip} Reason: Iwa exploit fix", ConsoleColor.DarkRed);
-                                        continue;
-                                    }
-                            }
-                        }
-                        break;
-
-                    case GLOBAL_IDENTIFICATION:
-                        {
-                            if (packet.GetBytes().Length != 12)
-                            {
-                                Custom.WriteLine($"Ignore packet GLOBAL_IDENTIFICATION from {_client.ip}", ConsoleColor.Yellow);
-                                continue;
-                            }
-
-                            DoReceive(false);
-                            continue;
-                        }
-
-                    case CLIENT_AGENT_AUTH_REQUEST:
-                        {
-                            UInt32 Token = packet.ReadUInt32(); //from LOGIN_RESPONSE
-                            _client.StrUserID = packet.ReadAscii();
-                            _client.password = packet.ReadAscii();
-                            byte OperationType = packet.ReadUInt8();
-
-                            byte[] mac = packet.ReadUInt8Array(6);
-                            string mac_address = BitConverter.ToString(mac);
-                            int fail_count = mac.Count(b => b == 0x00);
-
-                            _client.mac = mac_address;
-                        }
-                        break;
-
-                    default:
-                        {
-                            //var test = $"[C->S][{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                            //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                            //continue;
-                        }
-                        break;
-                }
-
-                _lastPackets.Enqueue(copyOfPacket);
-                _remoteSecurity.Send(packet);
-                Send(true);
+                Send(isClient); // Use the isClient flag to determine the action
             }
         }
 
@@ -486,13 +215,13 @@ namespace AgentModule.Engine
                 if (socket == _clientSocket)
                 {
                     // Client-specific data handling
-                    await Task.Run(() => HandleReceivedDataFromClient(bytesReceived));
+                    await Task.Run(() => HandleReceivedData(bytesReceived, true));
                     DoReceive(true);  // Continue receiving from client
                 }
                 else if (socket == _moduleSocket)
                 {
                     // Server-specific data handling
-                    await Task.Run(() => HandleReceivedDataFromServer(bytesReceived));
+                    await Task.Run(() => HandleReceivedData(bytesReceived, false));
                     DoReceive(false);  // Continue receiving from server
                 }
             }

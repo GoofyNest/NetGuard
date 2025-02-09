@@ -67,95 +67,22 @@ namespace GatewayModule.Engine
             }
         }
 
-        void HandleReceivedDataFromServer(int nReceived)
+        void HandleReceivedData(int nReceived, bool isClient)
         {
-            _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
-            var ReceivePacketFromServer = _remoteSecurity.TransferIncoming();
+            Custom.WriteLine($"nReceived: {nReceived} isClient: {isClient}", ConsoleColor.DarkMagenta);
 
-            if (ReceivePacketFromServer == null)
-                return;
-
-            int count = ReceivePacketFromServer.Count;
-
-            for (int i = 0; i < count; i++)
+            // Receive data based on whether it's from the client or server
+            if (isClient)
             {
-                Packet packet = ReceivePacketFromServer[i];
-
-                IPacketHandler handler = ServerPacketManager.GetHandler(packet, _client);
-                
-                if(handler != null)
-                {
-                    var result = handler.Handle(packet, _client);
-
-                    switch (result.ResultType)
-                    {
-                        case PacketResultType.Block:
-                            Custom.WriteLine($"Prevented [{packet.Opcode}] from being sent from {_client.ip}", ConsoleColor.Red);
-                            continue;
-
-                        case PacketResultType.Disconnect:
-                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [{packet.Opcode}]", ConsoleColor.Red);
-                            HandleDisconnection();
-                            continue;
-
-                        case PacketResultType.Ban:
-                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
-                            continue;
-
-                        case PacketResultType.SkipSending:
-                            Send(result.SendImmediately);
-                            continue;
-                    }
-
-                    if (result.ModifiedPacket != null)
-                    {
-                        // Send the modified packet instead of the original
-                        _localSecurity.Send(result.ModifiedPacket);
-                        Send(result.SendImmediately);
-                        continue;
-                    }
-
-                }
-
-                //var msg = $"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                ////Custom.WriteLine($"[S->C] {packet.Opcode:X4}", ConsoleColor.DarkMagenta);
-                //Custom.WriteLine(msg, ConsoleColor.Yellow);
-
-                //File.AppendAllText($"gateway_{Main.unixTimestamp}_server.txt", "\n" + msg);
-
-                switch (packet.Opcode)
-                {
-                    case LOGIN_SERVER_HANDSHAKE:
-                    case CLIENT_ACCEPT_HANDSHAKE:
-                        {
-                            Send(true);
-                            continue;
-                        }
-
-                    case SERVER_GATEWAY_PATCH_RESPONSE:
-                        _client.sent_id = 1;
-                        break;
-
-                    case SERVER_GATEWAY_SHARD_LIST_RESPONSE:
-                        _client.sent_list = 1;
-                        break;
-
-                    default:
-                        //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                        //Custom.WriteLine($"[S->C] Unknown packet {packet.Opcode:X4} {packet.GetBytes().Length}", ConsoleColor.Yellow);
-                        break;
-                }
-
-                _localSecurity.Send(packet);
-                Send(false);
+                _localSecurity.Recv(_localBuffer, 0, nReceived);
             }
-        }
+            else
+            {
+                _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
+            }
 
-        private void HandleReceivedDataFromClient(int nReceived)
-        {
-            _localSecurity.Recv(_localBuffer, 0, nReceived);
-
-            var receivedPackets = _localSecurity.TransferIncoming();
+            // Transfer the incoming packets
+            var receivedPackets = isClient ? _localSecurity.TransferIncoming() : _remoteSecurity.TransferIncoming();
 
             if (receivedPackets == null)
                 return;
@@ -165,10 +92,10 @@ namespace GatewayModule.Engine
             for (int i = 0; i < count; i++)
             {
                 var packet = receivedPackets[i];
-
                 var copyOfPacket = packet;
 
-                IPacketHandler handler = ClientPacketManager.GetHandler(packet, _client);
+                // Get the appropriate packet handler
+                IPacketHandler handler = isClient ? ClientPacketManager.GetHandler(packet, _client) : ServerPacketManager.GetHandler(packet, _client);
 
                 if (handler != null)
                 {
@@ -176,53 +103,58 @@ namespace GatewayModule.Engine
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
-                            {
-                                Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
-                                continue;
-                            }
+                            Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
+                            continue;
 
                         case PacketResultType.Disconnect:
-                            {
-                                Custom.WriteLine($"Disconnected  {_client.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
-                                HandleDisconnection();
-                                continue;
-                            }
+                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
+                            HandleDisconnection();
+                            continue;
 
                         case PacketResultType.Ban:
-                            {
-                                Custom.WriteLine($"Not implemented", ConsoleColor.Red);
-                                continue;
-                            }
+                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
+                            continue;
 
                         case PacketResultType.SkipSending:
-                            {
-                                Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
-                                Send(result.SendImmediately);
-                                continue;
-                            }
+                            Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                            Send(result.SendImmediately);
+                            continue;
 
                         case PacketResultType.DoReceive:
-                            {
-                                Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
-                                DoReceive(false);
-                                continue;
-                            }
+                            Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                            DoReceive(false);
+                            continue;
                     }
 
                     if (result.ModifiedPacket != null)
                     {
                         // Send the modified packet instead of the original
-                        _lastPackets.Enqueue(copyOfPacket);
-                        _remoteSecurity.Send(result.ModifiedPacket);
+                        if (isClient)
+                        {
+                            _lastPackets.Enqueue(copyOfPacket);
+                            _remoteSecurity.Send(result.ModifiedPacket);
+                        }
+                        else
+                        {
+                            _localSecurity.Send(result.ModifiedPacket);
+                        }
                         Send(result.SendImmediately);
                         continue;
                     }
                 }
 
-                _lastPackets.Enqueue(copyOfPacket);
-                _remoteSecurity.Send(packet);
-                Send(true);
-                continue;
+                // Enqueue and send the original packet
+                if (isClient)
+                {
+                    _lastPackets.Enqueue(copyOfPacket);
+                    _remoteSecurity.Send(packet);
+                }
+                else
+                {
+                    _localSecurity.Send(packet);
+                }
+
+                Send(isClient); // Use the isClient flag to determine the action
             }
         }
 
@@ -284,13 +216,13 @@ namespace GatewayModule.Engine
                 if (socket == _clientSocket)
                 {
                     // Client-specific data handling
-                    await Task.Run(() => HandleReceivedDataFromClient(bytesReceived));
+                    await Task.Run(() => HandleReceivedData(bytesReceived, true));
                     DoReceive(true);  // Continue receiving from client
                 }
                 else if (socket == _moduleSocket)
                 {
                     // Server-specific data handling
-                    await Task.Run(() => HandleReceivedDataFromServer(bytesReceived));
+                    await Task.Run(() => HandleReceivedData(bytesReceived, false));
                     DoReceive(false);  // Continue receiving from server
                 }
             }

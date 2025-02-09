@@ -1,12 +1,12 @@
 ﻿using System;
-using GatewayModule.Engine.Classes;
-using GatewayModule.Framework;
+using AgentModule.Engine.Classes;
+using AgentModule.Framework;
 using SilkroadSecurityAPI;
 using Module;
-using static GatewayModule.Framework.Opcodes.Client;
-using static GatewayModule.Framework.Opcodes.Server;
+using static AgentModule.Framework.Opcodes.Client;
+using static AgentModule.Framework.Opcodes.Server;
 
-namespace GatewayModule.PacketManager.Server.Handlers
+namespace AgentModule.PacketManager.Server.Handlers
 {
     public class Handshake : IPacketHandler
     {

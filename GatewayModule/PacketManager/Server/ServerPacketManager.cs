@@ -15,11 +15,17 @@ namespace GatewayModule.PacketManager.Server
             switch (packet.Opcode)
             {
                 case LOGIN_SERVER_HANDSHAKE:
-                case CLIENT_ACCEPT_HANDSHAKE:
+                case ACCEPT_HANDSHAKE:
                     return new Handshake();
 
                 case SERVER_GATEWAY_LOGIN_RESPONSE:
                     return new LoginResponse();
+
+                case SERVER_GATEWAY_SHARD_LIST_RESPONSE:
+                    return new ShardListResponse();
+
+                case SERVER_GATEWAY_PATCH_RESPONSE:
+                    return new PatchResponse();
 
                 default:
                     //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);

@@ -5,15 +5,15 @@
         public class Client
         {
             public const ushort
-                CLIENT_GLOBAL_PING = 0x2002,
-                CLIENT_ACCEPT_HANDSHAKE = 0x9000,
+                GLOBAL_PING = 0x2002,
+                ACCEPT_HANDSHAKE = 0x9000,
 
-                CLIENT_AGENT_AUTH_REQUEST = 0x6103, // Reponse SERVER_AGENT_AUTH_RESPONSE
+                AGENT_AUTH_REQUEST = 0x6103, // Reponse SERVER_AGENT_AUTH_RESPONSE
 
-                CLIENT_AGENT_CHARACTER_SELECTION_JOIN_REQUEST = 0x7001,
-                CLIENT_AGENT_CHARACTER_SELECTION_ACTION_REQUEST = 0x7007, // Reponse SERVER_AGENT_CHARACTER_SELECTION_RESPONSE
+                AGENT_CHARACTER_SELECTION_JOIN_REQUEST = 0x7001,
+                AGENT_CHARACTER_SELECTION_ACTION_REQUEST = 0x7007, // Reponse SERVER_AGENT_CHARACTER_SELECTION_RESPONSE
 
-                CLIENT_AGENT_LOGOUT_REQUEST = 0x7005;
+                AGENT_LOGOUT_REQUEST = 0x7005;
 
 
             // Add other packet types as needed
@@ -25,16 +25,25 @@
                 GLOBAL_IDENTIFICATION = 0x2001,
                 LOGIN_SERVER_HANDSHAKE = 0x5000,
 
-                SERVER_LOADING_END = 0x34A6,
+                AGENT_GAME_READY = 0x3012,
+                AGENT_GAME_READY2 = 0x3014, // Happens if locale is different in client
 
-                GLOBAL_UNKNOWN_2005 = 0x2005,
-                GLOBAL_UNKNONW_6005 = 0x6005,
+                AGENT_CHARDATA_BEGIN = 0x34A5,
+                AGENT_CHARDATA = 0x3013,
+                AGENT_CHARDATA_END = 0x34A6,
 
-                SERVER_AGENT_AUTH_RESPONSE = 0xA103, // IPLimit = 5, ServerIsFull = 4,
+                AGENT_COS_INFO = 0x30C8,
+                AGENT_COS_UPDATE = 0x30C9,
+                AGENT_COS_UPDATE_RIDESTATE = 0xB0CB,
 
-                SERVER_AGENT_CHARACTER_SELECTION_RESPONSE = 0xB007,
+                GLOBAL_NODE_STATUS1 = 0x2005,
+                GLOBAL_NODE_STATUS2 = 0x6005,
 
-                SERVER_AGENT_ENVIROMMENT_CELESTIAL_POSITION = 0x3020;
+                AGENT_AUTH_RESPONSE = 0xA103, // IPLimit = 5, ServerIsFull = 4,
+
+                AGENT_CHARACTER_SELECTION_RESPONSE = 0xB007,
+
+                AGENT_ENVIROMMENT_CELESTIAL_POSITION = 0x3020;
             // Add other packet types as needed
         }
     }
