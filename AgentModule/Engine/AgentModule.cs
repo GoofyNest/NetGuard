@@ -4,16 +4,13 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using AgentModule.Classes;
-using Module;
-using static AgentModule.Framework.Opcodes.Client;
-using static AgentModule.Framework.Opcodes.Server;
-using System.Linq;
-using SilkroadSecurityAPI;
 using AgentModule.Engine.Classes;
-using AgentModule.Services;
 using AgentModule.Framework;
 using AgentModule.PacketManager.Client;
 using AgentModule.PacketManager.Server;
+using AgentModule.Services;
+using Module;
+using SilkroadSecurityAPI;
 
 namespace AgentModule.Engine
 {
