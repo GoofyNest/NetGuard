@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace GatewayModule.SilkroadSecurityAPI
+namespace SilkroadSecurityAPI
 {
     public class Blowfish
     {

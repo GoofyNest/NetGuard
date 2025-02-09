@@ -8,7 +8,7 @@ using Module;
 using static AgentModule.Framework.Opcodes.Client;
 using static AgentModule.Framework.Opcodes.Server;
 using System.Linq;
-using AgentModule.SilkroadSecurityAPI;
+using SilkroadSecurityAPI;
 using AgentModule.Engine.Classes;
 using AgentModule.Services;
 using AgentModule.Framework;

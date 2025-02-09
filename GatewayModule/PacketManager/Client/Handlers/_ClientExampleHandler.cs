@@ -1,7 +1,7 @@
 ﻿using System;
 using GatewayModule.Engine.Classes;
 using GatewayModule.Framework;
-using GatewayModule.SilkroadSecurityAPI;
+using SilkroadSecurityAPI;
 using Module;
 using static GatewayModule.Framework.Opcodes;
 using static GatewayModule.Framework.Opcodes.Server;

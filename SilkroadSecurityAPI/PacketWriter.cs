@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace AgentModule.SilkroadSecurityAPI
+namespace SilkroadSecurityAPI
 {
     internal class PacketWriter : BinaryWriter
     {

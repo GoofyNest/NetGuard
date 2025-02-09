@@ -1,6 +1,6 @@
 ﻿using AgentModule.Engine.Classes;
 using AgentModule.Framework;
-using AgentModule.SilkroadSecurityAPI;
+using SilkroadSecurityAPI;
 using static AgentModule.Framework.Opcodes.Client;
 using static AgentModule.Framework.Opcodes.Server;
 

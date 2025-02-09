@@ -9,7 +9,7 @@ using GatewayModule.Framework;
 using GatewayModule.PacketManager.Client;
 using GatewayModule.PacketManager.Server;
 using GatewayModule.Services;
-using GatewayModule.SilkroadSecurityAPI;
+using SilkroadSecurityAPI;
 using Module;
 using static GatewayModule.Framework.Opcodes.Client;
 using static GatewayModule.Framework.Opcodes.Server;

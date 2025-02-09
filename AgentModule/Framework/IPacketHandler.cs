@@ -1,5 +1,5 @@
 ﻿using AgentModule.Engine.Classes;
-using AgentModule.SilkroadSecurityAPI;
+using SilkroadSecurityAPI;
 
 namespace AgentModule.Framework
 {

@@ -44,19 +44,14 @@ namespace Module
 
             var settingsPath = Path.Combine(path, "settings.json");
 
-            if (!File.Exists(settingsPath))
-            {
-                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
-            }
-            else
+            if (File.Exists(settingsPath))
             {
                 _config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(settingsPath));
-                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
             }
 
             logFile = Path.Combine(path, name + ".txt");
 
-            if(File.Exists(logFile))
+            if (File.Exists(logFile))
                 File.Delete(logFile);
 
             Task.Run(() => startGateway());

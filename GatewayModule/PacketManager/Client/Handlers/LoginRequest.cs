@@ -1,5 +1,5 @@
 ﻿using System;
-using GatewayModule.SilkroadSecurityAPI;
+using SilkroadSecurityAPI;
 using GatewayModule.Framework;
 using GatewayModule.Engine.Classes;
 using GatewayModule.Services;

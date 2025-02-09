@@ -1,4 +1,4 @@
-﻿using AgentModule.SilkroadSecurityAPI;
+﻿using SilkroadSecurityAPI;
 
 namespace AgentModule.Framework
 {

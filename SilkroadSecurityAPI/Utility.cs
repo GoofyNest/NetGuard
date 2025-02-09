@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace AgentModule.SilkroadSecurityAPI
+namespace SilkroadSecurityAPI
 {
     public class Utility
     {
@@ -11,12 +11,12 @@ namespace AgentModule.SilkroadSecurityAPI
 
         public static string HexDump(byte[] buffer, int offset = 0, int count = -1)
         {
-            if (buffer == null)
+            if (buffer == null) 
                 return string.Empty;
 
             const int bytesPerLine = 16;
             int length = count < 0 ? buffer.Length - offset : count;
-            if (length <= 0 || offset >= buffer.Length)
+            if (length <= 0 || offset >= buffer.Length) 
                 return string.Empty;
 
             var output = new StringBuilder(length * 4); // Pre-size for efficiency

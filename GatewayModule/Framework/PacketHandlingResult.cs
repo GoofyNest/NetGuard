@@ -1,4 +1,4 @@
-﻿using GatewayModule.SilkroadSecurityAPI;
+﻿using SilkroadSecurityAPI;
 
 namespace GatewayModule.Framework
 {

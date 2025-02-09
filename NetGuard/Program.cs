@@ -109,6 +109,8 @@ namespace NetGuardLoader
                         break;
                     }
                 }
+
+                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
             }
 
             //args = new string[] { "gateway"};
