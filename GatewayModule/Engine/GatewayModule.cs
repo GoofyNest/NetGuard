@@ -69,8 +69,6 @@ namespace GatewayModule.Engine
 
         void HandleReceivedData(int nReceived, bool isClient)
         {
-            Custom.WriteLine($"nReceived: {nReceived} isClient: {isClient}", ConsoleColor.DarkMagenta);
-
             // Receive data based on whether it's from the client or server
             if (isClient)
             {
