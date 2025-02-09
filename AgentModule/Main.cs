@@ -60,7 +60,7 @@ namespace Module
             new Thread(ConsolePoolThread).Start();
         }
 
-        async void startAgent()
+        async Task startAgent()
         {
             AsyncServer _server = new AsyncServer();
             await _server.StartAsync(_moduleSettings.guardIP, _moduleSettings.guardPort, AsyncServer.E_ServerType.AgentModule);

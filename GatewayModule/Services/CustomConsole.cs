@@ -7,6 +7,8 @@ namespace GatewayModule.Services
 {
     public static class Custom
     {
+        private static readonly object LogLock = new object();
+
         private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new Dictionary<ConsoleColor, string>
         {
             { ConsoleColor.Yellow, "[WARN] " },
@@ -44,9 +46,13 @@ namespace GatewayModule.Services
         {
             try
             {
-                using (StreamWriter writer = new StreamWriter(Main.logFile, append: true))
+                lock (LogLock) // Ensure thread safety
                 {
-                    writer.WriteLine(message);
+                    // Use StreamWriter with BufferedStream for better performance
+                    using (StreamWriter writer = new StreamWriter(new BufferedStream(File.Open(Main.logFile, FileMode.Append, FileAccess.Write))))
+                    {
+                        writer.WriteLine(message);
+                    }
                 }
             }
             catch (UnauthorizedAccessException ex)

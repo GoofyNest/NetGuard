@@ -59,7 +59,7 @@ namespace Module
             new Thread(ConsolePoolThread).Start();
         }
 
-        public async void startGateway()
+        async Task startGateway()
         {
             AsyncServer server = new AsyncServer();
             await server.StartAsync(_moduleSettings.guardIP, _moduleSettings.guardPort, AsyncServer.E_ServerType.GatewayModule);
