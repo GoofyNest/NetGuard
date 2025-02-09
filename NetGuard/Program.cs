@@ -25,8 +25,6 @@ namespace NetGuardLoader
         public static AppDomain _appDomain = AppDomain.CurrentDomain;
         public static Assembly _assembly = null;
 
-        public static string _sig = Hash.read(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
-
         public static Config _config = new Config();
 
         public static string module = "";

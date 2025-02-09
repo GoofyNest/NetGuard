@@ -76,9 +76,6 @@
     <Compile Include="Classes\Config.cs" />
     <Compile Include="Classes\Globals.cs" />
     <Compile Include="Functions\Callback.cs" />
-    <Compile Include="Functions\Security.cs" />
-    <Compile Include="Functions\Semaphore.cs" />
-    <Compile Include="Functions\Test.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\ConsoleHelper.cs" />
