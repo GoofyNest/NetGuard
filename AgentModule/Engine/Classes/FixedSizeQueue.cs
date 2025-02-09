@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace NetGuard.Engine.Classes
+namespace AgentModule.Engine.Classes
 {
     public class FixedSizeQueue<T>
     {

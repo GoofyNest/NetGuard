@@ -1,22 +1,24 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using NetGuard.Engine.Classes;
-using NetGuard.Engine;
 using AgentModule.Classes;
+using AgentModule.Engine;
+using GatewayModule.Classes;
+using Newtonsoft.Json;
 
 namespace Module
 {
     public class Main
     {
-        public static AppDomain _appDomain = AppDomain.CurrentDomain;
+        public static Config _config = new Config();
 
         public static DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
         public static long unixTimestamp = dateTimeOffset.ToUnixTimeSeconds();
 
         public static ModuleSettings _moduleSettings = null;
+
+        public static string logFile = "";
 
         static void ConsolePoolThread()
         {
@@ -28,7 +30,7 @@ namespace Module
             }
         }
 
-        public void StartProgram(string guardIP, int guardPort, string moduleIP, int modulePort)
+        public void StartProgram(string name, string guardIP, int guardPort, string moduleIP, int modulePort)
         {
             Console.Title = "NetGuard | AgentModule";
 
@@ -37,34 +39,28 @@ namespace Module
 
             _moduleSettings = new ModuleSettings { guardIP = guardIP, guardPort = guardPort, moduleIP = moduleIP, modulePort = modulePort };
 
-            //_clientPlugins.Add(new Plugin
-            //{
-            //    ID = 0,
-            //    name = "SamplePlugin",
-            //    sourceCode = File.ReadAllText(Path.Combine(clientPath, "inCharSelection.csx")),
-            //    filePath = Path.Combine(clientPath, "inCharSelection.csx")
-            //});
+            var path = Path.Combine("config");
 
-            //_clientPlugins.Add(0x3333, new Dictionary<string, object> {
-            //    { "name", "SamplePlugin" },
-            //    { "source", File.ReadAllText(Path.Combine(clientPath, "inCharSelection.csx")) }
-            //});
+            Directory.CreateDirectory(path);
 
-            //pluginCode = File.ReadAllText(Path.Combine(clientPath, "inCharSelection.csx"));
+            var settingsPath = Path.Combine(path, "settings.json");
 
-            //_clientPlugins.Add()
+            if (!File.Exists(settingsPath))
+            {
+                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
+            }
+            else
+            {
+                _config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(settingsPath));
+                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
+            }
 
-            //_clientScripts = new Dictionary<ushort, string> {
-            //    { 0x1111, @File.ReadAllText(Path.Combine(clientPath, "inCharSelection.csx")) }
-            //    // Add more opcodes and their corresponding script paths here
-            //};
-            //
-            //foreach(var script in _clientScripts.Keys)
-            //{ 
-            //    Console.WriteLine(script.ToString());
-            //}
+            logFile = Path.Combine(path, name + ".txt");
 
-            startAgent();
+            if (File.Exists(logFile))
+                File.Delete(logFile);
+
+            Task.Run(() => startAgent());
 
             new Thread(ConsolePoolThread).Start();
         }

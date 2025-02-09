@@ -1,6 +1,6 @@
 ﻿using System.Net.Sockets;
 
-namespace NetGuard.Engine.Classes
+namespace AgentModule.Engine.Classes
 {
     public class SocketState
     {

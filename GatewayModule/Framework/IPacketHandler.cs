@@ -1,7 +1,7 @@
-﻿using NetGuard.Engine.Classes;
-using SilkroadSecurityAPI;
+﻿using GatewayModule.Engine.Classes;
+using GatewayModule.SilkroadSecurityAPI;
 
-namespace Framework
+namespace GatewayModule.Framework
 {
     public interface IPacketHandler
     {

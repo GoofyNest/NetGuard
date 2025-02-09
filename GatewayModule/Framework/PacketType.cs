@@ -1,4 +1,4 @@
-﻿namespace Framework
+﻿namespace GatewayModule.Framework
 {
     class Opcodes
     {

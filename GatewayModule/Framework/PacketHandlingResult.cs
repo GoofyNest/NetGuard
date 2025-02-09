@@ -1,6 +1,6 @@
-﻿using SilkroadSecurityAPI;
+﻿using GatewayModule.SilkroadSecurityAPI;
 
-namespace Framework
+namespace GatewayModule.Framework
 {
     public enum PacketResultType
     {

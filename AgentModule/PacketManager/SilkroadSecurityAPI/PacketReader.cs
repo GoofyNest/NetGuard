@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace SilkroadSecurityAPI
+namespace AgentModule.SilkroadSecurityAPI
 {
     internal class PacketReader : System.IO.BinaryReader
     {

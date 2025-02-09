@@ -1,15 +1,15 @@
 ﻿using System;
-using Framework;
+using GatewayModule.Engine.Classes;
+using GatewayModule.Framework;
+using GatewayModule.Services;
+using GatewayModule.SilkroadSecurityAPI;
 using Module;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes;
-using static Framework.Opcodes.Server;
+using static GatewayModule.Framework.Opcodes;
+using static GatewayModule.Framework.Opcodes.Server;
 
-namespace PacketManager.Server.Handlers
+namespace GatewayModule.PacketManager.Client.Handlers
 {
-    public class ClientGlobalPing : IPacketHandler
+    public class GlobalPing : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {

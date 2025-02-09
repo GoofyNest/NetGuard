@@ -3,17 +3,19 @@ using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using Framework;
 using AgentModule.Classes;
 using Module;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Client;
-using static Framework.Opcodes.Server;
+using static AgentModule.Framework.Opcodes.Client;
+using static AgentModule.Framework.Opcodes.Server;
 using System.Linq;
+using AgentModule.SilkroadSecurityAPI;
+using AgentModule.Engine.Classes;
+using AgentModule.Services;
+using AgentModule.Framework;
+using AgentModule.PacketManager.Client;
+using AgentModule.PacketManager.Server;
 
-namespace NetGuard.Engine
+namespace AgentModule.Engine
 {
     sealed class AgentModule
     {
@@ -80,7 +82,7 @@ namespace NetGuard.Engine
             {
                 Packet packet = ReceivePacketFromServer[i];
 
-                IPacketHandler handler = ClientPacketManager.GetHandler(packet, _client);
+                IPacketHandler handler = ServerPacketManager.GetHandler(packet, _client);
 
                 if (handler != null)
                 {
@@ -414,7 +416,7 @@ namespace NetGuard.Engine
                     default:
                         {
                             //var test = $"[C->S][{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}";
-                            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
+                            //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
                             //continue;
                         }
                         break;

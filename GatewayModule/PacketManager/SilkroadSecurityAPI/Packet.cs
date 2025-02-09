@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Text;
 using System.IO;
-using SilkroadSecurityAPI;
+using GatewayModule.SilkroadSecurityAPI;
 
-namespace SilkroadSecurityAPI
+namespace GatewayModule.SilkroadSecurityAPI
 {
     public class Packet
     {

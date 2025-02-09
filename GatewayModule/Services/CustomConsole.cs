@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using Module;
 
-namespace NetGuard.Services
+namespace GatewayModule.Services
 {
     public static class Custom
     {
@@ -25,13 +27,40 @@ namespace NetGuard.Services
             Console.Write(prefix);
             Console.ResetColor();
 
+            string date = $"[{DateTime.Now:HH:mm:ss}] ";
+
             // Display timestamp
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write($"[{DateTime.Now:HH:mm:ss}] ");
+            Console.Write(date);
             Console.ResetColor();
+
+            WriteToLog(prefix + date + message);
 
             // Display message
             Console.WriteLine(message);
+        }
+
+        private static void WriteToLog(string message)
+        {
+            try
+            {
+                using (StreamWriter writer = new StreamWriter(Main.logFile, append: true))
+                {
+                    writer.WriteLine(message);
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"Access denied: {ex.Message}");
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"I/O error: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error: {ex.Message}");
+            }
         }
 
         private static string GetPrefix(ConsoleColor color)

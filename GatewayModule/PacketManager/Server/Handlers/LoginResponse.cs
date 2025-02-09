@@ -1,14 +1,14 @@
 ﻿using System;
-using Framework;
+using GatewayModule.Engine.Classes;
+using GatewayModule.Framework;
+using GatewayModule.Services;
+using GatewayModule.SilkroadSecurityAPI;
 using Module;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Server;
+using static GatewayModule.Framework.Opcodes.Server;
 
-namespace PacketManager.Server.Handlers
+namespace GatewayModule.PacketManager.Server.Handlers
 {
-    public class ServerLoginResponseHandler : IPacketHandler
+    public class LoginResponse : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {

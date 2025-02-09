@@ -1,4 +1,4 @@
-﻿namespace SilkroadSecurityAPI
+﻿namespace GatewayModule.SilkroadSecurityAPI
 {
     public class TransferBuffer
     {

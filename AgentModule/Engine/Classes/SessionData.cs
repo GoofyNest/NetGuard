@@ -1,6 +1,5 @@
-﻿using SilkroadSecurityAPI;
-
-namespace NetGuard.Engine.Classes
+﻿using AgentModule.SilkroadSecurityAPI;
+namespace AgentModule.Engine.Classes
 {
     public class SessionData
     {

@@ -81,6 +81,7 @@
     <Compile Include="Functions\Test.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Services\ConsoleHelper.cs" />
     <Compile Include="Services\CustomConsole.cs" />
   </ItemGroup>
   <ItemGroup>

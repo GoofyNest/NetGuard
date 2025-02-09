@@ -1,4 +1,4 @@
-﻿namespace NetGuard.Engine.Classes
+﻿namespace GatewayModule.Engine.Classes
 {
     public class SessionData
     {

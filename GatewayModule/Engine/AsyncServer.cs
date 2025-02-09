@@ -1,11 +1,11 @@
-﻿using NetGuard.Services;
-using System;
+﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using GatewayModule.Services;
 
-namespace NetGuard.Engine
+namespace GatewayModule.Engine
 {
     public sealed class AsyncServer : IDisposable
     {

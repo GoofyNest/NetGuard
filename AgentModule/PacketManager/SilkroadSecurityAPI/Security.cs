@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
-using SilkroadSecurityAPI;
+using AgentModule.SilkroadSecurityAPI;
 
-namespace SilkroadSecurityAPI
+namespace AgentModule.SilkroadSecurityAPI
 {
     public class Security
     {

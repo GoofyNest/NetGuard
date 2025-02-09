@@ -1,14 +1,13 @@
 ﻿using System;
-using Framework;
+using GatewayModule.Engine.Classes;
+using GatewayModule.Framework;
+using GatewayModule.SilkroadSecurityAPI;
 using Module;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Server;
+using static GatewayModule.Framework.Opcodes.Server;
 
-namespace PacketManager.Server.Handlers
+namespace GatewayModule.PacketManager.Client.Handlers
 {
-    public class ServerHandshakeHandler : IPacketHandler
+    public class Handshake : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
@@ -16,7 +15,7 @@ namespace PacketManager.Server.Handlers
 
             response.ModifiedPacket = null;
 
-            response.SendImmediately = true;
+            response.SendImmediately = false;
             response.ResultType = PacketResultType.SkipSending;
 
             return response;

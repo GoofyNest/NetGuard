@@ -3,8 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using GatewayModule.Classes;
-using NetGuard.Classes;
-using NetGuard.Engine;
+using GatewayModule.Engine;
 using Newtonsoft.Json;
 
 namespace Module
@@ -18,6 +17,8 @@ namespace Module
 
         public static ModuleSettings _moduleSettings = null;
 
+        public static string logFile = "";
+
         static void ConsolePoolThread()
         {
             while (true)
@@ -28,7 +29,7 @@ namespace Module
             }
         }
 
-        public void StartProgram(string guardIP, int guardPort, string moduleIP, int modulePort)
+        public void StartProgram(string name, string guardIP, int guardPort, string moduleIP, int modulePort)
         {
             Console.Title = "NetGuard | GatewayModule";
 
@@ -39,8 +40,7 @@ namespace Module
 
             var path = Path.Combine("config");
 
-            if (!Directory.Exists(path))
-                Directory.CreateDirectory(path);
+            Directory.CreateDirectory(path);
 
             var settingsPath = Path.Combine(path, "settings.json");
 
@@ -51,9 +51,15 @@ namespace Module
             else
             {
                 _config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(settingsPath));
+                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
             }
 
-            startGateway();
+            logFile = Path.Combine(path, name + ".txt");
+
+            if(File.Exists(logFile))
+                File.Delete(logFile);
+
+            Task.Run(() => startGateway());
 
             new Thread(ConsolePoolThread).Start();
         }

@@ -1,10 +1,10 @@
-﻿using Framework;
-using NetGuard.Engine.Classes;
-using SilkroadSecurityAPI;
+﻿using GatewayModule.SilkroadSecurityAPI;
+using GatewayModule.Framework;
+using GatewayModule.Engine.Classes;
 
 namespace GatewayModule.PacketManager.Client.Handlers
 {
-    public class ClientGatewayLoginIBUVAnswer : IPacketHandler
+    public class LoginIBUVAnswer : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {

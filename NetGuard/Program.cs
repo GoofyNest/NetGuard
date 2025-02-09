@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using NetGuard.Services;
 using NetGuardLoader.Classes;
 using NetGuardLoader.Functions;
 using NetGuardLoader.Services;
@@ -43,6 +44,8 @@ namespace NetGuardLoader
 
         static void Main(string[] args)
         {
+            ConsoleHelper.DisableQuickEdit();
+
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.Title = "NetGuard | Loader";
             Console.WriteLine(@"
@@ -145,7 +148,7 @@ namespace NetGuardLoader
                                 byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
                                 var _reponse = Convert.ToBase64String(dllBytes);
 
-                                object[] SharedArgs = new object[] { _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
+                                object[] SharedArgs = new object[] { _module.name, _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
                                 _appDomain.SetData("args", SharedArgs);
 
                                 _appDomain.SetData("Assembly", dllBytes);
@@ -167,7 +170,7 @@ namespace NetGuardLoader
                                 byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
                                 var _reponse = Convert.ToBase64String(dllBytes);
 
-                                object[] SharedArgs = new object[] { _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
+                                object[] SharedArgs = new object[] { _module.name, _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
                                 _appDomain.SetData("args", SharedArgs);
 
                                 _appDomain.SetData("Assembly", dllBytes);

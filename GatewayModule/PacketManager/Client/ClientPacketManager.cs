@@ -1,13 +1,11 @@
-﻿using System;
+﻿using GatewayModule.Engine.Classes;
+using GatewayModule.Framework;
 using GatewayModule.PacketManager.Client.Handlers;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using PacketManager.Server.Handlers;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Client;
-using static Framework.Opcodes.Server;
+using GatewayModule.SilkroadSecurityAPI;
+using static GatewayModule.Framework.Opcodes.Client;
+using static GatewayModule.Framework.Opcodes.Server;
 
-namespace Framework
+namespace GatewayModule.PacketManager.Client
 {
     public class ClientPacketManager
     {
@@ -17,34 +15,34 @@ namespace Framework
             {
                 case LOGIN_SERVER_HANDSHAKE:
                 case CLIENT_ACCEPT_HANDSHAKE:
-                    return new ClientHandshakeHandler();
+                    return new Handshake();
 
                 case CLIENT_GATEWAY_PATCH_REQUEST:
-                    return new ClientGatewayPatchRequestHandler();
+                    return new PatchRequest();
 
                 case CLIENT_GATEWAY_SHARD_LIST_REQUEST:
-                    return new ClientGatewayShardListRequestHandler();
+                    return new ShardListRequest();
 
                 case CLIENT_GATEWAY_LOGIN_REQUEST:
-                    return new ClientGatewayLoginRequestHandler();
+                    return new LoginRequest();
 
                 case CLIENT_GATEWAY_NOTICE_REQUEST:
-                    return new ClientGatewayNoticeRequest();
+                    return new NoticeRequest();
 
                 case CLIENT_GATEWAY_SHARD_LIST_PING_REQUEST:
-                    return new ClientGatewayShardListPingRequestHandler();
+                    return new ShardListPingRequest();
 
                 case CLIENT_GATEWAY_LOGIN_IBUV_ANSWER:
-                    return new ClientGatewayLoginIBUVAnswer();
+                    return new LoginIBUVAnswer();
 
                 case GLOBAL_IDENTIFICATION:
-                    return new ClientGlobalIdentification();
+                    return new Global_Identification();
 
                 case CLIENT_GLOBAL_PING:
-                    return new ClientGlobalPing();
+                    return new GlobalPing();
 
                 default:
-                    return new _ClientDefaultHandler();
+                    return new Default();
             }
         }
     }

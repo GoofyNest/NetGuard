@@ -1,4 +1,4 @@
-﻿namespace Framework
+﻿namespace AgentModule.Framework
 {
     class Opcodes
     {

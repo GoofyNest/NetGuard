@@ -1,6 +1,6 @@
-﻿using SilkroadSecurityAPI;
+﻿using AgentModule.SilkroadSecurityAPI;
 
-namespace Framework
+namespace AgentModule.Framework
 {
     public enum PacketResultType
     {

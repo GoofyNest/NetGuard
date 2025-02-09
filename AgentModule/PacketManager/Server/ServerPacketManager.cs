@@ -1,9 +1,10 @@
-﻿using NetGuard.Engine.Classes;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Client;
-using static Framework.Opcodes.Server;
+﻿using AgentModule.Engine.Classes;
+using AgentModule.Framework;
+using AgentModule.SilkroadSecurityAPI;
+using static AgentModule.Framework.Opcodes.Client;
+using static AgentModule.Framework.Opcodes.Server;
 
-namespace Framework
+namespace AgentModule.PacketManager.Server
 {
     public class ServerPacketManager
     {

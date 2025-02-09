@@ -3,16 +3,18 @@ using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using Framework;
 using GatewayModule.Classes;
+using GatewayModule.Engine.Classes;
+using GatewayModule.Framework;
+using GatewayModule.PacketManager.Client;
+using GatewayModule.PacketManager.Server;
+using GatewayModule.Services;
+using GatewayModule.SilkroadSecurityAPI;
 using Module;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Client;
-using static Framework.Opcodes.Server;
+using static GatewayModule.Framework.Opcodes.Client;
+using static GatewayModule.Framework.Opcodes.Server;
 
-namespace NetGuard.Engine
+namespace GatewayModule.Engine
 {
     sealed class GatewayModule
     {

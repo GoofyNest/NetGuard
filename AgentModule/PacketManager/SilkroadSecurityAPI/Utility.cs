@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace SilkroadSecurityAPI
+namespace AgentModule.SilkroadSecurityAPI
 {
     public class Utility
     {

@@ -1,12 +1,12 @@
 ﻿using System;
-using NetGuard.Engine.Classes;
-using NetGuard.Services;
-using PacketManager.Server.Handlers;
-using SilkroadSecurityAPI;
-using static Framework.Opcodes.Client;
-using static Framework.Opcodes.Server;
+using GatewayModule.Engine.Classes;
+using GatewayModule.Framework;
+using GatewayModule.PacketManager.Server.Handlers;
+using GatewayModule.SilkroadSecurityAPI;
+using static GatewayModule.Framework.Opcodes.Client;
+using static GatewayModule.Framework.Opcodes.Server;
 
-namespace Framework
+namespace GatewayModule.PacketManager.Server
 {
     public class ServerPacketManager
     {
@@ -16,10 +16,10 @@ namespace Framework
             {
                 case LOGIN_SERVER_HANDSHAKE:
                 case CLIENT_ACCEPT_HANDSHAKE:
-                    return new ServerHandshakeHandler();
+                    return new Handshake();
 
                 case SERVER_GATEWAY_LOGIN_RESPONSE:
-                    return new ServerLoginResponseHandler();
+                    return new LoginResponse();
 
                 default:
                     //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
