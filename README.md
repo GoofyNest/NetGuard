@@ -10,9 +10,9 @@ NetGuard is my new C# packet filter base for `legend 1(ECSRO, jSRO)` Silkroad On
 The original engine, async server, and base were initially created by Chernobyl but have been rewritten multiple times since then.
 
 # Why NetGuard?
-I wanted to create a packet filter with a clean and structured approach to handling packets from both the server and the client. This version achieves that goal. However, it’s not the final release — the project will eventually be ported to `.NET` to support both Windows and Linux.
+I wanted to create a packet filter with a clean and structured approach to handling packets from both the server and the client. This version achieves that goal. However, it’s not the final release — the project has been successfully ported to `.NET 8.0` and now support both Windows and Linux
 
-Moving to `.NET` will also bring significant improvements, including better socket handling and optimized performance.
+Why `.NET 8.0`? it bring significant improvements, including better socket handling and optimized performance.
 
 # Special thanks
 
