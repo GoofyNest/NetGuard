@@ -266,8 +266,6 @@ namespace SilkroadSecurityAPI
         ushort m_massive_count;
         Packet m_massive_packet;
 
-        object m_class_lock;
-
         #region CoreSecurityFunction
         // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
         uint GenerateValue(ref uint val)
@@ -859,49 +857,41 @@ namespace SilkroadSecurityAPI
 
             m_massive_count = 0;
             m_massive_packet = null!;
-
-            m_class_lock = new object();
         }
 
         // Changes the 0x2001 identify packet data that will be sent out by
         // this security object.
         public void ChangeIdentity(string name, byte flag)
         {
-            lock (m_class_lock)
-            {
-                m_identity_name = name;
-                m_identity_flag = flag;
-            }
+            m_identity_name = name;
+            m_identity_flag = flag;
         }
 
         // Generates the security settings. This should only be called if the security object
         // is being used to process an incoming connection's data (server).
         public void GenerateSecurity(bool blowfish, bool security_bytes, bool handshake)
         {
-            lock (m_class_lock)
+            SecurityFlags flags = new SecurityFlags();
+            if (blowfish)
             {
-                SecurityFlags flags = new SecurityFlags();
-                if (blowfish)
-                {
-                    flags.none = 0;
-                    flags.blowfish = 1;
-                }
-                if (security_bytes)
-                {
-                    flags.none = 0;
-                    flags.security_bytes = 1;
-                }
-                if (handshake)
-                {
-                    flags.none = 0;
-                    flags.handshake = 1;
-                }
-                if (!blowfish && !security_bytes && !handshake)
-                {
-                    flags.none = 1;
-                }
-                GenerateSecurity(flags);
+                flags.none = 0;
+                flags.blowfish = 1;
             }
+            if (security_bytes)
+            {
+                flags.none = 0;
+                flags.security_bytes = 1;
+            }
+            if (handshake)
+            {
+                flags.none = 0;
+                flags.handshake = 1;
+            }
+            if (!blowfish && !security_bytes && !handshake)
+            {
+                flags.none = 1;
+            }
+            GenerateSecurity(flags);
         }
 
         // Adds an encrypted opcode to the API. Any opcodes registered here will automatically
@@ -909,12 +899,9 @@ namespace SilkroadSecurityAPI
         // mixing security modes.
         public void AddEncryptedOpcode(ushort opcode)
         {
-            lock (m_class_lock)
+            if (m_enc_opcodes.Contains(opcode) == false)
             {
-                if (m_enc_opcodes.Contains(opcode) == false)
-                {
-                    m_enc_opcodes.Add(opcode);
-                }
+                m_enc_opcodes.Add(opcode);
             }
         }
 
@@ -926,10 +913,8 @@ namespace SilkroadSecurityAPI
             {
                 throw (new Exception("[SecurityAPI::Send] Handshake packets cannot be sent through this function."));
             }
-            lock (m_class_lock)
-            {
-                m_outgoing_packets.Add(packet);
-            }
+
+            m_outgoing_packets.Add(packet);
         }
 
         // Transfers raw incoming data into the security object. Call TransferIncoming to
@@ -944,243 +929,240 @@ namespace SilkroadSecurityAPI
         public void Recv(TransferBuffer raw_buffer)
         {
             List<TransferBuffer> incoming_buffers_tmp = new List<TransferBuffer>();
-            lock (m_class_lock)
+            int length = raw_buffer.Size - raw_buffer.Offset;
+            int index = 0;
+            while (length > 0)
             {
-                int length = raw_buffer.Size - raw_buffer.Offset;
-                int index = 0;
-                while (length > 0)
+                int max_length = length;
+                int calc_length = m_recv_buffer.Buffer.Length - m_recv_buffer.Size;
+
+                if (max_length > calc_length)
                 {
-                    int max_length = length;
-                    int calc_length = m_recv_buffer.Buffer.Length - m_recv_buffer.Size;
+                    max_length = calc_length;
+                }
+                length -= max_length;
 
-                    if (max_length > calc_length)
+                Buffer.BlockCopy(raw_buffer.Buffer, raw_buffer.Offset + index, m_recv_buffer.Buffer, m_recv_buffer.Size, max_length);
+
+                m_recv_buffer.Size += max_length;
+                index += max_length;
+
+                // Loop while we have data to process
+                while (m_recv_buffer.Size > 0)
+                {
+                    // If we do not have a current packet object, try to allocate one.
+                    if (m_current_buffer == null)
                     {
-                        max_length = calc_length;
-                    }
-                    length -= max_length;
-
-                    Buffer.BlockCopy(raw_buffer.Buffer, raw_buffer.Offset + index, m_recv_buffer.Buffer, m_recv_buffer.Size, max_length);
-
-                    m_recv_buffer.Size += max_length;
-                    index += max_length;
-
-                    // Loop while we have data to process
-                    while (m_recv_buffer.Size > 0)
-                    {
-                        // If we do not have a current packet object, try to allocate one.
-                        if (m_current_buffer == null)
+                        // We need at least two bytes to allocate a packet.
+                        if (m_recv_buffer.Size < 2)
                         {
-                            // We need at least two bytes to allocate a packet.
-                            if (m_recv_buffer.Size < 2)
-                            {
-                                break;
-                            }
+                            break;
+                        }
 
-                            // Calculate the packet size.
-                            int packet_size = m_recv_buffer.Buffer[1] << 8 | m_recv_buffer.Buffer[0];
+                        // Calculate the packet size.
+                        int packet_size = m_recv_buffer.Buffer[1] << 8 | m_recv_buffer.Buffer[0];
 
-                            // Check to see if this packet is encrypted.
-                            if ((packet_size & 0x8000) > 0)
+                        // Check to see if this packet is encrypted.
+                        if ((packet_size & 0x8000) > 0)
+                        {
+                            // If so, calculate the total payload size.
+                            packet_size &= 0x7FFF; // Mask off the encryption.
+                            if (m_security_flags.blowfish == 1)
                             {
-                                // If so, calculate the total payload size.
-                                packet_size &= 0x7FFF; // Mask off the encryption.
-                                if (m_security_flags.blowfish == 1)
-                                {
-                                    packet_size = 2 + m_blowfish.GetOutputLength(packet_size + 4);
-                                }
-                                else
-                                {
-                                    packet_size += 6;
-                                }
+                                packet_size = 2 + m_blowfish.GetOutputLength(packet_size + 4);
                             }
                             else
                             {
-                                // The packet is unencrypted. The final size is simply
-                                // header size + payload size.
                                 packet_size += 6;
                             }
-
-                            // Allocate the final buffer the packet will be written to
-                            m_current_buffer = new TransferBuffer(packet_size, 0, packet_size);
-                        }
-
-                        // Calculate how many bytes are left to receive in the packet.
-                        int max_copy_count = m_current_buffer.Size - m_current_buffer.Offset;
-
-                        // If we need more bytes than we currently have, update the size.
-                        if (max_copy_count > m_recv_buffer.Size)
-                        {
-                            max_copy_count = m_recv_buffer.Size;
-                        }
-
-                        // Copy the buffer data to the packet buffer
-                        Buffer.BlockCopy(m_recv_buffer.Buffer, 0, m_current_buffer.Buffer, m_current_buffer.Offset, max_copy_count);
-
-                        // Update how many bytes we now have
-                        m_current_buffer.Offset += max_copy_count;
-                        m_recv_buffer.Size -= max_copy_count;
-
-                        // If there is data remaining in the buffer, copy it over the data
-                        // we just removed (sliding buffer).
-                        if (m_recv_buffer.Size > 0)
-                        {
-                            Buffer.BlockCopy(m_recv_buffer.Buffer, max_copy_count, m_recv_buffer.Buffer, 0, m_recv_buffer.Size);
-                        }
-
-                        // Check to see if the current packet is now complete.
-                        if (m_current_buffer.Size == m_current_buffer.Offset)
-                        {
-                            // If so, dispatch it to the manager class for processing by the system.
-                            m_current_buffer.Offset = 0;
-                            incoming_buffers_tmp.Add(m_current_buffer);
-
-                            // Set the current packet to null so we can process the next packet
-                            // in the stream.
-                            m_current_buffer = null!;
                         }
                         else
                         {
-                            // Otherwise, we are done with this loop, since we need more
-                            // data for the current packet.
-                            break;
+                            // The packet is unencrypted. The final size is simply
+                            // header size + payload size.
+                            packet_size += 6;
+                        }
+
+                        // Allocate the final buffer the packet will be written to
+                        m_current_buffer = new TransferBuffer(packet_size, 0, packet_size);
+                    }
+
+                    // Calculate how many bytes are left to receive in the packet.
+                    int max_copy_count = m_current_buffer.Size - m_current_buffer.Offset;
+
+                    // If we need more bytes than we currently have, update the size.
+                    if (max_copy_count > m_recv_buffer.Size)
+                    {
+                        max_copy_count = m_recv_buffer.Size;
+                    }
+
+                    // Copy the buffer data to the packet buffer
+                    Buffer.BlockCopy(m_recv_buffer.Buffer, 0, m_current_buffer.Buffer, m_current_buffer.Offset, max_copy_count);
+
+                    // Update how many bytes we now have
+                    m_current_buffer.Offset += max_copy_count;
+                    m_recv_buffer.Size -= max_copy_count;
+
+                    // If there is data remaining in the buffer, copy it over the data
+                    // we just removed (sliding buffer).
+                    if (m_recv_buffer.Size > 0)
+                    {
+                        Buffer.BlockCopy(m_recv_buffer.Buffer, max_copy_count, m_recv_buffer.Buffer, 0, m_recv_buffer.Size);
+                    }
+
+                    // Check to see if the current packet is now complete.
+                    if (m_current_buffer.Size == m_current_buffer.Offset)
+                    {
+                        // If so, dispatch it to the manager class for processing by the system.
+                        m_current_buffer.Offset = 0;
+                        incoming_buffers_tmp.Add(m_current_buffer);
+
+                        // Set the current packet to null so we can process the next packet
+                        // in the stream.
+                        m_current_buffer = null!;
+                    }
+                    else
+                    {
+                        // Otherwise, we are done with this loop, since we need more
+                        // data for the current packet.
+                        break;
+                    }
+                }
+            }
+
+            int bufferCount = incoming_buffers_tmp.Count;
+
+            for (var i = 0; i < incoming_buffers_tmp.Count; i++)
+            {
+                var buffer = incoming_buffers_tmp[i];
+
+                bool packet_encrypted = false;
+
+                int packet_size = buffer.Buffer[1] << 8 | buffer.Buffer[0];
+                if ((packet_size & 0x8000) > 0)
+                {
+                    if (m_security_flags.blowfish == 1)
+                    {
+                        packet_size &= 0x7FFF;
+                        packet_encrypted = true;
+                    }
+                    else
+                    {
+                        packet_size &= 0x7FFF;
+                    }
+                }
+
+                if (packet_encrypted)
+                {
+                    byte[] decrypted = m_blowfish.Decode(buffer.Buffer, 2, buffer.Size - 2);
+                    byte[] new_buffer = new byte[6 + packet_size];
+                    Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, new_buffer, 0, 2);
+                    Buffer.BlockCopy(decrypted, 0, new_buffer, 2, 4 + packet_size);
+                    buffer.Buffer = null!;
+                    buffer.Buffer = new_buffer;
+                }
+
+                PacketReader packet_data = new PacketReader(buffer.Buffer);
+                packet_size = packet_data.ReadUInt16();
+                ushort packet_opcode = packet_data.ReadUInt16();
+                byte packet_security_count = packet_data.ReadByte();
+                byte packet_security_crc = packet_data.ReadByte();
+
+                // Client object whose bytes the server might need to verify
+                if (m_client_security && m_security_flags.security_bytes == 1)
+                {
+                    byte expected_count = GenerateCountByte(true);
+                    if (packet_security_count != expected_count)
+                    {
+                        throw (new Exception("[SecurityAPI::Recv] Count byte mismatch."));
+                    }
+
+                    if (packet_encrypted || m_security_flags.blowfish == 0)
+                    {
+                        if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
+                        {
+                            packet_size |= 0x8000;
+                            Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
+                        }
+                    }
+
+                    buffer.Buffer[5] = 0;
+
+                    byte expected_crc = GenerateCheckByte(buffer.Buffer);
+                    if (packet_security_crc != expected_crc)
+                    {
+                        throw (new Exception("[SecurityAPI::Recv] CRC byte mismatch."));
+                    }
+
+                    buffer.Buffer[4] = 0;
+
+                    if (packet_encrypted || m_security_flags.blowfish == 0)
+                    {
+                        if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
+                        {
+                            packet_size &= 0x7FFF;
+                            Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
                         }
                     }
                 }
 
-                int bufferCount = incoming_buffers_tmp.Count;
+                Packet packet;
 
-                for (var i = 0; i < incoming_buffers_tmp.Count; i++)
+                if (packet_opcode == 0x5000 || packet_opcode == 0x9000) // New logic processing!
                 {
-                    var buffer = incoming_buffers_tmp[i];
+                    Handshake(packet_opcode, packet_data, packet_encrypted);
 
-                    bool packet_encrypted = false;
-
-                    int packet_size = buffer.Buffer[1] << 8 | buffer.Buffer[0];
-                    if ((packet_size & 0x8000) > 0)
-                    {
-                        if (m_security_flags.blowfish == 1)
-                        {
-                            packet_size &= 0x7FFF;
-                            packet_encrypted = true;
-                        }
-                        else
-                        {
-                            packet_size &= 0x7FFF;
-                        }
-                    }
-
-                    if (packet_encrypted)
-                    {
-                        byte[] decrypted = m_blowfish.Decode(buffer.Buffer, 2, buffer.Size - 2);
-                        byte[] new_buffer = new byte[6 + packet_size];
-                        Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, new_buffer, 0, 2);
-                        Buffer.BlockCopy(decrypted, 0, new_buffer, 2, 4 + packet_size);
-                        buffer.Buffer = null!;
-                        buffer.Buffer = new_buffer;
-                    }
-
-                    PacketReader packet_data = new PacketReader(buffer.Buffer);
-                    packet_size = packet_data.ReadUInt16();
-                    ushort packet_opcode = packet_data.ReadUInt16();
-                    byte packet_security_count = packet_data.ReadByte();
-                    byte packet_security_crc = packet_data.ReadByte();
-
-                    // Client object whose bytes the server might need to verify
-                    if (m_client_security && m_security_flags.security_bytes == 1)
-                    {
-                        byte expected_count = GenerateCountByte(true);
-                        if (packet_security_count != expected_count)
-                        {
-                            throw (new Exception("[SecurityAPI::Recv] Count byte mismatch."));
-                        }
-
-                        if (packet_encrypted || m_security_flags.blowfish == 0)
-                        {
-                            if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
-                            {
-                                packet_size |= 0x8000;
-                                Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
-                            }
-                        }
-
-                        buffer.Buffer[5] = 0;
-
-                        byte expected_crc = GenerateCheckByte(buffer.Buffer);
-                        if (packet_security_crc != expected_crc)
-                        {
-                            throw (new Exception("[SecurityAPI::Recv] CRC byte mismatch."));
-                        }
-
-                        buffer.Buffer[4] = 0;
-
-                        if (packet_encrypted || m_security_flags.blowfish == 0)
-                        {
-                            if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
-                            {
-                                packet_size &= 0x7FFF;
-                                Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
-                            }
-                        }
-                    }
-
-                    Packet packet;
-
-                    if (packet_opcode == 0x5000 || packet_opcode == 0x9000) // New logic processing!
-                    {
-                        Handshake(packet_opcode, packet_data, packet_encrypted);
-
-                        // Pass the handshake packets to the user so they can at least see them.
-                        // They do not need to actually do anything with them. This was added to
-                        // help debugging and make output logs complete.
-
-                        packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
-                        packet.Lock();
-                        m_incoming_packets.Add(packet);
-
-                        continue;
-                    }
-
-                    if (m_client_security)
-                    {
-                        // Make sure the client accepted the security system first
-                        if (!m_accepted_handshake)
-                        {
-                            throw (new Exception("[SecurityAPI::Recv] The client has not accepted the handshake."));
-                        }
-                    }
-
-                    if (packet_opcode == 0x600D) // Auto process massive messages for the user
-                    {
-                        byte mode = packet_data.ReadByte();
-                        if (mode == 1)
-                        {
-                            m_massive_count = packet_data.ReadUInt16();
-                            ushort contained_packet_opcode = packet_data.ReadUInt16();
-                            m_massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
-                        }
-                        else
-                        {
-                            if (m_massive_packet == null)
-                            {
-                                throw (new Exception("[SecurityAPI::Recv] A malformed 0x600D packet was received."));
-                            }
-                            m_massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
-                            m_massive_count--;
-                            if (m_massive_count == 0)
-                            {
-                                m_massive_packet.Lock();
-                                m_incoming_packets.Add(m_massive_packet);
-                                m_massive_packet = null!;
-                            }
-                        }
-
-                        continue;
-                    }
+                    // Pass the handshake packets to the user so they can at least see them.
+                    // They do not need to actually do anything with them. This was added to
+                    // help debugging and make output logs complete.
 
                     packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
                     packet.Lock();
                     m_incoming_packets.Add(packet);
+
+                    continue;
                 }
+
+                if (m_client_security)
+                {
+                    // Make sure the client accepted the security system first
+                    if (!m_accepted_handshake)
+                    {
+                        throw (new Exception("[SecurityAPI::Recv] The client has not accepted the handshake."));
+                    }
+                }
+
+                if (packet_opcode == 0x600D) // Auto process massive messages for the user
+                {
+                    byte mode = packet_data.ReadByte();
+                    if (mode == 1)
+                    {
+                        m_massive_count = packet_data.ReadUInt16();
+                        ushort contained_packet_opcode = packet_data.ReadUInt16();
+                        m_massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
+                    }
+                    else
+                    {
+                        if (m_massive_packet == null)
+                        {
+                            throw (new Exception("[SecurityAPI::Recv] A malformed 0x600D packet was received."));
+                        }
+                        m_massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
+                        m_massive_count--;
+                        if (m_massive_count == 0)
+                        {
+                            m_massive_packet.Lock();
+                            m_incoming_packets.Add(m_massive_packet);
+                            m_massive_packet = null!;
+                        }
+                    }
+
+                    continue;
+                }
+
+                packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
+                packet.Lock();
+                m_incoming_packets.Add(packet);
             }
         }
 
@@ -1189,17 +1171,16 @@ namespace SilkroadSecurityAPI
         public List<KeyValuePair<TransferBuffer, Packet>> TransferOutgoing()
         {
             List<KeyValuePair<TransferBuffer, Packet>> buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
-            lock (m_class_lock)
+
+            if (HasPacketToSend())
             {
-                if (HasPacketToSend())
+                buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
+                while (HasPacketToSend())
                 {
-                    buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
-                    while (HasPacketToSend())
-                    {
-                        buffers.Add(GetPacketToSend());
-                    }
+                    buffers.Add(GetPacketToSend());
                 }
             }
+
             return buffers;
         }
 
@@ -1208,14 +1189,13 @@ namespace SilkroadSecurityAPI
         public List<Packet> TransferIncoming()
         {
             List<Packet> packets = new List<Packet>();
-            lock (m_class_lock)
+
+            if (m_incoming_packets.Count > 0)
             {
-                if (m_incoming_packets.Count > 0)
-                {
-                    packets = m_incoming_packets;
-                    m_incoming_packets = new List<Packet>();
-                }
+                packets = m_incoming_packets;
+                m_incoming_packets = new List<Packet>();
             }
+
             return packets;
         }
     }
