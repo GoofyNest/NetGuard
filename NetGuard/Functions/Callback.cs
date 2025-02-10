@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace NetGuardLoader.Functions
+namespace NetGuard.Functions
 {
     internal class Callback
     {

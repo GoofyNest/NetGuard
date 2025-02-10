@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace NetGuard.Services
+namespace NetGuardCore.Services
 {
     public static class Custom
     {
@@ -36,13 +36,9 @@ namespace NetGuard.Services
 
         private static string GetPrefix(ConsoleColor color)
         {
-            if (ColorPrefixes.TryGetValue(color, out string prefix))
-            {
-                return prefix;
-            }
-
-            // Default prefix and color if not found
-            return "[NORMAL] ";
+            return ColorPrefixes.TryGetValue(color, out string? prefix)
+                ? prefix
+                : "[NORMAL] ";
         }
     }
 }

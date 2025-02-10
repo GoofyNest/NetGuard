@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace NetGuard.Classes
+namespace NetGuardCore.Classes
 {
     public class Config
     {

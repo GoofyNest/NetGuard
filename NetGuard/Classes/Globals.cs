@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NetGuardLoader
+namespace NetGuard.Classes
 {
     public class Globals
     {

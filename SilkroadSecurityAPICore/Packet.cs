@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Text;
 using System.IO;
-using SilkroadSecurityAPI;
 
-namespace SilkroadSecurityAPI
+namespace SilkroadSecurityAPICore
 {
     public class Packet
     {
@@ -38,13 +37,13 @@ namespace SilkroadSecurityAPI
             if (!m_locked)
             {
                 m_writer = new PacketWriter();
-                m_reader = null;
-                m_reader_bytes = null;
+                m_reader = null!;
+                m_reader_bytes = null!;
                 m_writer.Write(rhs.m_writer.GetBytes());
             }
             else
             {
-                m_writer = null;
+                m_writer = null!;
                 m_reader_bytes = rhs.m_reader_bytes;
                 m_reader = new PacketReader(m_reader_bytes);
             }
@@ -56,8 +55,8 @@ namespace SilkroadSecurityAPI
             m_encrypted = false;
             m_massive = false;
             m_writer = new PacketWriter();
-            m_reader = null;
-            m_reader_bytes = null;
+            m_reader = null!;
+            m_reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted)
@@ -66,8 +65,8 @@ namespace SilkroadSecurityAPI
             m_encrypted = encrypted;
             m_massive = false;
             m_writer = new PacketWriter();
-            m_reader = null;
-            m_reader_bytes = null;
+            m_reader = null!;
+            m_reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted, bool massive)
@@ -79,8 +78,8 @@ namespace SilkroadSecurityAPI
             m_encrypted = encrypted;
             m_massive = massive;
             m_writer = new PacketWriter();
-            m_reader = null;
-            m_reader_bytes = null;
+            m_reader = null!;
+            m_reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted, bool massive, byte[] bytes)
@@ -93,8 +92,8 @@ namespace SilkroadSecurityAPI
             m_massive = massive;
             m_writer = new PacketWriter();
             m_writer.Write(bytes);
-            m_reader = null;
-            m_reader_bytes = null;
+            m_reader = null!;
+            m_reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted, bool massive, byte[] bytes, int offset, int length)
@@ -107,8 +106,8 @@ namespace SilkroadSecurityAPI
             m_massive = massive;
             m_writer = new PacketWriter();
             m_writer.Write(bytes, offset, length);
-            m_reader = null;
-            m_reader_bytes = null;
+            m_reader = null!;
+            m_reader_bytes = null!;
         }
 
         public byte[] GetBytes()
@@ -126,7 +125,7 @@ namespace SilkroadSecurityAPI
                 m_reader_bytes = m_writer.GetBytes();
                 m_reader = new PacketReader(m_reader_bytes);
                 m_writer.Close();
-                m_writer = null;
+                m_writer = null!;
                 m_locked = true;
             }
         }
@@ -237,10 +236,24 @@ namespace SilkroadSecurityAPI
             if (!m_locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
-            UInt16 length = m_reader.ReadUInt16();
+            // Read the length of the string
+            ushort length = m_reader.ReadUInt16();
+
+            // Read the actual bytes from the stream
             byte[] bytes = m_reader.ReadBytes(length);
 
-            return Encoding.GetEncoding(codepage).GetString(bytes);
+            // Get the encoding based on the provided codepage
+            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(codepage);
+
+            // If encoding is not found, return an empty string (or handle accordingly)
+            if (encoding == null)
+                return string.Empty;  // You can choose to throw an exception if needed
+
+            // Use the encoding to convert bytes to a string
+            string result = encoding.GetString(bytes);
+
+            // Return the result string
+            return result;
         }
 
         public String ReadUnicode()
@@ -520,10 +533,22 @@ namespace SilkroadSecurityAPI
             if (m_locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
-            byte[] codepage_bytes = Encoding.GetEncoding(code_page).GetBytes(value);
+            // Ensure the encoding is found based on the provided code_page
+            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(code_page);
+
+            if (encoding == null)
+            {
+                throw new Exception($"Encoding with codepage {code_page} not found.");
+            }
+
+            // Convert the string to bytes using the encoding
+            byte[] codepage_bytes = encoding.GetBytes(value);
+
             string utf7_value = Encoding.UTF7.GetString(codepage_bytes);
+
             byte[] bytes = Encoding.Default.GetBytes(utf7_value);
 
+            // Write the length of the byte array and the actual byte array
             m_writer.Write((ushort)bytes.Length);
             m_writer.Write(bytes);
         }
@@ -631,10 +656,24 @@ namespace SilkroadSecurityAPI
             if (m_locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
-            byte[] codepage_bytes = Encoding.GetEncoding(code_page).GetBytes(value.ToString());
-            string utf7_value = Encoding.UTF7.GetString(codepage_bytes);
-            byte[] bytes = Encoding.Default.GetBytes(utf7_value);
+            // Ensure value is not null
+            string valueAsString = value?.ToString() ?? string.Empty;
 
+            // Get the encoding based on codepage
+            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(code_page);
+
+            if (encoding == null)
+            {
+                throw new Exception($"Encoding with codepage {code_page} not found.");
+            }
+
+            // Convert string to bytes using the obtained encoding
+            byte[] codepage_bytes = encoding.GetBytes(valueAsString);
+
+            // Optionally, if you need UTF-8 conversion, do it here
+            byte[] bytes = Encoding.Default.GetBytes(Encoding.UTF7.GetString(codepage_bytes));
+
+            // Write length and bytes
             m_writer.Write((ushort)bytes.Length);
             m_writer.Write(bytes);
         }

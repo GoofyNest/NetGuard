@@ -4,12 +4,11 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using NetGuard.Services;
-using NetGuardLoader.Classes;
-using NetGuardLoader.Functions;
-using NetGuardLoader.Services;
+using NetGuard.Classes;
+using NetGuard.Functions;
 using Newtonsoft.Json;
 
-namespace NetGuardLoader
+namespace NetGuard
 {
     public interface IPlugin
     {
@@ -29,16 +28,6 @@ namespace NetGuardLoader
 
         public static string module = "";
         public static int moduleIndex = -1;
-
-        static void ConsolePoolThread()
-        {
-            while (true)
-            {
-                Thread.Sleep(1);
-
-                string cmd = Console.ReadLine();
-            }
-        }
 
         static void Main(string[] args)
         {
