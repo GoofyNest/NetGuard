@@ -13,7 +13,7 @@ The original engine, async server, and base were initially created by Chernobyl 
 I set out to create a packet filter with a clean and structured approach to handling packets from both the server and the client. While this version achieves that goal, it is not the final/full release and will keep getting updates daily. The project was ported to `.NET 8.0` from `.NET Framework`, which now supports both Windows and Linux environments.
 
 ### Why `.NET 8.0`? 
-It brings significant improvements over the older .NET Framework, particularly in terms of performance. `.NET 8.0` introduces native AOT (Ahead-of-Time) compilation, which reduces startup time and improves runtime efficiency by compiling the code directly to native machine code. This leads to faster execution, reduced memory usage, and better resource management.
+It brings significant improvements over the older `.NET Framework`, particularly in terms of performance. `.NET 8.0` introduces native AOT (Ahead-of-Time) compilation, which reduces startup time and improves runtime efficiency by compiling the code directly to native machine code. This leads to faster execution, reduced memory usage, and better resource management.
 
 Additionally, `.NET 8.0` offers enhanced socket handling and optimized networking performance, which is crucial for applications that rely on high-speed data transmission. Its improved garbage collection minimizes memory fragmentation, resulting in smoother performance, especially for long-running applications. These enhancements make `.NET 8.0` more suitable for modern, high-performance environments compared to the older .NET Framework, where these capabilities were either lacking or less efficient.
 
