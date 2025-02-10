@@ -6,9 +6,5 @@
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);SYSLIB00</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Folder Include="lib\" />
-  </ItemGroup>
-
+  
 </Project>

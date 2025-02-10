@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <Reference Include="SilkroadSecurityAPI">
-      <HintPath>..\SilkroadSecurityAPI\lib\SilkroadSecurityAPI.dll</HintPath>
+      <HintPath>..\lib\SilkroadSecurityAPI.dll</HintPath>
     </Reference>
   </ItemGroup>
 

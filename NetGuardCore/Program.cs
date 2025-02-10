@@ -23,7 +23,7 @@ namespace NetGuardCore
 
         static void Main(string[] args)
         {
-            //ConsoleHelper.DisableQuickEdit();
+            ConsoleHelper.DisableQuickEdit();
 
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.Title = "NetGuard | Loader";
