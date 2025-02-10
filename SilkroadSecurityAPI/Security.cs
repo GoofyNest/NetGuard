@@ -884,10 +884,10 @@ namespace SilkroadSecurityAPI
             m_blowfish = new Blowfish();
 
             m_recv_buffer = new TransferBuffer(8192); // must be at minimal 2 bytes!
-            m_current_buffer = null;
+            m_current_buffer = null!;
 
             m_massive_count = 0;
-            m_massive_packet = null;
+            m_massive_packet = null!;
 
             m_class_lock = new object();
         }
@@ -1065,7 +1065,7 @@ namespace SilkroadSecurityAPI
 
                             // Set the current packet to null so we can process the next packet
                             // in the stream.
-                            m_current_buffer = null;
+                            m_current_buffer = null!;
                         }
                         else
                         {
@@ -1102,7 +1102,7 @@ namespace SilkroadSecurityAPI
                             byte[] new_buffer = new byte[6 + packet_size];
                             Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, new_buffer, 0, 2);
                             Buffer.BlockCopy(decrypted, 0, new_buffer, 2, 4 + packet_size);
-                            buffer.Buffer = null;
+                            buffer.Buffer = null!;
                             buffer.Buffer = new_buffer;
                         }
 
@@ -1196,7 +1196,7 @@ namespace SilkroadSecurityAPI
                                     {
                                         m_massive_packet.Lock();
                                         m_incoming_packets.Add(m_massive_packet);
-                                        m_massive_packet = null;
+                                        m_massive_packet = null!;
                                     }
                                 }
                             }

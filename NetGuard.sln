@@ -3,19 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.34916.146
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetGuard", "NetGuard\NetGuard.csproj", "{067BB60C-BB7E-433E-8D03-12DE4C6D6AA5}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GatewayModule", "GatewayModule\GatewayModule.csproj", "{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentModule", "AgentModule\AgentModule.csproj", "{48E676C0-369B-4339-9EB0-253804FB151B}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkroadSecurityAPI", "SilkroadSecurityAPI\SilkroadSecurityAPI.csproj", "{F38EFA64-E076-4C7D-BCEA-91210AF45CA5}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModuleTest", "ModuleTest\ModuleTest.csproj", "{E2F757BE-BFED-4DDD-9ADC-2DA751A0372A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Module", "Module\Module.csproj", "{E2F757BE-BFED-4DDD-9ADC-2DA751A0372A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetGuardCore", "NetGuardCore\NetGuardCore.csproj", "{3798A905-5736-4227-B6E4-95B2386254B2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkroadSecurityAPICore", "SilkroadSecurityAPICore\SilkroadSecurityAPICore.csproj", "{62EEA21F-5A8E-4FFA-81A3-5070DE12C46C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkroadSecurityAPI", "SilkroadSecurityAPI\SilkroadSecurityAPI.csproj", "{62EEA21F-5A8E-4FFA-81A3-5070DE12C46C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,22 +15,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{067BB60C-BB7E-433E-8D03-12DE4C6D6AA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{067BB60C-BB7E-433E-8D03-12DE4C6D6AA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{067BB60C-BB7E-433E-8D03-12DE4C6D6AA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{067BB60C-BB7E-433E-8D03-12DE4C6D6AA5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9605BBD5-D68C-4755-8C4F-7A45BAF3DB17}.Release|Any CPU.Build.0 = Release|Any CPU
-		{48E676C0-369B-4339-9EB0-253804FB151B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{48E676C0-369B-4339-9EB0-253804FB151B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{48E676C0-369B-4339-9EB0-253804FB151B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{48E676C0-369B-4339-9EB0-253804FB151B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F38EFA64-E076-4C7D-BCEA-91210AF45CA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F38EFA64-E076-4C7D-BCEA-91210AF45CA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F38EFA64-E076-4C7D-BCEA-91210AF45CA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F38EFA64-E076-4C7D-BCEA-91210AF45CA5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E2F757BE-BFED-4DDD-9ADC-2DA751A0372A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E2F757BE-BFED-4DDD-9ADC-2DA751A0372A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E2F757BE-BFED-4DDD-9ADC-2DA751A0372A}.Release|Any CPU.ActiveCfg = Release|Any CPU

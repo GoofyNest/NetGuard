@@ -308,7 +308,7 @@ namespace SilkroadSecurityAPI
         {
             if (length == 0)
             {
-                return null;
+                return null!;
             }
 
             byte[] workspace = new byte[GetOutputLength(length)];
@@ -344,7 +344,7 @@ namespace SilkroadSecurityAPI
         {
             if (length % 8 != 0 || length == 0)
             {
-                return null;
+                return null!;
             }
 
             byte[] workspace = new byte[length];

@@ -39,7 +39,7 @@
 
         public TransferBuffer()
         {
-            m_buffer = null;
+            m_buffer = null!;
             m_offset = 0;
             m_size = 0;
             m_lock = new object();
