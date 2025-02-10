@@ -30,20 +30,6 @@ namespace SilkroadSecurityAPI
             public byte _8;
         }
 
-        static SecurityFlags CopySecurityFlags(SecurityFlags flags)
-        {
-            SecurityFlags copy = new SecurityFlags();
-            copy.none = flags.none;
-            copy.blowfish = flags.blowfish;
-            copy.security_bytes = flags.security_bytes;
-            copy.handshake = flags.handshake;
-            copy.handshake_response = flags.handshake_response;
-            copy._6 = flags._6;
-            copy._7 = flags._7;
-            copy._8 = flags._8;
-            return copy;
-        }
-
         // Returns a byte from a SecurityFlags object.
         static byte FromSecurityFlags(SecurityFlags flags)
         {
@@ -194,21 +180,6 @@ namespace SilkroadSecurityAPI
             ulong b_ = b;
             return (ulong)((b_ << 32) | a_);
         }
-
-        static uint MAKELONG_(ushort a, ushort b)
-        {
-            uint a_ = a;
-            uint b_ = b;
-            return (uint)((b_ << 16) | a_);
-        }
-
-        static ushort MAKEWORD_(byte a, byte b)
-        {
-            ushort a_ = a;
-            ushort b_ = b;
-            return (ushort)((b_ << 8) | a_);
-        }
-
         static ushort LOWORD_(uint a)
         {
             return (ushort)(a & 0xFFFF);
@@ -1076,138 +1047,139 @@ namespace SilkroadSecurityAPI
                     }
                 }
 
-                if (incoming_buffers_tmp.Count > 0)
+                int bufferCount = incoming_buffers_tmp.Count;
+
+                for (var i = 0; i < incoming_buffers_tmp.Count; i++)
                 {
-                    foreach (TransferBuffer buffer in incoming_buffers_tmp)
+                    var buffer = incoming_buffers_tmp[i];
+
+                    bool packet_encrypted = false;
+
+                    int packet_size = buffer.Buffer[1] << 8 | buffer.Buffer[0];
+                    if ((packet_size & 0x8000) > 0)
                     {
-                        bool packet_encrypted = false;
-
-                        int packet_size = buffer.Buffer[1] << 8 | buffer.Buffer[0];
-                        if ((packet_size & 0x8000) > 0)
+                        if (m_security_flags.blowfish == 1)
                         {
-                            if (m_security_flags.blowfish == 1)
-                            {
-                                packet_size &= 0x7FFF;
-                                packet_encrypted = true;
-                            }
-                            else
-                            {
-                                packet_size &= 0x7FFF;
-                            }
-                        }
-
-                        if (packet_encrypted)
-                        {
-                            byte[] decrypted = m_blowfish.Decode(buffer.Buffer, 2, buffer.Size - 2);
-                            byte[] new_buffer = new byte[6 + packet_size];
-                            Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, new_buffer, 0, 2);
-                            Buffer.BlockCopy(decrypted, 0, new_buffer, 2, 4 + packet_size);
-                            buffer.Buffer = null!;
-                            buffer.Buffer = new_buffer;
-                        }
-
-                        PacketReader packet_data = new PacketReader(buffer.Buffer);
-                        packet_size = packet_data.ReadUInt16();
-                        ushort packet_opcode = packet_data.ReadUInt16();
-                        byte packet_security_count = packet_data.ReadByte();
-                        byte packet_security_crc = packet_data.ReadByte();
-
-                        // Client object whose bytes the server might need to verify
-                        if (m_client_security)
-                        {
-                            if (m_security_flags.security_bytes == 1)
-                            {
-                                byte expected_count = GenerateCountByte(true);
-                                if (packet_security_count != expected_count)
-                                {
-                                    throw (new Exception("[SecurityAPI::Recv] Count byte mismatch."));
-                                }
-
-                                if (packet_encrypted || (m_security_flags.security_bytes == 1 && m_security_flags.blowfish == 0))
-                                {
-                                    if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
-                                    {
-                                        packet_size |= 0x8000;
-                                        Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
-                                    }
-                                }
-
-                                buffer.Buffer[5] = 0;
-
-                                byte expected_crc = GenerateCheckByte(buffer.Buffer);
-                                if (packet_security_crc != expected_crc)
-                                {
-                                    throw (new Exception("[SecurityAPI::Recv] CRC byte mismatch."));
-                                }
-
-                                buffer.Buffer[4] = 0;
-
-                                if (packet_encrypted || (m_security_flags.security_bytes == 1 && m_security_flags.blowfish == 0))
-                                {
-                                    if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
-                                    {
-                                        packet_size &= 0x7FFF;
-                                        Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
-                                    }
-                                }
-                            }
-                        }
-
-                        if (packet_opcode == 0x5000 || packet_opcode == 0x9000) // New logic processing!
-                        {
-                            Handshake(packet_opcode, packet_data, packet_encrypted);
-
-                            // Pass the handshake packets to the user so they can at least see them.
-                            // They do not need to actually do anything with them. This was added to
-                            // help debugging and make output logs complete.
-
-                            Packet packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
-                            packet.Lock();
-                            m_incoming_packets.Add(packet);
+                            packet_size &= 0x7FFF;
+                            packet_encrypted = true;
                         }
                         else
                         {
-                            if (m_client_security)
+                            packet_size &= 0x7FFF;
+                        }
+                    }
+
+                    if (packet_encrypted)
+                    {
+                        byte[] decrypted = m_blowfish.Decode(buffer.Buffer, 2, buffer.Size - 2);
+                        byte[] new_buffer = new byte[6 + packet_size];
+                        Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, new_buffer, 0, 2);
+                        Buffer.BlockCopy(decrypted, 0, new_buffer, 2, 4 + packet_size);
+                        buffer.Buffer = null!;
+                        buffer.Buffer = new_buffer;
+                    }
+
+                    PacketReader packet_data = new PacketReader(buffer.Buffer);
+                    packet_size = packet_data.ReadUInt16();
+                    ushort packet_opcode = packet_data.ReadUInt16();
+                    byte packet_security_count = packet_data.ReadByte();
+                    byte packet_security_crc = packet_data.ReadByte();
+
+                    // Client object whose bytes the server might need to verify
+                    if (m_client_security && m_security_flags.security_bytes == 1)
+                    {
+                        byte expected_count = GenerateCountByte(true);
+                        if (packet_security_count != expected_count)
+                        {
+                            throw (new Exception("[SecurityAPI::Recv] Count byte mismatch."));
+                        }
+
+                        if (packet_encrypted || m_security_flags.blowfish == 0)
+                        {
+                            if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
                             {
-                                // Make sure the client accepted the security system first
-                                if (!m_accepted_handshake)
-                                {
-                                    throw (new Exception("[SecurityAPI::Recv] The client has not accepted the handshake."));
-                                }
+                                packet_size |= 0x8000;
+                                Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
                             }
-                            if (packet_opcode == 0x600D) // Auto process massive messages for the user
+                        }
+
+                        buffer.Buffer[5] = 0;
+
+                        byte expected_crc = GenerateCheckByte(buffer.Buffer);
+                        if (packet_security_crc != expected_crc)
+                        {
+                            throw (new Exception("[SecurityAPI::Recv] CRC byte mismatch."));
+                        }
+
+                        buffer.Buffer[4] = 0;
+
+                        if (packet_encrypted || m_security_flags.blowfish == 0)
+                        {
+                            if (packet_encrypted || m_enc_opcodes.Contains(packet_opcode))
                             {
-                                byte mode = packet_data.ReadByte();
-                                if (mode == 1)
-                                {
-                                    m_massive_count = packet_data.ReadUInt16();
-                                    ushort contained_packet_opcode = packet_data.ReadUInt16();
-                                    m_massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
-                                }
-                                else
-                                {
-                                    if (m_massive_packet == null)
-                                    {
-                                        throw (new Exception("[SecurityAPI::Recv] A malformed 0x600D packet was received."));
-                                    }
-                                    m_massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
-                                    m_massive_count--;
-                                    if (m_massive_count == 0)
-                                    {
-                                        m_massive_packet.Lock();
-                                        m_incoming_packets.Add(m_massive_packet);
-                                        m_massive_packet = null!;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                Packet packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
-                                packet.Lock();
-                                m_incoming_packets.Add(packet);
+                                packet_size &= 0x7FFF;
+                                Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
                             }
                         }
                     }
+
+                    Packet packet;
+
+                    if (packet_opcode == 0x5000 || packet_opcode == 0x9000) // New logic processing!
+                    {
+                        Handshake(packet_opcode, packet_data, packet_encrypted);
+
+                        // Pass the handshake packets to the user so they can at least see them.
+                        // They do not need to actually do anything with them. This was added to
+                        // help debugging and make output logs complete.
+
+                        packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
+                        packet.Lock();
+                        m_incoming_packets.Add(packet);
+
+                        continue;
+                    }
+
+                    if (m_client_security)
+                    {
+                        // Make sure the client accepted the security system first
+                        if (!m_accepted_handshake)
+                        {
+                            throw (new Exception("[SecurityAPI::Recv] The client has not accepted the handshake."));
+                        }
+                    }
+
+                    if (packet_opcode == 0x600D) // Auto process massive messages for the user
+                    {
+                        byte mode = packet_data.ReadByte();
+                        if (mode == 1)
+                        {
+                            m_massive_count = packet_data.ReadUInt16();
+                            ushort contained_packet_opcode = packet_data.ReadUInt16();
+                            m_massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
+                        }
+                        else
+                        {
+                            if (m_massive_packet == null)
+                            {
+                                throw (new Exception("[SecurityAPI::Recv] A malformed 0x600D packet was received."));
+                            }
+                            m_massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
+                            m_massive_count--;
+                            if (m_massive_count == 0)
+                            {
+                                m_massive_packet.Lock();
+                                m_incoming_packets.Add(m_massive_packet);
+                                m_massive_packet = null!;
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
+                    packet.Lock();
+                    m_incoming_packets.Add(packet);
                 }
             }
         }
