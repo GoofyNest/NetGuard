@@ -2,6 +2,7 @@
 using Module.Engine.Classes;
 using Module.Framework;
 using Module.PacketManager.GatewayModule.Server.Handlers;
+using Module.Services;
 using SilkroadSecurityAPI;
 using static Module.PacketManager.Gateway.Opcodes.Client;
 using static Module.PacketManager.Gateway.Opcodes.Server;
@@ -27,8 +28,11 @@ namespace Module.PacketManager.GatewayModule.Server
                 case SERVER_GATEWAY_PATCH_RESPONSE:
                     return new PatchResponse();
 
+                case SERVER_GATEWAY_LOGIN_IBUV_CHALLENGE:
+                    return new LoginIBUVChallange();
+
                 default:
-                    //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
+                    Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
                     return null!;
             }
         }

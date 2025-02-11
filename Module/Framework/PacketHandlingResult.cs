@@ -12,10 +12,18 @@ namespace Module.Framework
         DoReceive
     }
 
+    public enum SecurityType
+    {
+        Default,
+        RemoteSecurity,
+        LocalSecurity = 2
+    }
+
     public class PacketHandlingResult
     {
         public PacketResultType ResultType { get; set; } = PacketResultType.None;
-        public Packet ModifiedPacket { get; set; } = null!; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
+        public Packet ModifiedPacket { get; set; } = null!;
         public bool SendImmediately { get; set; } = false; // Whether Send(true) or Send(false)
+        public SecurityType securityType { get; set; } = SecurityType.Default; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
     }
 }

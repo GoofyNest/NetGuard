@@ -30,7 +30,8 @@
                 SERVER_GATEWAY_LOGIN_RESPONSE = 0xA102,
                 SERVER_GATEWAY_NOTICE_RESPONSE = 0xA104,
                 SERVER_GATEWAY_SHARD_LIST_PING_RESPONSE = 0xA106,
-                SERVER_GATEWAY_LOGIN_IBUV_RESULT = 0xA323;
+                SERVER_GATEWAY_LOGIN_IBUV_RESULT = 0xA323,
+                SERVER_GATEWAY_LOGIN_IBUV_CHALLENGE = 0x2322;
             // Add other packet types as needed
         }
     }

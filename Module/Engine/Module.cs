@@ -139,17 +139,37 @@ namespace Module.Engine
                 
                     if (result.ModifiedPacket != null)
                     {
-                        // Send the modified packet instead of the original
-                        if (isClient)
+                        switch(result.securityType)
                         {
-                            _lastPackets.Enqueue(copyOfPacket);
-                            _remoteSecurity.Send(result.ModifiedPacket);
+                            case SecurityType.RemoteSecurity:
+                                {
+                                    _remoteSecurity.Send(result.ModifiedPacket);
+                                    Send(result.SendImmediately);
+                                }
+                                break;
+
+                            case SecurityType.LocalSecurity:
+                                {
+                                    _localSecurity.Send(result.ModifiedPacket);
+                                    Send(result.SendImmediately);
+                                }
+                                break;
+
+                            case SecurityType.Default:
+                                {
+                                    if (isClient)
+                                    {
+                                        _lastPackets.Enqueue(copyOfPacket);
+                                        _remoteSecurity.Send(result.ModifiedPacket);
+                                    }
+                                    else
+                                    {
+                                        _localSecurity.Send(result.ModifiedPacket);
+                                    }
+                                    Send(result.SendImmediately);
+                                }
+                                break;
                         }
-                        else
-                        {
-                            _localSecurity.Send(result.ModifiedPacket);
-                        }
-                        Send(result.SendImmediately);
                         continue;
                     }
                 }
