@@ -1,30 +1,25 @@
-﻿using System.Collections.Generic;
-
-namespace NetGuardCore.Classes
+﻿namespace NetGuardCore.Classes
 {
-    public class Config
+    public enum ModuleType : byte
     {
-        public List<GatewaySettings> _gatewayModules = new List<GatewaySettings>();
-        public List<AgentSettings> _agentModules = new List<AgentSettings>();
+        GatewayModule,
+        DownloadModule,
+        AgentModule
     }
 
-    public class GatewaySettings
+    public class Config
+    {
+        public List<ModuleSettings> ModuleBinding = new List<ModuleSettings>();
+        public string dllPath { get; set; } = "Module.dll";
+    }
+
+    public class ModuleSettings
     {
         public string name { get; set; } = "Example #1";
         public string guardIP { get; set; } = "127.0.0.1";
         public int guardPort { get; set; } = 15779;
         public string moduleIP { get; set; } = "127.0.0.1";
         public int modulePort { get; set; } = 5779;
-        public string dllPath { get; set; } = "C:\\Users\\admin\\source\\repos\\NetGuard\\GatewayModule\\bin\\Debug\\GatewayModule.dll";
-    }
-
-    public class AgentSettings
-    {
-        public string name { get; set; } = "Example #1";
-        public string guardIP { get; set; } = "127.0.0.1";
-        public int guardPort { get; set; } = 15884;
-        public string moduleIP { get; set; } = "127.0.0.1";
-        public int modulePort { get; set; } = 5884;
-        public string dllPath { get; set; } = "C:\\Users\\admin\\source\\repos\\NetGuard\\AgentModule\\bin\\Debug\\AgentModule.dll";
+        public ModuleType moduleType { get; set; } = 0;
     }
 }

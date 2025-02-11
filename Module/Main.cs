@@ -1,4 +1,5 @@
-﻿using Module.Classes;
+﻿using System.Reflection;
+using Module.Classes;
 using Module.Engine;
 using Module.Services;
 using Newtonsoft.Json;
@@ -12,11 +13,9 @@ namespace Module
         public static DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
         public static long unixTimestamp = dateTimeOffset.ToUnixTimeSeconds();
 
-        public static ModuleSettings _moduleSettings = null!;
+        public static ModuleSettings _module = null!;
 
         public static string logFile = "";
-
-        public static AsyncServer.E_ServerType _handlerType;
 
         static void ConsolePoolThread()
         {
@@ -28,14 +27,9 @@ namespace Module
             }
         }
 
-        public static void StartProgram(string module, string name, string guardIP, int guardPort, string moduleIP, int modulePort)
+        public static void StartProgram(int moduleIndex)
         {
-            Console.Title = "NetGuard | TestModule";
-
-            // Use these values in your method as needed
-            Console.WriteLine($"Guard IP: {guardIP}, Guard Port: {guardPort}, Module IP: {moduleIP}, Module Port: {modulePort}");
-
-            _moduleSettings = new ModuleSettings { guardIP = guardIP, guardPort = guardPort, moduleIP = moduleIP, modulePort = modulePort };
+            Console.Title = "NetGuard | .NET 8.0";
 
             var path = Path.Combine("config");
 
@@ -51,19 +45,15 @@ namespace Module
                           ?? throw new InvalidOperationException("Configuration JSON is null.");
             }
 
-            logFile = Path.Combine(path, name + ".txt");
+            _module = _config.ModuleBinding[moduleIndex];
+
+            // Use these values in your method as needed
+            Console.WriteLine($"Guard IP: {_module.guardIP}, Guard Port: {_module.guardPort}, Module IP: {_module.moduleIP}, Module Port: {_module.modulePort}");
+
+            logFile = Path.Combine(path, _module.name + ".txt");
 
             if (File.Exists(logFile))
                 File.Delete(logFile);
-
-            if (module == "gateway")
-            {
-                _handlerType = AsyncServer.E_ServerType.GatewayModule;
-            }
-            else if (module == "agent")
-            {
-                _handlerType = AsyncServer.E_ServerType.AgentModule;
-            }
 
             Task.Run(() => startAsyncServer());
 
@@ -73,7 +63,7 @@ namespace Module
         static async Task startAsyncServer()
         {
             AsyncServer server = new AsyncServer();
-            await server.StartAsync(_moduleSettings.guardIP, _moduleSettings.guardPort, _handlerType);
+            await server.StartAsync(_module.guardIP, _module.guardPort, _module.moduleType);
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Module.Classes;
 using Module.Services;
 
 namespace Module.Engine
@@ -10,20 +11,13 @@ namespace Module.Engine
     public sealed class AsyncServer : IDisposable
     {
         private Socket _listenerSocket = null!;
-        private E_ServerType _serverType;
+        private ModuleType _serverType;
         private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         private Task _acceptTask = Task.CompletedTask;  // A completed task as a default value
 
-        public enum E_ServerType : byte
-        {
-            GatewayModule,
-            DownloadModule,
-            AgentModule,
-        }
+        public delegate void DelClientDisconnect(ref Socket clientSocket, ModuleType handlerType);
 
-        public delegate void DelClientDisconnect(ref Socket clientSocket, E_ServerType handlerType);
-
-        public async Task StartAsync(string bindAddr, int port, E_ServerType servType)
+        public async Task StartAsync(string bindAddr, int port, ModuleType servType)
         {
             if (_listenerSocket != null)
             {
@@ -74,8 +68,8 @@ namespace Module.Engine
             {
                 switch (_serverType)
                 {
-                    case E_ServerType.AgentModule:
-                    case E_ServerType.GatewayModule:
+                    case ModuleType.GatewayModule:
+                    case ModuleType.AgentModule:
                         new Module(clientSocket, OnClientDisconnect, _serverType);
                         break;
                     default:
@@ -89,7 +83,7 @@ namespace Module.Engine
             }
         }
 
-        private void OnClientDisconnect(ref Socket clientSocket, E_ServerType handlerType)
+        private void OnClientDisconnect(ref Socket clientSocket, ModuleType handlerType)
         {
             if (clientSocket == null) return;
 

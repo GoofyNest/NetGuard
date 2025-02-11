@@ -21,7 +21,7 @@ namespace Module.Engine
         private object _lock = new object();
 
         private Socket _moduleSocket;
-        private AsyncServer.E_ServerType _handlerType;
+        private ModuleType _handlerType;
 
         private byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
         private byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
@@ -33,11 +33,11 @@ namespace Module.Engine
         private ulong _bytesReceivedFromClient = 0;
         private DateTime _startTime = DateTime.Now;
 
-        private ModuleSettings _moduleSettings = Main._moduleSettings;
+        private ModuleSettings _moduleSettings = Main._module;
 
         private SessionData _client;
 
-        public Module(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, E_ServerType _serverType)
+        public Module(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
         {
             _clientSocket = clientSocket;
             _clientDisconnectHandler = delDisconnect;
@@ -99,11 +99,11 @@ namespace Module.Engine
 
                 IPacketHandler handler = null!;
 
-                if (_handlerType == AsyncServer.E_ServerType.GatewayModule)
+                if (_handlerType == ModuleType.GatewayModule)
                 {
                     handler = isClient ? GatewayClientPacketManager.GetHandler(packet, _client) : GatewayServerPacketManager.GetHandler(packet, _client);
                 }
-                else if(_handlerType == AsyncServer.E_ServerType.AgentModule)
+                else if(_handlerType == ModuleType.AgentModule)
                 {
                     handler = isClient ? AgentClientPacketManager.GetHandler(packet, _client) : AgentServerPacketManager.GetHandler(packet, _client);
                 }

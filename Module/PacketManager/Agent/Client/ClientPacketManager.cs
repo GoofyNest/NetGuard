@@ -1,6 +1,7 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
 using Module.PacketManager.Agent.Client.Handlers;
+using Module.Services;
 using SilkroadSecurityAPI;
 using static Module.PacketManager.Agent.Opcodes.Client;
 using static Module.PacketManager.Agent.Opcodes.Server;
@@ -13,6 +14,8 @@ namespace Module.PacketManager.Agent.Client
         {
             if (client.inCharSelection)
             {
+                Custom.WriteLine($"client.inCharSelection working {client.inCharSelection}", ConsoleColor.DarkMagenta);
+
                 switch (packet.Opcode)
                 {
                     case GLOBAL_PING:
@@ -44,8 +47,11 @@ namespace Module.PacketManager.Agent.Client
                 case AGENT_AUTH_REQUEST:
                     return new AuthRequest();
 
+                case AGENT_CONFIG_UPDATE:
+                    return new ConfigUpdate();
+
                 default:
-                    //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
+                    Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.DarkMagenta);
                     return null!;
             }
         }

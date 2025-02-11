@@ -58,10 +58,10 @@ namespace NetGuardCore
             {
                 Custom.WriteLine($"No settings found, creating new example configuration", ConsoleColor.Cyan);
 
-                _config._gatewayModules.Add(new GatewaySettings() { name = "Example #1" });
+                _config.ModuleBinding.Add(new ModuleSettings() { name = "Example #0", moduleType = ModuleType.GatewayModule });
 
                 for (var i = 0; i < 3; i++)
-                    _config._agentModules.Add(new AgentSettings() { name = "Example #" + i });
+                    _config.ModuleBinding.Add(new ModuleSettings() { name = "Example #"+(i+1), guardPort = 15884, modulePort = 5884, moduleType = ModuleType.AgentModule });
 
                 File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
             }
@@ -73,21 +73,13 @@ namespace NetGuardCore
 
                 _config = JsonConvert.DeserializeObject<Config>(configContent) ?? new Config();
 
-                foreach (var _module in _config._agentModules)
+                foreach(var _module in _config.ModuleBinding)
                 {
-                    if (_module.name.Contains("Example"))
-                    {
-                        Custom.WriteLine($"Seems like you still have agentModules named Example", ConsoleColor.Cyan);
-                        break;
-                    }
-                }
+                    string moduleName = _module.moduleType.ToString();
 
-                foreach (var _module in _config._gatewayModules)
-                {
                     if (_module.name.Contains("Example"))
                     {
-                        Custom.WriteLine($"Seems like you still have gatewayModules named Example", ConsoleColor.Cyan);
-                        break;
+                        Custom.WriteLine($"Seems like you still have {moduleName} named Example", ConsoleColor.Cyan);
                     }
                 }
 
@@ -100,121 +92,72 @@ namespace NetGuardCore
             {
                 Custom.WriteLine("You need to start the loader with arguments", ConsoleColor.Cyan);
                 Custom.WriteLine("Example below:", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardCore.exe <gateway/agent> <moduleIndex>", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardCore.exe gateway 0", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardCore.exe agent 0", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardCore.exe agent 1", ConsoleColor.Cyan);
+                Custom.WriteLine("start NetGuardCore.exe <moduleIndex>", ConsoleColor.Cyan);
+                Custom.WriteLine("start NetGuardCore.exe 0", ConsoleColor.Cyan);
+                Custom.WriteLine("start NetGuardCore.exe 1", ConsoleColor.Cyan);
+                Custom.WriteLine("start NetGuardCore.exe 2", ConsoleColor.Cyan);
 
                 if (!File.Exists("example_gateway.bat"))
-                    File.WriteAllText("example_gateway.bat", "echo off\nstart NetGuardCore.exe gateway 0");
+                    File.WriteAllText("example_gateway.bat", "@echo on\ncmd /k \"NetGuardCore.exe 0\"\npause");
 
                 if (!File.Exists("example_agent.bat"))
-                    File.WriteAllText("example_agent.bat", "echo off\nstart NetGuardCore.exe agent 0");
+                    File.WriteAllText("example_agent.bat", "@echo on\ncmd /k \"NetGuardCore.exe 1\"\npause");
             }
             else
             {
                 module = args[0];
+                moduleIndex = 0;
 
-                if (args.Count() == 1)
-                    moduleIndex = 0;
-                else
-                    moduleIndex = int.Parse(args[1]);
-
-                switch (module)
+                try
                 {
-                    case "agent":
-                        try
-                        {
-                            var _module = _config._agentModules[moduleIndex];
-
-                            byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
-                            var _response = Convert.ToBase64String(dllBytes);
-
-                            Custom.WriteLine($"Loading dll {_module.dllPath}", ConsoleColor.DarkMagenta);
-
-                            // Load DLL from byte array
-                            using var stream = new MemoryStream(dllBytes);
-                            var assemblyLoadContext = new AssemblyLoadContext("TestModuleContext", isCollectible: true);
-                            var loadedAssembly = assemblyLoadContext.LoadFromStream(stream);
-
-                            // Set arguments for the loaded module
-                            object[] sharedArgs = { module, _module.name, _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
-
-                            // Get type and method from the loaded assembly
-                            var targetType = loadedAssembly.GetType("Module.Main");
-                            var method = targetType?.GetMethod("StartProgram");
-
-                            if (targetType != null && method != null)
-                            {
-                                // Create an instance of Module.Main
-                                var instance = Activator.CreateInstance(targetType);
-
-                                // Invoke StartProgram on the instance
-                                method.Invoke(instance, sharedArgs);
-                            }
-                            else
-                            {
-                                Custom.WriteLine("Main class or StartProgram method not found.", ConsoleColor.Red);
-                            }
-
-                            assemblyLoadContext.Unload();
-                        }
-                        catch (Exception ex)
-                        {
-                            Custom.WriteLine($"Could not load the agentModule", ConsoleColor.Red);
-                            Custom.WriteLine(ex.Message, ConsoleColor.Red);
-                        }
-                        break;
-
-                    case "gateway":
-                        try
-                        {
-                            var _module = _config._gatewayModules[moduleIndex];
-
-                            byte[] dllBytes = File.ReadAllBytes(_module.dllPath);
-                            var _response = Convert.ToBase64String(dllBytes);
-
-                            Custom.WriteLine($"Loading dll {_module.dllPath}", ConsoleColor.DarkMagenta);
-
-                            // Load DLL from byte array
-                            using var stream = new MemoryStream(dllBytes);
-                            var assemblyLoadContext = new AssemblyLoadContext("TestModuleContext", isCollectible: true);
-                            var loadedAssembly = assemblyLoadContext.LoadFromStream(stream);
-
-                            // Set arguments for the loaded module
-                            object[] sharedArgs = { module, _module.name, _module.guardIP, _module.guardPort, _module.moduleIP, _module.modulePort };
-
-                            // Get type and method from the loaded assembly
-                            var targetType = loadedAssembly.GetType("Module.Main");
-                            var method = targetType?.GetMethod("StartProgram");
-
-                            if (targetType != null && method != null)
-                            {
-                                // Create an instance of Module.Main
-                                var instance = Activator.CreateInstance(targetType);
-
-                                // Invoke StartProgram on the instance
-                                method.Invoke(instance, sharedArgs);
-                            }
-                            else
-                            {
-                                Custom.WriteLine("Main class or StartProgram method not found.", ConsoleColor.Red);
-                            }
-
-                            assemblyLoadContext.Unload();
-                        }
-                        catch (Exception ex)
-                        {
-                            Custom.WriteLine($"Could not load the gatewayModule", ConsoleColor.Red);
-                            Custom.WriteLine(ex.Message, ConsoleColor.Red);
-                        }
-                        break;
-
-                    default:
-                        Custom.WriteLine($"Trying to load an unsupported module?", ConsoleColor.Red);
-                        break;
+                    int.TryParse(args[0], out moduleIndex);
+                }
+                catch (Exception ex)
+                {
+                    Custom.WriteLine(ex.ToString(), ConsoleColor.Red);
                 }
 
+                try
+                {
+                    var _module = _config.ModuleBinding[moduleIndex];
+
+                    byte[] dllBytes = File.ReadAllBytes(_config.dllPath);
+                    var _response = Convert.ToBase64String(dllBytes);
+
+                    Custom.WriteLine($"Loading dll {_config.dllPath}", ConsoleColor.DarkMagenta);
+
+                    // Load DLL from byte array
+                    using var stream = new MemoryStream(dllBytes);
+                    var assemblyLoadContext = new AssemblyLoadContext("TestModuleContext", isCollectible: true);
+                    var loadedAssembly = assemblyLoadContext.LoadFromStream(stream);
+
+                    // Set arguments for the loaded module
+                    object[] sharedArgs = { moduleIndex };
+
+                    // Get type and method from the loaded assembly
+                    var targetType = loadedAssembly.GetType("Module.Main");
+                    var method = targetType?.GetMethod("StartProgram");
+
+                    if (targetType != null && method != null)
+                    {
+                        // Create an instance of Module.Main
+                        var instance = Activator.CreateInstance(targetType);
+
+                        // Invoke StartProgram on the instance
+                        method.Invoke(instance, sharedArgs);
+                    }
+                    else
+                    {
+                        Custom.WriteLine("Main class or StartProgram method not found.", ConsoleColor.Red);
+                    }
+
+                    assemblyLoadContext.Unload();
+                }
+                catch (Exception ex)
+                {
+                    Custom.WriteLine($"Could not load the agentModule", ConsoleColor.Red);
+                    Custom.WriteLine(ex.Message, ConsoleColor.Red);
+                }
             }
         }
     }

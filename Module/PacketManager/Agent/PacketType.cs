@@ -13,7 +13,9 @@
                 AGENT_CHARACTER_SELECTION_JOIN_REQUEST = 0x7001,
                 AGENT_CHARACTER_SELECTION_ACTION_REQUEST = 0x7007, // Reponse SERVER_AGENT_CHARACTER_SELECTION_RESPONSE
 
-                AGENT_LOGOUT_REQUEST = 0x7005;
+                AGENT_LOGOUT_REQUEST = 0x7005,
+
+                AGENT_CONFIG_UPDATE = 0x7158;
 
 
             // Add other packet types as needed
