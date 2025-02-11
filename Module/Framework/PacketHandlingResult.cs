@@ -16,7 +16,7 @@ namespace Module.Framework
     {
         Default,
         RemoteSecurity,
-        LocalSecurity = 2
+        LocalSecurity
     }
 
     public class PacketHandlingResult
