@@ -15,6 +15,8 @@ namespace Module.Classes
         public string dllPath { get; set; } = "Module.dll";
         public bool logWriting { get; set; } = true;
 
+        public bool disableConsole {  get; set; } = false;
+
         public string logFolder = "log";
 
         public string bindingsPath { get; set; } = "config\\bindings.json";

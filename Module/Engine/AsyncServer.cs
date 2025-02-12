@@ -31,7 +31,7 @@ namespace Module.Engine
                 Custom.WriteLine($"Redirect settings for {bindAddr}:{port} were loaded!");
 
                 _listenerSocket.Bind(new IPEndPoint(IPAddress.Parse(bindAddr), port));
-                _listenerSocket.Listen(100);
+                _listenerSocket.Listen(2500);
 
                 _acceptTask = AcceptConnectionsAsync(_cancellationTokenSource.Token);
                 await _acceptTask;
@@ -49,7 +49,8 @@ namespace Module.Engine
                 try
                 {
                     var clientSocket = await _listenerSocket.AcceptAsync();
-                    _ = Task.Run(() => HandleClientAsync(clientSocket), cancellationToken);
+                    // Use the cancellation token directly here
+                    _ = Task.Run(() => HandleClientAsync(clientSocket, cancellationToken), cancellationToken);
                 }
                 catch (SocketException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -62,15 +63,20 @@ namespace Module.Engine
             }
         }
 
-        private void HandleClientAsync(Socket clientSocket)
+        private async Task HandleClientAsync(Socket clientSocket, CancellationToken cancellationToken)
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 switch (_serverType)
                 {
                     case ModuleType.GatewayModule:
                     case ModuleType.AgentModule:
-                        new Module(clientSocket, OnClientDisconnect, _serverType);
+                        // If Module constructor does async work, ensure it’s handled asynchronously
+                        var module = new Module(clientSocket, OnClientDisconnect, _serverType);
+                        // If the Module class uses async operations, you might need to await it
+                        await module.StartAsync(cancellationToken);  // Assuming there's an async method to handle client in Module
                         break;
                     default:
                         Custom.WriteLine("Unknown server type", ConsoleColor.Red);

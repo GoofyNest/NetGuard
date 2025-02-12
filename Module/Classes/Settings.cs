@@ -21,6 +21,5 @@
             public bool bypassCaptcha { get; set; } = false;
             public string captchaCode { get; set; } = "b";
         }
-
     }
 }

@@ -10,7 +10,6 @@ using Module.PacketManager.GatewayModule.Client;
 using Module.PacketManager.GatewayModule.Server;
 using Module.Services;
 using SilkroadSecurityAPI;
-using static Module.Engine.AsyncServer;
 
 namespace Module.Engine
 {
@@ -18,7 +17,6 @@ namespace Module.Engine
     {
         private Socket _clientSocket;
         private AsyncServer.DelClientDisconnect _clientDisconnectHandler;
-        private object _lock = new object();
 
         private Socket _moduleSocket;
         private ModuleType _handlerType;
@@ -56,21 +54,35 @@ namespace Module.Engine
                 _client = new SessionData();
 
             Custom.WriteLine($"New connection {_client.ip}", ConsoleColor.Cyan);
+        }
 
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
             try
             {
-                _moduleSocket.Connect(new IPEndPoint(IPAddress.Parse(_moduleSettings.moduleIP), _moduleSettings.modulePort));
+                // Connect to the remote host asynchronously
+                await _moduleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_moduleSettings.moduleIP), _moduleSettings.modulePort));
+
+                // Generate security information
                 _localSecurity.GenerateSecurity(true, true, true);
-                DoReceive(true);
-                Send(false);
+
+                // Begin receiving data
+                await DoReceive(true);
+
+                // Start sending data asynchronously
+                await Send(false);
             }
-            catch (Exception ex)
+            catch (SocketException ex)
             {
                 Custom.WriteLine($"Remote host ({_moduleSettings.moduleIP}:{_moduleSettings.modulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
             }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"Exception in Module StartAsync: {ex}", ConsoleColor.Red);
+            }
         }
 
-        void HandleReceivedData(int nReceived, bool isClient)
+        async Task HandleReceivedData(int nReceived, bool isClient)
         {
             // Receive data based on whether it's from the client or server
             if (isClient)
@@ -128,12 +140,12 @@ namespace Module.Engine
                 
                         case PacketResultType.SkipSending:
                             Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
-                            Send(result.SendImmediately);
+                            await Send(result.SendImmediately);
                             continue;
                 
                         case PacketResultType.DoReceive:
                             Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
-                            DoReceive(false);
+                            await DoReceive(false);
                             continue;
                     }
                 
@@ -144,14 +156,14 @@ namespace Module.Engine
                             case SecurityType.RemoteSecurity:
                                 {
                                     _remoteSecurity.Send(result.ModifiedPacket);
-                                    Send(result.SendImmediately);
+                                    await Send(result.SendImmediately);
                                 }
                                 break;
 
                             case SecurityType.LocalSecurity:
                                 {
                                     _localSecurity.Send(result.ModifiedPacket);
-                                    Send(result.SendImmediately);
+                                    await Send(result.SendImmediately);
                                 }
                                 break;
 
@@ -166,7 +178,7 @@ namespace Module.Engine
                                     {
                                         _localSecurity.Send(result.ModifiedPacket);
                                     }
-                                    Send(result.SendImmediately);
+                                    await Send(result.SendImmediately);
                                 }
                                 break;
                         }
@@ -185,11 +197,11 @@ namespace Module.Engine
                     _localSecurity.Send(packet);
                 }
 
-                Send(isClient); // Use the isClient flag to determine the action
+                await Send(isClient); // Use the isClient flag to determine the action
             }
         }
 
-        void DoReceive(bool isClient)
+        async Task DoReceive(bool isClient)
         {
             try
             {
@@ -205,7 +217,10 @@ namespace Module.Engine
                 // Create state object and pass it in the BeginReceive
                 var state = new SocketState(socket, buffer);
 
-                socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, OnReceive, state);
+                // Initiate BeginReceive, this does not block, just sets up the receive operation
+                socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, OnReceive, new SocketState(socket, buffer));
+
+                await Task.CompletedTask;
             }
             catch (SocketException ex)
             {
@@ -248,13 +263,14 @@ namespace Module.Engine
                 {
                     // Client-specific data handling
                     await Task.Run(() => HandleReceivedData(bytesReceived, true));
-                    DoReceive(true);  // Continue receiving from client
+                    await DoReceive(true);  // Continue receiving from client
                 }
                 else if (socket == _moduleSocket)
                 {
                     // Server-specific data handling
                     await Task.Run(() => HandleReceivedData(bytesReceived, false));
-                    DoReceive(false);  // Continue receiving from server
+
+                    await DoReceive(false);  // Continue receiving from server
                 }
             }
             catch (Exception ex)
@@ -264,43 +280,40 @@ namespace Module.Engine
             }
         }
 
-        void Send(bool toHost)
+        async Task Send(bool toHost)
         {
-            lock (_lock)
+            // Determine the security and socket to use based on 'toHost'
+            var security = toHost ? _remoteSecurity : _localSecurity;
+            if (security == null)
+                return;  // Early return if security is null
+
+            var socket = toHost ? _moduleSocket : _clientSocket;
+            if (socket == null)
+                return;  // Early return if socket is null
+
+            // Get outgoing packets
+            var outgoing = security.TransferOutgoing();
+            if (outgoing == null)
+                return;  // Early return if no outgoing packets
+
+            int count = outgoing.Count;
+
+            for (int i = 0; i < count; i++)
             {
-                // Determine the security and socket to use based on 'toHost'
-                var security = toHost ? _remoteSecurity : _localSecurity;
-                if (security == null)
-                    return;  // Early return if security is null
-
-                var socket = toHost ? _moduleSocket : _clientSocket;
-                if (socket == null)
-                    return;  // Early return if socket is null
-
-                // Get outgoing packets
-                var outgoing = security.TransferOutgoing();
-                if (outgoing == null)
-                    return;  // Early return if no outgoing packets
-
-                int count = outgoing.Count;
-
-                for (int i = 0; i < count; i++)
+                try
                 {
-                    try
-                    {
-                        var packet = outgoing[i];
-                        socket.Send(packet.Key.Buffer);
+                    var packet = outgoing[i];
+                    await socket.SendAsync(packet.Key.Buffer);
 
-                        if (toHost)
-                        {
-                            _bytesReceivedFromClient += (ulong)packet.Key.Size;
-                            HandleClientFlooding();
-                        }
-                    }
-                    catch (Exception ex)
+                    if (toHost)
                     {
-                        Custom.WriteLine($"Exception in Send: {ex}", ConsoleColor.Red);
+                        _bytesReceivedFromClient += (ulong)packet.Key.Size;
+                        HandleClientFlooding();
                     }
+                }
+                catch (Exception ex)
+                {
+                    Custom.WriteLine($"Exception in Send: {ex}", ConsoleColor.Red);
                 }
             }
         }
@@ -323,40 +336,36 @@ namespace Module.Engine
             return elapsedTime.TotalSeconds < 1.0 ? _bytesReceivedFromClient : Math.Round(_bytesReceivedFromClient / elapsedTime.TotalSeconds, 2);
         }
 
-        private readonly object _socketLock = new object();
-
         private void DisconnectModuleSocket()
         {
-            lock (_socketLock)
-            {
-                if (_moduleSocket == null) return;
+            if (_moduleSocket == null) return;
 
-                try
+            try
+            {
+                if (_moduleSocket.Connected)
                 {
-                    if (_moduleSocket.Connected)
-                    {
-                        _moduleSocket.Shutdown(SocketShutdown.Both); // Graceful shutdown
-                    }
-                    _moduleSocket.Close();
+                    _moduleSocket.Shutdown(SocketShutdown.Both); // Graceful shutdown
                 }
-                catch (SocketException ex)
-                {
-                    Custom.WriteLine($"Socket error during disconnect: {ex.Message}", ConsoleColor.Red);
-                }
-                catch (ObjectDisposedException)
-                {
-                    Custom.WriteLine("Socket was already disposed.", ConsoleColor.Gray);
-                }
-                catch (Exception ex)
-                {
-                    Custom.WriteLine($"Unexpected error during socket disconnect: {ex}", ConsoleColor.Red);
-                }
-                finally
-                {
-                    _moduleSocket = null!;
-                }
+                _moduleSocket.Close();
+            }
+            catch (SocketException ex)
+            {
+                Custom.WriteLine($"Socket error during disconnect: {ex.Message}", ConsoleColor.Red);
+            }
+            catch (ObjectDisposedException)
+            {
+                Custom.WriteLine("Socket was already disposed.", ConsoleColor.Gray);
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"Unexpected error during socket disconnect: {ex}", ConsoleColor.Red);
+            }
+            finally
+            {
+                _moduleSocket = null!;
             }
         }
+        
         private void HandleDisconnection()
         {
             DisconnectModuleSocket();
