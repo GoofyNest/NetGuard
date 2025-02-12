@@ -12,6 +12,9 @@ The original engine, async server, and base were initially created by Chernobyl 
 # Why NetGuard?
 I set out to create a packet filter with a clean and structured approach to handling packets from both the server and the client. While this version achieves that goal, it is not the final/full release and will keep getting updates daily. The project was ported to `.NET 8.0` from `.NET Framework`, which now supports both Windows and Linux environments.
 
+### Performance preview
+[YouTube](https://www.youtube.com/watch?v=u4uCDbXQ3rw)
+
 ### Why use us
 > **Open-Source & Free** – NetGuard is completely open-source, giving you full control over how you use and modify it.
 > Unlike other packet filters, we don’t lock you into a closed ecosystem.
