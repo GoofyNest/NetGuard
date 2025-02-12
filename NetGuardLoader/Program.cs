@@ -17,6 +17,8 @@ namespace NetGuardLoader
         {
             if (File.Exists(_config.bindingsPath))
             {
+                Custom.WriteLine($"Loaded existing settings from {_config.bindingsPath}");
+
                 var bindingsContent = File.ReadAllText(_config.bindingsPath);
 
                 var tempConfig = JsonConvert.DeserializeObject<Config>(bindingsContent);
@@ -26,16 +28,6 @@ namespace NetGuardLoader
                     _config = tempConfig;
                 }
 
-                File.WriteAllText(_config.bindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
-            }
-            else
-            {
-                Custom.WriteLine($"Loaded existing settings from {_config.bindingsPath}");
-
-                var configContent = File.ReadAllText(_config.bindingsPath);
-
-                _config = JsonConvert.DeserializeObject<Config>(configContent) ?? new();
-
                 foreach (var _module in _config.ModuleBinding)
                 {
                     string moduleName = _module.moduleType.ToString();
@@ -44,6 +36,19 @@ namespace NetGuardLoader
                     {
                         Custom.WriteLine($"Seems like you still have {moduleName} named Example", ConsoleColor.Cyan);
                     }
+                }
+
+                File.WriteAllText(_config.bindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
+            }
+            else
+            {
+                Custom.WriteLine($"Creating new settings file {_config.bindingsPath}");
+
+                _config.ModuleBinding.Add(new ModuleSettings() { name = "Example #1", moduleType = ModuleType.GatewayModule });
+
+                for (var i = 0; i < 3; i++)
+                {
+                    _config.ModuleBinding.Add(new ModuleSettings() { name = "Example #" + (i + 1), guardPort = 15884 + i, modulePort = 5884 + i, moduleType = ModuleType.AgentModule });
                 }
 
                 File.WriteAllText(_config.bindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
@@ -169,6 +174,7 @@ namespace NetGuardLoader
             Console.WriteLine();
 
             Directory.CreateDirectory("config");
+
             LoadSettings();
 
             LoadDll(args);
