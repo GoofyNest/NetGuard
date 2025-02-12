@@ -89,10 +89,6 @@ namespace Module
 
         public static void StartProgram(int moduleIndex)
         {
-            
-
-            Directory.CreateDirectory("config");
-
             LoadSettings(true);
 
             _module = _config.ModuleBinding[moduleIndex];
