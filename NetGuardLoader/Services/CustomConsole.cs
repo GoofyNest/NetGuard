@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace NetGuardLoader.Services
+﻿namespace NetGuardLoader.Services
 {
     public static class Custom
     {
+        private static readonly object LogLock = new object();
+
         private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new Dictionary<ConsoleColor, string>
         {
             { ConsoleColor.Yellow, "[WARN] " },
@@ -25,9 +24,11 @@ namespace NetGuardLoader.Services
             Console.Write(prefix);
             Console.ResetColor();
 
+            string date = $"[{DateTime.Now:HH:mm:ss}] ";
+
             // Display timestamp
             Console.ForegroundColor = ConsoleColor.DarkCyan;
-            Console.Write($"[{DateTime.Now:HH:mm:ss}] ");
+            Console.Write(date);
             Console.ResetColor();
 
             // Display message

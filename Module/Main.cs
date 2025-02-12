@@ -6,14 +6,11 @@ namespace Module
 {
     public class Main
     {
-        public static DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
-        public static long unixTimestamp = dateTimeOffset.ToUnixTimeSeconds();
-
         public static Config _config = new Config();
         public static ModuleSettings _module = new ModuleSettings();
         public static Settings _settings = new Settings();
 
-        public static string logFile = "";
+        private static DateTime _lastWriteTime = DateTime.MinValue;
 
         static void ConsolePoolThread()
         {
@@ -25,48 +22,89 @@ namespace Module
             }
         }
 
+        private static void LoadSettings(bool isMainFunction)
+        {
+            if (File.Exists(_config.settingsPath))
+            {
+                try
+                {
+                    using (var stream = new FileStream(_config.settingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var reader = new StreamReader(stream))
+                    {
+                        var settingsContent = reader.ReadToEnd();
+
+                        var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
+                        if(tempSettings != null)
+                        {
+                            _settings = tempSettings;
+                        }
+                    }
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine($"Error reading settings file: {ex.Message}");
+                }
+            }
+
+            if (!isMainFunction)
+                return;
+
+            if (File.Exists(_config.bindingsPath))
+            {
+                try
+                {
+                    using (var stream = new FileStream(_config.bindingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var reader = new StreamReader(stream))
+                    {
+                        var bindingsContent = reader.ReadToEnd();
+                        _config = JsonConvert.DeserializeObject<Config>(bindingsContent)
+                                  ?? throw new InvalidOperationException("bindings JSON is null.");
+                    }
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine($"Error reading settings file: {ex.Message}");
+                }
+            }
+        }
+
+        private static void WatchSettingsFile()
+        {
+            FileSystemWatcher watcher = new FileSystemWatcher
+            {
+                Path = Path.GetDirectoryName(_config.settingsPath)!,
+                Filter = Path.GetFileName(_config.settingsPath),
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
+                EnableRaisingEvents = true
+            };
+
+            watcher.Changed += (sender, e) =>
+            {
+                LoadSettings(false);
+            };
+        }
+
         public static void StartProgram(int moduleIndex)
         {
             Console.Title = "NetGuard | .NET 8.0";
 
-            var path = Path.Combine("config");
+            Directory.CreateDirectory("config");
 
-            Directory.CreateDirectory(path);
-
-            var bindingsPath = Path.Combine(path, "bindings.json");
-            var settingsPath = Path.Combine(path, "settings.json");
-
-            if (File.Exists(bindingsPath))
-            {
-                var bindingsContent = File.ReadAllText(bindingsPath);
-
-                _config = JsonConvert.DeserializeObject<Config>(bindingsContent)
-                          ?? throw new InvalidOperationException("bindings JSON is null.");
-            }
-
-            if (File.Exists(settingsPath))
-            {
-                var settingsContent = File.ReadAllText(settingsPath);
-
-                _config = JsonConvert.DeserializeObject<Config>(settingsContent)
-                          ?? throw new InvalidOperationException("settings JSON is null.");
-
-                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
-            }
-            else
-            {
-                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
-            }
+            LoadSettings(true);
 
             _module = _config.ModuleBinding[moduleIndex];
 
             // Use these values in your method as needed
             Console.WriteLine($"Guard IP: {_module.guardIP}, Guard Port: {_module.guardPort}, Module IP: {_module.moduleIP}, Module Port: {_module.modulePort}");
 
-            logFile = Path.Combine(path, _module.name + ".txt");
+            _config.logFile = Path.Combine(_config.logFolder, _module.name + ".txt");
 
-            if (File.Exists(logFile))
-                File.Delete(logFile);
+            Directory.CreateDirectory(_config.logFolder);
+
+            if (File.Exists(_config.logFile))
+                File.Delete(_config.logFile);
+
+            WatchSettingsFile();
 
             Task.Run(() => startAsyncServer());
 

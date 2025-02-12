@@ -13,6 +13,13 @@ namespace Module.Classes
     {
         public List<ModuleSettings> ModuleBinding = new List<ModuleSettings>();
         public string dllPath { get; set; } = "Module.dll";
+        public bool logWriting { get; set; } = true;
+
+        public string logFolder = "log";
+
+        public string bindingsPath { get; set; } = "config\\bindings.json";
+        public string settingsPath { get; set; } = "config\\settings.json";
+        public string logFile { get; set; } = string.Empty;
     }
 
     public class ModuleSettings

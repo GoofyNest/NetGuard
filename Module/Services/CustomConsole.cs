@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using Module;
-
-namespace Module.Services
+﻿namespace Module.Services
 {
     public static class Custom
     {
@@ -44,12 +39,15 @@ namespace Module.Services
 
         private static void WriteToLog(string message)
         {
+            if (!Main._config.logWriting)
+                return;
+
             try
             {
                 lock (LogLock) // Ensure thread safety
                 {
                     // Use StreamWriter with BufferedStream for better performance
-                    using (StreamWriter writer = new StreamWriter(new BufferedStream(File.Open(Main.logFile, FileMode.Append, FileAccess.Write))))
+                    using (StreamWriter writer = new StreamWriter(new BufferedStream(File.Open(Main._config.logFile, FileMode.Append, FileAccess.Write))))
                     {
                         writer.WriteLine(message);
                     }
