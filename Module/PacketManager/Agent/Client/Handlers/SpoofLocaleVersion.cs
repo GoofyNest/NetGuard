@@ -3,8 +3,10 @@ using Module.Engine.Classes;
 using Module.Framework;
 using SilkroadSecurityAPI;
 using Module;
-using static Module.PacketManager.Agent.Opcodes.Client;
-using static Module.PacketManager.Agent.Opcodes.Server;
+using _Agent = Module.PacketManager.Agent.ClientPackets.Agent;
+using _Global = Module.PacketManager.Agent.ClientPackets.Global;
+using _Login = Module.PacketManager.Agent.ClientPackets.Login;
+using _Shard = Module.PacketManager.Agent.ClientPackets.Shard;
 
 namespace Module.PacketManager.Agent.Client.Handlers
 { 
@@ -16,7 +18,7 @@ namespace Module.PacketManager.Agent.Client.Handlers
 
             response.ModifiedPacket = null!;
 
-            var modifiedPacket = new Packet(AGENT_GAME_READY);
+            var modifiedPacket = new Packet((ushort)_Agent.GameReady);
             response.ModifiedPacket = modifiedPacket;
 
             response.SendImmediately = false;

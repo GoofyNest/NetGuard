@@ -10,11 +10,13 @@ using Module.PacketManager.GatewayModule.Client;
 using Module.PacketManager.GatewayModule.Server;
 using Module.Services;
 using SilkroadSecurityAPI;
+using static Module.PacketManager.Gateway.Opcodes;
 
 namespace Module.Engine
 {
     sealed class Module
     {
+        public int ClientId { get; }  // Store client ID
         private Socket _clientSocket;
         private AsyncServer.DelClientDisconnect _clientDisconnectHandler;
 
@@ -35,8 +37,9 @@ namespace Module.Engine
 
         private SessionData _client;
 
-        public Module(Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
+        public Module(int clientId, Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
         {
+            ClientId = clientId;
             _clientSocket = clientSocket;
             _clientDisconnectHandler = delDisconnect;
 
@@ -336,42 +339,10 @@ namespace Module.Engine
             return elapsedTime.TotalSeconds < 1.0 ? _bytesReceivedFromClient : Math.Round(_bytesReceivedFromClient / elapsedTime.TotalSeconds, 2);
         }
 
-        private void DisconnectModuleSocket()
-        {
-            if (_moduleSocket == null) return;
-
-            try
-            {
-                if (_moduleSocket.Connected)
-                {
-                    _moduleSocket.Shutdown(SocketShutdown.Both); // Graceful shutdown
-                }
-                _moduleSocket.Close();
-            }
-            catch (SocketException ex)
-            {
-                Custom.WriteLine($"Socket error during disconnect: {ex.Message}", ConsoleColor.Red);
-            }
-            catch (ObjectDisposedException)
-            {
-                Custom.WriteLine("Socket was already disposed.", ConsoleColor.Gray);
-            }
-            catch (Exception ex)
-            {
-                Custom.WriteLine($"Unexpected error during socket disconnect: {ex}", ConsoleColor.Red);
-            }
-            finally
-            {
-                _moduleSocket = null!;
-            }
-        }
-        
         private void HandleDisconnection()
         {
-            DisconnectModuleSocket();
-
             // Notify other parts of the system, if delegate is set
-            _clientDisconnectHandler?.Invoke(ref _clientSocket, _handlerType);
+            _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _handlerType);
         }
     }
 }

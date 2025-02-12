@@ -4,9 +4,10 @@ using Module.Framework;
 using Module.Services;
 using SilkroadSecurityAPI;
 using Module;
-using static Module.PacketManager.Agent.Opcodes.Client;
-using static Module.PacketManager.Agent.Opcodes.Server;
-
+using _Agent = Module.PacketManager.Agent.ClientPackets.Agent;
+using _Global = Module.PacketManager.Agent.ClientPackets.Global;
+using _Login = Module.PacketManager.Agent.ClientPackets.Login;
+using _Shard = Module.PacketManager.Agent.ClientPackets.Shard;
 namespace Module.PacketManager.Agent.Client.Handlers
 {
     public class Global_Identification : IPacketHandler

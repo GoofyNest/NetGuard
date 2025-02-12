@@ -3,8 +3,10 @@ using Module.Framework;
 using Module.PacketManager.Agent.Client.Handlers;
 using Module.Services;
 using SilkroadSecurityAPI;
-using static Module.PacketManager.Agent.Opcodes.Client;
-using static Module.PacketManager.Agent.Opcodes.Server;
+using _Agent = Module.PacketManager.Agent.ClientPackets.Agent;
+using _Global = Module.PacketManager.Agent.ClientPackets.Global;
+using _Login = Module.PacketManager.Agent.ClientPackets.Login;
+using _Shard = Module.PacketManager.Agent.ClientPackets.Shard;
 
 namespace Module.PacketManager.Agent.Client
 {
@@ -12,15 +14,16 @@ namespace Module.PacketManager.Agent.Client
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
-            if (client.inCharSelection)
+            if (client.inCharSelection) // https://www.elitepvpers.com/forum/sro-pserver-guides-releases/4232366-release-disconnect-players-exploit-found-iwa.html
             {
                 Custom.WriteLine($"client.inCharSelection working {client.inCharSelection}", ConsoleColor.DarkMagenta);
 
                 switch (packet.Opcode)
                 {
-                    case GLOBAL_PING:
-                    case AGENT_CHARACTER_SELECTION_ACTION_REQUEST:
-                    case AGENT_CHARACTER_SELECTION_JOIN_REQUEST:
+                    case (ushort)_Global.Ping:
+                    case (ushort)_Shard.CharacterSelectionRenameRequest:
+                    case (ushort)_Shard.CharacterSelectionJoinRequest:
+                    case (ushort)_Shard.CharacterSelectionActionRequest:
                         // These packets are allowed in character selection.
                         return null!;
                 }
@@ -31,23 +34,23 @@ namespace Module.PacketManager.Agent.Client
 
             switch (packet.Opcode)
             {
-                case LOGIN_SERVER_HANDSHAKE:
-                case ACCEPT_HANDSHAKE:
+                case (ushort)_Global.AcceptHandshake:
+                case (ushort)_Global.HandShake:
                     return new Handshake();
 
-                case AGENT_GAME_READY2:
+                case (ushort)_Agent.GameReady2:
                     return new SpoofLocaleVersion();
 
-                case AGENT_LOGOUT_REQUEST:
+                case (ushort)_Login.LogoutRequest:
                     return new LogoutRequest();
 
-                case GLOBAL_IDENTIFICATION:
+                case (ushort)_Global.Identification:
                     return new Global_Identification();
 
-                case AGENT_AUTH_REQUEST:
+                case (ushort)_Login.AuthRequest:
                     return new AuthRequest();
 
-                case AGENT_CONFIG_UPDATE:
+                case (ushort)_Agent.ConfigUpdate:
                     return new ConfigUpdate();
 
                 default:

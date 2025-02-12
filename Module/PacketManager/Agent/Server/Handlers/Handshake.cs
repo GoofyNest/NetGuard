@@ -3,8 +3,9 @@ using Module.Engine.Classes;
 using Module.Framework;
 using SilkroadSecurityAPI;
 using Module;
-using static Module.PacketManager.Agent.Opcodes.Client;
-using static Module.PacketManager.Agent.Opcodes.Server;
+using _Agent = Module.PacketManager.Agent.ServerPackets.Agent;
+using _Global = Module.PacketManager.Agent.ServerPackets.Global;
+using _Login = Module.PacketManager.Agent.ServerPackets.Login;
 
 namespace Module.PacketManager.Agent.Server.Handlers
 {

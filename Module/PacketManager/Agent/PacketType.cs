@@ -1,52 +1,63 @@
 ﻿namespace Module.PacketManager.Agent
 {
-    class Opcodes
+    public static class ClientPackets
     {
-        public class Client
+        public enum Global : ushort
         {
-            public const ushort
-                GLOBAL_PING = 0x2002,
-                ACCEPT_HANDSHAKE = 0x9000,
-
-                AGENT_AUTH_REQUEST = 0x6103, // Reponse SERVER_AGENT_AUTH_RESPONSE
-
-                AGENT_CHARACTER_SELECTION_JOIN_REQUEST = 0x7001,
-                AGENT_CHARACTER_SELECTION_ACTION_REQUEST = 0x7007, // Reponse SERVER_AGENT_CHARACTER_SELECTION_RESPONSE
-
-                AGENT_LOGOUT_REQUEST = 0x7005,
-
-                AGENT_CONFIG_UPDATE = 0x7158;
-
-
-            // Add other packet types as needed
+            Identification = 0x2001,
+            Ping = 0x2002,
+            HandShake = 0x5000,
+            AcceptHandshake = 0x9000,
         }
 
-        public class Server
+        public enum Login : ushort
         {
-            public const ushort
-                GLOBAL_IDENTIFICATION = 0x2001,
-                LOGIN_SERVER_HANDSHAKE = 0x5000,
+            LogoutRequest = 0x7005,
+            AuthRequest = 0x6103,  // Response: SERVER_AGENT_AUTH_RESPONSE
+        }
 
-                AGENT_GAME_READY = 0x3012,
-                AGENT_GAME_READY2 = 0x3014, // Happens if locale is different in client
+        public enum Shard : ushort
+        {
+            CharacterSelectionRenameRequest = 0x7450,
+            CharacterSelectionJoinRequest = 0x7001,
+            CharacterSelectionActionRequest = 0x7007,  // Response: SERVER_AGENT_CHARACTER_SELECTION_RESPONSE
+        }
 
-                AGENT_CHARDATA_BEGIN = 0x34A5,
-                AGENT_CHARDATA = 0x3013,
-                AGENT_CHARDATA_END = 0x34A6,
+        public enum Agent : ushort
+        {
+            ConfigUpdate = 0x7158,
+            ClientPlayerBerserk = 0x70A7,
+            GameReady = 0x3012,
+            GameReady2 = 0x3014,  // Happens if locale is different in client
+        }
+    }
 
-                AGENT_COS_INFO = 0x30C8,
-                AGENT_COS_UPDATE = 0x30C9,
-                AGENT_COS_UPDATE_RIDESTATE = 0xB0CB,
+    public static class ServerPackets
+    {
+        public enum Global : ushort
+        {
+            Identification = 0x2001,
+            Ping = 0x2002,
+            HandShake = 0x5000,
+            NodeStatus1 = 0x2005,
+            NodeStatus2 = 0x6005,
+        }
 
-                GLOBAL_NODE_STATUS1 = 0x2005,
-                GLOBAL_NODE_STATUS2 = 0x6005,
+        public enum Login : ushort
+        {
+            AuthResponse = 0xA103, // IPLimit = 5, ServerIsFull = 4
+            CharacterSelectionResponse = 0xB007,
+        }
 
-                AGENT_AUTH_RESPONSE = 0xA103, // IPLimit = 5, ServerIsFull = 4,
-
-                AGENT_CHARACTER_SELECTION_RESPONSE = 0xB007,
-
-                AGENT_ENVIROMMENT_CELESTIAL_POSITION = 0x3020;
-            // Add other packet types as needed
+        public enum Agent : ushort
+        {
+            CharacterDataBegin = 0x34A5,
+            CharacterData = 0x3013,
+            CharacterDataEnd = 0x34A6,
+            COSInfo = 0x30C8,
+            COSUpdate = 0x30C9,
+            COSUpdateRideState = 0xB0CB,
+            EnvironmentCelestialPosition = 0x3020
         }
     }
 }

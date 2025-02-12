@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Module.Classes;
 using Module.Services;
+using static Module.PacketManager.Gateway.Opcodes;
 
 namespace Module.Engine
 {
@@ -15,7 +17,10 @@ namespace Module.Engine
         private CancellationTokenSource _cancellationTokenSource = new();
         private Task _acceptTask = Task.CompletedTask;  // A completed task as a default value
 
-        public delegate void DelClientDisconnect(ref Socket clientSocket, ModuleType handlerType);
+        public delegate void DelClientDisconnect(int clientId, ref Socket clientSocket, ModuleType handlerType);
+
+        private readonly ConcurrentDictionary<int, Module> _activeClients = new();
+        private long _clientIdCounter = 0;
 
         public async Task StartAsync(string bindAddr, int port, ModuleType servType)
         {
@@ -49,8 +54,18 @@ namespace Module.Engine
                 try
                 {
                     var clientSocket = await _listenerSocket.AcceptAsync();
+
+                    // If Module constructor does async work, ensure it’s handled asynchronously
+                    int clientId = (int)Interlocked.Increment(ref _clientIdCounter) & int.MaxValue;
+                    var module = new Module(clientId, clientSocket, OnClientDisconnect, _serverType);
+
+                    if (_activeClients.TryAdd(clientId, module))
+                    {
+                        Custom.WriteLine($"Client {clientId} connected. Total connections: {GetActiveConnections()}", ConsoleColor.Cyan);
+                    }
+
                     // Use the cancellation token directly here
-                    _ = Task.Run(() => HandleClientAsync(clientSocket, cancellationToken), cancellationToken);
+                    _ = Task.Run(() => HandleClientAsync(clientId, module, cancellationToken), cancellationToken);
                 }
                 catch (SocketException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -63,7 +78,7 @@ namespace Module.Engine
             }
         }
 
-        private async Task HandleClientAsync(Socket clientSocket, CancellationToken cancellationToken)
+        private async Task HandleClientAsync(int clientId, Module module, CancellationToken cancellationToken)
         {
             try
             {
@@ -73,10 +88,10 @@ namespace Module.Engine
                 {
                     case ModuleType.GatewayModule:
                     case ModuleType.AgentModule:
-                        // If Module constructor does async work, ensure it’s handled asynchronously
-                        var module = new Module(clientSocket, OnClientDisconnect, _serverType);
-                        // If the Module class uses async operations, you might need to await it
-                        await module.StartAsync(cancellationToken);  // Assuming there's an async method to handle client in Module
+                        {
+                            // If the Module class uses async operations, you might need to await it
+                            await module.StartAsync(cancellationToken);  // Assuming there's an async method to handle client in Module
+                        }
                         break;
                     default:
                         Custom.WriteLine("Unknown server type", ConsoleColor.Red);
@@ -89,21 +104,39 @@ namespace Module.Engine
             }
         }
 
-        private void OnClientDisconnect(ref Socket clientSocket, ModuleType handlerType)
+        public int GetActiveConnections()
         {
-            if (clientSocket == null) return;
+            return _activeClients.Count;
+        }
 
-            try
+        private void OnClientDisconnect(int clientId, ref Socket clientSocket, ModuleType handlerType)
+        {
+            // Ensure the client is removed here
+            if (_activeClients.TryRemove(clientId, out _))
             {
-                clientSocket.Close();
-            }
-            catch (Exception ex)
-            {
-                Custom.WriteLine($"OnClientDisconnect()::Error closing socket. Exception: {ex}", ConsoleColor.Red);
+                Custom.WriteLine($"Client {clientId} disconnected. Total connections: {GetActiveConnections()}", ConsoleColor.Yellow);
             }
 
-            clientSocket = null!;
-            GC.Collect();
+            // Handle socket cleanup
+            if (clientSocket != null)
+            {
+                try
+                {
+                    if (clientSocket.Connected)
+                    {
+                        clientSocket.Shutdown(SocketShutdown.Both);
+                    }
+                    clientSocket.Close();
+                }
+                catch (Exception ex)
+                {
+                    Custom.WriteLine($"OnClientDisconnect()::Error closing socket. Exception: {ex}", ConsoleColor.Red);
+                }
+                finally
+                {
+                    clientSocket = null!;
+                }
+            }
         }
 
         public void Dispose()
@@ -117,10 +150,19 @@ namespace Module.Engine
             if (disposing)
             {
                 _cancellationTokenSource.Cancel();
-                _listenerSocket?.Close();
+                _listenerSocket?.Dispose();  // ✅ Use Dispose() instead of Close()
                 _listenerSocket = null!;
-                _acceptTask?.Wait();
             }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            Dispose(true);
+            if (_acceptTask != null)
+            {
+                await _acceptTask;  // ✅ Prevents deadlocks
+            }
+            GC.SuppressFinalize(this);
         }
 
         ~AsyncServer()
