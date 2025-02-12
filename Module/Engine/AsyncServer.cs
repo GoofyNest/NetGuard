@@ -112,9 +112,17 @@ namespace Module.Engine
         private void OnClientDisconnect(int clientId, ref Socket clientSocket, ModuleType handlerType)
         {
             // Ensure the client is removed here
-            if (_activeClients.TryRemove(clientId, out _))
+            try
             {
-                Custom.WriteLine($"Client {clientId} disconnected. Total connections: {GetActiveConnections()}", ConsoleColor.Yellow);
+                if (_activeClients.TryRemove(clientId, out _))
+                {
+                    Custom.WriteLine($"Client {clientId} disconnected. Total connections: {GetActiveConnections()}", ConsoleColor.Yellow);
+                }
+            }
+            catch(Exception ex) 
+            {
+                Custom.WriteLine($"Client {clientId} failed to remove from list", ConsoleColor.Yellow);
+                Custom.WriteLine($"{ex.ToString()}");
             }
 
             // Handle socket cleanup

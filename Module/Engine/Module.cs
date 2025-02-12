@@ -10,7 +10,6 @@ using Module.PacketManager.GatewayModule.Client;
 using Module.PacketManager.GatewayModule.Server;
 using Module.Services;
 using SilkroadSecurityAPI;
-using static Module.PacketManager.Gateway.Opcodes;
 
 namespace Module.Engine
 {
@@ -78,10 +77,12 @@ namespace Module.Engine
             catch (SocketException ex)
             {
                 Custom.WriteLine($"Remote host ({_moduleSettings.moduleIP}:{_moduleSettings.modulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
+                HandleDisconnection();
             }
             catch (Exception ex)
             {
                 Custom.WriteLine($"Exception in Module StartAsync: {ex}", ConsoleColor.Red);
+                HandleDisconnection();
             }
         }
 
@@ -228,14 +229,17 @@ namespace Module.Engine
             catch (SocketException ex)
             {
                 Custom.WriteLine($"Socket error: {ex.Message}", ConsoleColor.Red);
+                HandleDisconnection();
             }
             catch (ObjectDisposedException)
             {
                 Custom.WriteLine("Attempted to use a disposed socket.", ConsoleColor.Gray);
+                HandleDisconnection();
             }
             catch (Exception ex)
             {
                 Custom.WriteLine($"Unexpected error: {ex}", ConsoleColor.Red);
+                HandleDisconnection();
             }
         }
 
