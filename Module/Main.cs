@@ -89,13 +89,15 @@ namespace Module
 
         public static void StartProgram(int moduleIndex)
         {
-            Console.Title = "NetGuard | .NET 8.0";
+            
 
             Directory.CreateDirectory("config");
 
             LoadSettings(true);
 
             _module = _config.ModuleBinding[moduleIndex];
+
+            Console.Title = $"NetGuard | {_module.name}";
 
             // Use these values in your method as needed
             Console.WriteLine($"Guard IP: {_module.guardIP}, Guard Port: {_module.guardPort}, Module IP: {_module.moduleIP}, Module Port: {_module.modulePort}");
