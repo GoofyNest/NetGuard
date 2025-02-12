@@ -19,33 +19,33 @@
 
         public static void WriteLine(string message, ConsoleColor color = ConsoleColor.White)
         {
-            if (Main._config.disableConsole)
-                return;
+            string prefix = GetPrefix(color);
 
-            lock (LogLock) // Ensure thread safety
+            string date = $"[{DateTime.Now:HH:mm:ss}] ";
+
+            if (!Main._settings.disableConsole)
             {
-                string prefix = GetPrefix(color);
-                Console.ForegroundColor = color;
-                Console.Write(prefix);
-                Console.ResetColor();
+                lock (LogLock) // Ensure thread safety
+                {
+                    Console.ForegroundColor = color;
+                    Console.Write(prefix);
+                    Console.ResetColor();
 
-                string date = $"[{DateTime.Now:HH:mm:ss}] ";
+                    // Display timestamp
+                    Console.ForegroundColor = ConsoleColor.DarkCyan;
+                    Console.Write(date);
+                    Console.ResetColor();
 
-                // Display timestamp
-                Console.ForegroundColor = ConsoleColor.DarkCyan;
-                Console.Write(date);
-                Console.ResetColor();
-
-                WriteToLog(prefix + date + message);
-
-                // Display message
-                Console.WriteLine(message);
+                    Console.WriteLine(message);
+                }
             }
+
+            WriteToLog(prefix + date + message);
         }
 
         private static void WriteToLog(string message)
         {
-            if (!Main._config.logWriting)
+            if (!Main._settings.logWriting)
                 return;
 
             try

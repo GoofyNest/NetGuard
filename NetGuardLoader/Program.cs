@@ -48,7 +48,13 @@ namespace NetGuardLoader
 
                 for (var i = 0; i < 3; i++)
                 {
-                    _config.ModuleBinding.Add(new ModuleSettings() { name = "Example #" + (i + 1), guardPort = 15884 + i, modulePort = 5884 + i, moduleType = ModuleType.AgentModule });
+                    _config.ModuleBinding.Add(new ModuleSettings() 
+                    { 
+                        name = "Example #" + (i + 1), 
+                        guardPort = 15884 + i, 
+                        modulePort = 5884 + i, 
+                        moduleType = ModuleType.AgentModule 
+                    });
                 }
 
                 File.WriteAllText(_config.bindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));

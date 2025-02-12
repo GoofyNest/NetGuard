@@ -2,6 +2,9 @@
 {
     public class Settings
     {
+        public bool logWriting { get; set; } = true;
+        public bool disableConsole { get; set; } = false;
+
         public AgentSettings agentSettings { get; set; } = new();
 
         public class AgentSettings()

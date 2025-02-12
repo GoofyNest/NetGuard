@@ -13,9 +13,6 @@ namespace NetGuardLoader.Classes
     {
         public List<ModuleSettings> ModuleBinding = new();
         public string dllPath { get; set; } = "Module.dll";
-        public bool logWriting { get; set; } = true;
-
-        public bool disableConsole { get; set; } = false;
 
         public string logFolder = "log";
 
