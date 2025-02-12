@@ -6,9 +6,9 @@ namespace Module
 {
     public class Main
     {
-        public static Config _config = new Config();
-        public static ModuleSettings _module = new ModuleSettings();
-        public static Settings _settings = new Settings();
+        public static Config _config = new();
+        public static ModuleSettings _module = new();
+        public static Settings _settings = new();
 
         static void ConsolePoolThread()
         {
@@ -114,7 +114,7 @@ namespace Module
 
         static async Task startAsyncServer()
         {
-            AsyncServer server = new AsyncServer();
+            AsyncServer server = new();
             await server.StartAsync(_module.guardIP, _module.guardPort, _module.moduleType);
         }
     }

@@ -12,7 +12,7 @@ namespace Module.Engine
     {
         private Socket _listenerSocket = null!;
         private ModuleType _serverType;
-        private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private CancellationTokenSource _cancellationTokenSource = new();
         private Task _acceptTask = Task.CompletedTask;  // A completed task as a default value
 
         public delegate void DelClientDisconnect(ref Socket clientSocket, ModuleType handlerType);

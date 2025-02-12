@@ -12,7 +12,7 @@ namespace Module.PacketManager.GatewayModule.Client.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             response.ModifiedPacket = null!;
 

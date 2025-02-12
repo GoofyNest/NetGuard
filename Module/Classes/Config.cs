@@ -11,7 +11,7 @@ namespace Module.Classes
 
     public class Config
     {
-        public List<ModuleSettings> ModuleBinding = new List<ModuleSettings>();
+        public List<ModuleSettings> ModuleBinding = new();
         public string dllPath { get; set; } = "Module.dll";
         public bool logWriting { get; set; } = true;
 

@@ -12,7 +12,7 @@ namespace Module.PacketManager.GatewayModule.Server.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             IBuvChallange settings = Main._settings.gatewaySettings.captchaSettings;
 

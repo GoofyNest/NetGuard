@@ -5,7 +5,7 @@ namespace Module.Engine.Classes
 {
     public class FixedSizeQueue<T>
     {
-        private readonly ConcurrentQueue<T> _queue = new ConcurrentQueue<T>();
+        private readonly ConcurrentQueue<T> _queue = new();
         private readonly int _maxSize;
 
         public FixedSizeQueue(int maxSize)

@@ -2,18 +2,18 @@
 {
     public class Settings
     {
-        public AgentSettings agentSettings { get; set; } = new AgentSettings();
+        public AgentSettings agentSettings { get; set; } = new();
 
         public class AgentSettings()
         {
 
         }
 
-        public GatewaySettings gatewaySettings { get; set; } = new GatewaySettings();
+        public GatewaySettings gatewaySettings { get; set; } = new();
 
         public class GatewaySettings()
         {
-            public IBuvChallange captchaSettings { get; set; } = new IBuvChallange();
+            public IBuvChallange captchaSettings { get; set; } = new();
         }
 
         public class IBuvChallange()

@@ -24,10 +24,10 @@ namespace Module.Engine
         private byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
         private byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
-        private Security _localSecurity = new Security();
-        private Security _remoteSecurity = new Security();
+        private Security _localSecurity = new();
+        private Security _remoteSecurity = new();
 
-        public static FixedSizeQueue<Packet> _lastPackets = new FixedSizeQueue<Packet>(100);
+        public static FixedSizeQueue<Packet> _lastPackets = new(100);
         private ulong _bytesReceivedFromClient = 0;
         private DateTime _startTime = DateTime.Now;
 
@@ -45,13 +45,13 @@ namespace Module.Engine
 
             if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
             {
-                _client = new SessionData
+                _client = new()
                 {
                     ip = endpoint.Address.ToString()
                 };
             }
             else
-                _client = new SessionData();
+                _client = new();
 
             Custom.WriteLine($"New connection {_client.ip}", ConsoleColor.Cyan);
         }

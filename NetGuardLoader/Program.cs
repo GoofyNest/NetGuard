@@ -7,8 +7,8 @@ namespace NetGuardLoader
 {
     internal class Program
     {
-        public static Config _config = new Config();
-        public static Settings _settings = new Settings();
+        public static Config _config = new();
+        public static Settings _settings = new();
 
         public static string module = "";
         public static int moduleIndex = -1;
@@ -34,7 +34,7 @@ namespace NetGuardLoader
 
                 var configContent = File.ReadAllText(_config.bindingsPath);
 
-                _config = JsonConvert.DeserializeObject<Config>(configContent) ?? new Config();
+                _config = JsonConvert.DeserializeObject<Config>(configContent) ?? new();
 
                 foreach (var _module in _config.ModuleBinding)
                 {
