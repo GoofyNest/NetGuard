@@ -12,6 +12,31 @@ The original engine, async server, and base were initially created by Chernobyl 
 # Why NetGuard?
 I set out to create a packet filter with a clean and structured approach to handling packets from both the server and the client. While this version achieves that goal, it is not the final/full release and will keep getting updates daily. The project was ported to `.NET 8.0` from `.NET Framework`, which now supports both Windows and Linux environments.
 
+### Why use us
+> **Open-Source & Free** – NetGuard is completely open-source, giving you full control over how you use and modify it.
+> Unlike other packet filters, we don’t lock you into a closed ecosystem.
+
+> **No Hosting Restrictions** – You're free to host your protection on your own server.
+> We don’t force you to rely on external services.
+
+> **Unlimited Player Support** – No artificial player caps. Whether your project is small or scales to thousands of users,
+> NetGuard has no restrictions.
+
+> **No Hidden Fees** – We don’t charge you based on the size of your server,
+> the number of players, or any other unnecessary limitations.
+
+> **Cross-Platform Support** – Thanks to .NET 8.0, NetGuard runs efficiently on both Windows and Linux, giving you the flexibility to deploy it wherever you need.
+
+> **Constant Updates** – We're actively improving NetGuard daily, ensuring you get the best performance, security, and compatibility with your Silkroad Online server.
+
+> **Custom Features & Setup Support** – Need something tailored to your server?
+> We can implement custom features that will also be available in the public source.
+> If you need help setting things up, we offer setup assistance for a reasonable price.
+
+
+> **Join Our Community** – If you like our project and want to get in touch, join our [Discord server](https://discord.gg/Kb575PXspG)!
+> We’re always open to feedback, discussions, and collaboration.
+
 ### Why `.NET 8.0`? 
 It brings significant improvements over the older `.NET Framework`, particularly in terms of performance. `.NET 8.0` introduces native AOT (Ahead-of-Time) compilation, which reduces startup time and improves runtime efficiency by compiling the code directly to native machine code. This leads to faster execution, reduced memory usage, and better resource management.
 
