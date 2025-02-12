@@ -20,8 +20,12 @@ namespace NetGuardLoader
             {
                 var bindingsContent = File.ReadAllText(_config.bindingsPath);
 
-                _config = JsonConvert.DeserializeObject<Config>(bindingsContent)
-                          ?? throw new InvalidOperationException("bindings JSON is null.");
+                var tempConfig = JsonConvert.DeserializeObject<Config>(bindingsContent);
+
+                if (tempConfig != null)
+                {
+                    _config = tempConfig;
+                }
 
                 File.WriteAllText(_config.bindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
             }
@@ -50,8 +54,11 @@ namespace NetGuardLoader
             {
                 var settingsContent = File.ReadAllText(_config.settingsPath);
 
-                _settings = JsonConvert.DeserializeObject<Settings>(settingsContent)
-                          ?? throw new InvalidOperationException("settings JSON is null.");
+                var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
+                if (tempSettings != null)
+                {
+                    _settings = tempSettings;
+                }
 
                 File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
             }

@@ -57,8 +57,13 @@ namespace Module
                     using (var reader = new StreamReader(stream))
                     {
                         var bindingsContent = reader.ReadToEnd();
-                        _config = JsonConvert.DeserializeObject<Config>(bindingsContent)
-                                  ?? throw new InvalidOperationException("bindings JSON is null.");
+
+                        var tempConfig = JsonConvert.DeserializeObject<Config>(bindingsContent);
+
+                        if (tempConfig != null)
+                        {
+                            _config = tempConfig;
+                        }
                     }
                 }
                 catch (IOException ex)
