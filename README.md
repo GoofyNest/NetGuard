@@ -1,4 +1,4 @@
-# NetGuard
+# NetGuard [Discord server](https://discord.gg/Kb575PXspG)
 
 # What is NetGuard?
 NetGuard is my new C# packet filter base for `legend 1(ECSRO, jSRO)` Silkroad Online files, it will most likely work for vSRO 1.88 aswell!
