@@ -10,8 +10,6 @@ namespace Module
         public static ModuleSettings _module = new ModuleSettings();
         public static Settings _settings = new Settings();
 
-        private static DateTime _lastWriteTime = DateTime.MinValue;
-
         static void ConsolePoolThread()
         {
             while (true)
