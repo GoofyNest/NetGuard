@@ -1,19 +1,17 @@
-﻿using System.Reflection;
-using Module.Classes;
+﻿using Module.Classes;
 using Module.Engine;
-using Module.Services;
 using Newtonsoft.Json;
 
 namespace Module
 {
     public class Main
     {
-        public static Config _config = new Config();
-
         public static DateTimeOffset dateTimeOffset = DateTimeOffset.Now;
         public static long unixTimestamp = dateTimeOffset.ToUnixTimeSeconds();
 
-        public static ModuleSettings _module = null!;
+        public static Config _config = new Config();
+        public static ModuleSettings _module = new ModuleSettings();
+        public static Settings _settings = new Settings();
 
         public static string logFile = "";
 
@@ -35,14 +33,29 @@ namespace Module
 
             Directory.CreateDirectory(path);
 
+            var bindingsPath = Path.Combine(path, "bindings.json");
             var settingsPath = Path.Combine(path, "settings.json");
+
+            if (File.Exists(bindingsPath))
+            {
+                var bindingsContent = File.ReadAllText(bindingsPath);
+
+                _config = JsonConvert.DeserializeObject<Config>(bindingsContent)
+                          ?? throw new InvalidOperationException("bindings JSON is null.");
+            }
 
             if (File.Exists(settingsPath))
             {
-                var configContent = File.ReadAllText(settingsPath);
+                var settingsContent = File.ReadAllText(settingsPath);
 
-                _config = JsonConvert.DeserializeObject<Config>(configContent)
-                          ?? throw new InvalidOperationException("Configuration JSON is null.");
+                _config = JsonConvert.DeserializeObject<Config>(settingsContent)
+                          ?? throw new InvalidOperationException("settings JSON is null.");
+
+                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+            }
+            else
+            {
+                File.WriteAllText(settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
             }
 
             _module = _config.ModuleBinding[moduleIndex];

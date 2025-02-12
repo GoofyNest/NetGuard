@@ -5,7 +5,7 @@ VisualStudioVersion = 17.10.34916.146
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Module", "Module\Module.csproj", "{E2F757BE-BFED-4DDD-9ADC-2DA751A0372A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetGuardCore", "NetGuardCore\NetGuardCore.csproj", "{3798A905-5736-4227-B6E4-95B2386254B2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetGuardLoader", "NetGuardLoader\NetGuardLoader.csproj", "{3798A905-5736-4227-B6E4-95B2386254B2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilkroadSecurityAPI", "SilkroadSecurityAPI\SilkroadSecurityAPI.csproj", "{62EEA21F-5A8E-4FFA-81A3-5070DE12C46C}"
 EndProject

@@ -1,14 +1,9 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Threading;
-using NetGuardCore.Services;
-using NetGuardCore.Classes;
+﻿using System.Runtime.Loader;
+using NetGuardLoader.Classes;
+using NetGuardLoader.Services;
 using Newtonsoft.Json;
-using System.Runtime.Loader;
 
-namespace NetGuardCore
+namespace NetGuardLoader
 {
     internal class Program
     {
@@ -52,7 +47,7 @@ namespace NetGuardCore
             if (!Directory.Exists(path))
                 Directory.CreateDirectory(path);
 
-            var settingsPath = Path.Combine(path, "settings.json");
+            var settingsPath = Path.Combine(path, "bindings.json");
 
             if (!File.Exists(settingsPath))
             {

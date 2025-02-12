@@ -1,4 +1,4 @@
-﻿namespace NetGuardCore.Classes
+﻿namespace NetGuardLoader.Classes
 {
     public enum ModuleType : byte
     {
