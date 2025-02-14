@@ -54,7 +54,7 @@ Additionally, `.NET 8.0` offers enhanced socket handling and optimized networkin
 * Chernobyl
   - for the main idea about building a packet filter
 * [DuckSoup](https://github.com/ducksoup-sro/ducksoup)
-  - for keeping the spirit up whilst I was gone from the scene
+  - for some of his packet parsing with the help of other devs like BimBum1337
  
 # License
 Do what you want cause a pirate is free
