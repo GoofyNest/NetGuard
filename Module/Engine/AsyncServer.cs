@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Module.Classes;
 using Module.Services;
-using static Module.PacketManager.Gateway.Opcodes;
+using static Module.Helpers.PacketManager.Gateway.Opcodes;
 
 namespace Module.Engine
 {

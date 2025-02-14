@@ -8,7 +8,6 @@ namespace NetGuardLoader
     internal class Program
     {
         public static Config _config = new();
-        public static Settings _settings = new();
 
         public static string module = "";
         public static int moduleIndex = -1;
@@ -58,23 +57,6 @@ namespace NetGuardLoader
                 }
 
                 File.WriteAllText(_config.bindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
-            }
-
-            if (File.Exists(_config.settingsPath))
-            {
-                var settingsContent = File.ReadAllText(_config.settingsPath);
-
-                var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
-                if (tempSettings != null)
-                {
-                    _settings = tempSettings;
-                }
-
-                File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
-            }
-            else
-            {
-                File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
             }
         }
 

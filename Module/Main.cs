@@ -1,5 +1,6 @@
 ﻿using Module.Classes;
 using Module.Engine;
+using Module.Helpers.ItemReader;
 using Newtonsoft.Json;
 
 namespace Module
@@ -9,6 +10,7 @@ namespace Module
         public static Config _config = new();
         public static ModuleSettings _module = new();
         public static Settings _settings = new();
+        public static Dictionary<int, ItemData> _items = new();
 
         static void ConsolePoolThread()
         {
@@ -69,6 +71,23 @@ namespace Module
                     Console.WriteLine($"Error reading settings file: {ex.Message}");
                 }
             }
+
+            if (File.Exists(_config.settingsPath))
+            {
+                var settingsContent = File.ReadAllText(_config.settingsPath);
+
+                var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
+                if (tempSettings != null)
+                {
+                    _settings = tempSettings;
+                }
+
+                File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+            }
+            else
+            {
+                File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+            }
         }
 
         private static void WatchSettingsFile()
@@ -104,6 +123,11 @@ namespace Module
 
             if (File.Exists(_config.logFile))
                 File.Delete(_config.logFile);
+
+            if (_module.moduleType == ModuleType.AgentModule)
+            {
+                ItemReader.Init();
+            }
 
             WatchSettingsFile();
 

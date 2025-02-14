@@ -4,10 +4,10 @@ using System.Net.Sockets;
 using Module.Classes;
 using Module.Engine.Classes;
 using Module.Framework;
-using Module.PacketManager.Agent.Client;
-using Module.PacketManager.Agent.Server;
-using Module.PacketManager.GatewayModule.Client;
-using Module.PacketManager.GatewayModule.Server;
+using Module.Helpers.PacketManager.Agent.Client;
+using Module.Helpers.PacketManager.Agent.Server;
+using Module.Helpers.PacketManager.Gateway.Client;
+using Module.Helpers.PacketManager.Gateway.Server;
 using Module.Services;
 using SilkroadSecurityAPI;
 
@@ -34,7 +34,7 @@ namespace Module.Engine
 
         private ModuleSettings _moduleSettings = Main._module;
 
-        private SessionData _client;
+        private SessionData _client = new();
 
         public Module(int clientId, Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
         {
@@ -47,15 +47,15 @@ namespace Module.Engine
 
             if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
             {
-                _client = new()
-                {
-                    ip = endpoint.Address.ToString()
-                };
+                _client.playerInfo.ipInfo = new();
+
+
+                _client.playerInfo.ipInfo.ip = endpoint.Address.ToString();
             }
             else
-                _client = new();
+                _client.playerInfo.ipInfo = new();
 
-            Custom.WriteLine($"New connection {_client.ip}", ConsoleColor.Cyan);
+            Custom.WriteLine($"New connection {_client.playerInfo.ipInfo.ip}", ConsoleColor.Cyan);
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -130,11 +130,11 @@ namespace Module.Engine
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
-                            Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.ip}", ConsoleColor.Red);
+                            Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.playerInfo.ipInfo.ip}", ConsoleColor.Red);
                             continue;
                 
                         case PacketResultType.Disconnect:
-                            Custom.WriteLine($"Disconnected  {_client.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
+                            Custom.WriteLine($"Disconnected  {_client.playerInfo.ipInfo.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
                             HandleDisconnection();
                             continue;
                 
@@ -332,7 +332,7 @@ namespace Module.Engine
             if (bytesPerSecond <= 1000)
                 return;
 
-            Custom.WriteLine($"Client({_client.ip}) disconnected for flooding.", ConsoleColor.Yellow);
+            Custom.WriteLine($"Client({_client.playerInfo.ipInfo.ip}) disconnected for flooding.", ConsoleColor.Yellow);
 
             HandleDisconnection();
         }
