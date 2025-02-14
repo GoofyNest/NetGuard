@@ -9,7 +9,7 @@ using _Shard = Module.Helpers.PacketManager.Agent.ClientPackets.Shard;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 {
-    public class LogoutRequest : IPacketHandler
+    public class MagicOptionGrant : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
@@ -17,26 +17,15 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             response.ModifiedPacket = null!;
 
-            if (client.shardSettings.exploitIwaFix)
+            var _files = Main._settings.serverVersion.CurrentValue;
+
+            if (_files == "jSRO")
                 response.ResultType = PacketResultType.Block;
 
-            byte action = packet.ReadUInt8();
+            var avatarBlue = packet.ReadAscii().ToLower();
 
-            if(action > 2)
+            if (avatarBlue.Contains("avatar"))
                 response.ResultType = PacketResultType.Block;
-
-            switch (action)
-            {
-                case 0x01: // Exit delay
-                    break;
-
-                case 0x02: // Restart delay
-                    break;
-
-                default:
-                    response.ResultType = PacketResultType.Block;
-                    break;
-            }
 
             return response;
         }

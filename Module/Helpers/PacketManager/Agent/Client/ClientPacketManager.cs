@@ -7,6 +7,7 @@ using _Agent = Module.Helpers.PacketManager.Agent.ClientPackets.Agent;
 using _Global = Module.Helpers.PacketManager.Agent.ClientPackets.Global;
 using _Login = Module.Helpers.PacketManager.Agent.ClientPackets.Login;
 using _Shard = Module.Helpers.PacketManager.Agent.ClientPackets.Shard;
+using _Exploit = Module.Helpers.PacketManager.Agent.ClientPackets;
 
 namespace Module.Helpers.PacketManager.Agent.Client
 {
@@ -41,6 +42,11 @@ namespace Module.Helpers.PacketManager.Agent.Client
                 return new DefaultBlock();
             }
 
+            if (_Exploit.badOpcodes.Contains(packet.Opcode))
+            {
+                return new DefaultBlock(); // Block the exploit
+            }
+
             switch (packet.Opcode)
             {
                 // Block these packets whilst playing (not normal behaviour)
@@ -53,6 +59,21 @@ namespace Module.Helpers.PacketManager.Agent.Client
 
                         return null!;
                     }
+
+                case (ushort)_Agent.SkillMasteryLevel:
+                    return new SkillMasteryLearn();
+
+                case (ushort)_Agent.PlayerBerserk:
+                    return new PlayerBerserk();
+
+                case (ushort)_Agent.MagicOptionGrant:
+                    return new MagicOptionGrant();
+
+                case (ushort)_Agent.GuildUpdateNotice:
+                    return new GuildUpdateNotice();
+
+                case (ushort)_Agent.FortressSiegeAction:
+                    return new FortressSiegeAction();
 
                 case (ushort)_Global.AcceptHandshake:
                 case (ushort)_Global.HandShake:

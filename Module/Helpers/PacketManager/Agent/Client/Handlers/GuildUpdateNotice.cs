@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 using Module.Engine.Classes;
 using Module.Framework;
 using SilkroadSecurityAPI;
@@ -9,7 +10,7 @@ using _Shard = Module.Helpers.PacketManager.Agent.ClientPackets.Shard;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 {
-    public class LogoutRequest : IPacketHandler
+    public class GuildUpdateNotice : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
@@ -17,25 +18,13 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             response.ModifiedPacket = null!;
 
-            if (client.shardSettings.exploitIwaFix)
-                response.ResultType = PacketResultType.Block;
+            var guildNoticeTitle = packet.ReadAscii();
+            var guildNoticeMessage = packet.ReadAscii();
 
-            byte action = packet.ReadUInt8();
-
-            if(action > 2)
-                response.ResultType = PacketResultType.Block;
-
-            switch (action)
+            if (Regex.IsMatch(guildNoticeMessage, @"['""\-]") ||
+                Regex.IsMatch(guildNoticeTitle, @"['""\-]"))
             {
-                case 0x01: // Exit delay
-                    break;
-
-                case 0x02: // Restart delay
-                    break;
-
-                default:
-                    response.ResultType = PacketResultType.Block;
-                    break;
+                response.ResultType = PacketResultType.Block;
             }
 
             return response;
