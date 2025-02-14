@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Module.Classes
+﻿namespace Module.Classes
 {
     public enum ModuleType : byte
     {

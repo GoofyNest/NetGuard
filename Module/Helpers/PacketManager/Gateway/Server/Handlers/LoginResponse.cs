@@ -1,9 +1,7 @@
-﻿using System;
-using Module.Engine.Classes;
+﻿using Module.Engine.Classes;
 using Module.Framework;
 using Module.Services;
 using SilkroadSecurityAPI;
-using static Module.Helpers.PacketManager.Gateway.Opcodes.Client;
 using static Module.Helpers.PacketManager.Gateway.Opcodes.Server;
 
 namespace Module.Helpers.PacketManager.Gateway.Server.Handlers

@@ -3,10 +3,6 @@ using Module.Framework;
 using Module.Helpers.PacketManager.Agent.Server.Handlers;
 using SilkroadSecurityAPI;
 
-using _Agent = Module.Helpers.PacketManager.Agent.ServerPackets.Agent;
-using _Global = Module.Helpers.PacketManager.Agent.ServerPackets.Global;
-using _Login = Module.Helpers.PacketManager.Agent.ServerPackets.Login;
-
 namespace Module.Helpers.PacketManager.Agent.Server
 {
     public class AgentServerPacketManager
@@ -15,29 +11,29 @@ namespace Module.Helpers.PacketManager.Agent.Server
         {
             switch (packet.Opcode)
             {
-                case (ushort)_Global.Ping:
-                case (ushort)_Global.HandShake:
+                case (ushort)Global.Ping:
+                case (ushort)Global.HandShake:
                     return new Handshake();
 
-                case (ushort)_Agent.CharacterDataBegin:
+                case (ushort)Agent.CharacterDataBegin:
                     return new CharDataLoadingStart();
 
-                case (ushort)_Agent.CharacterData:
+                case (ushort)Agent.CharacterData:
                     return new CharData();
 
-                case (ushort)_Agent.CharacterDataEnd:
+                case (ushort)Agent.CharacterDataEnd:
                     return new CharDataLoadingEnd();
 
-                case (ushort)_Agent.CharacterJoin:
+                case (ushort)Agent.CharacterJoin:
                     return new CharacterJoin();
 
-                case (ushort)_Agent.EnvironmentCelestialPosition:
+                case (ushort)Agent.EnvironmentCelestialPosition:
                     return new EnviromentCelestialPosition();
 
-                case (ushort)_Login.CharacterSelectionResponse:
+                case (ushort)Login.CharacterSelectionResponse:
                     return new CharacterSelectionResponse();
 
-                case (ushort)_Login.AuthResponse:
+                case (ushort)Login.AuthResponse:
                     return new AuthResponse();
 
                 default:

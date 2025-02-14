@@ -1,11 +1,7 @@
-﻿using System;
-using Module.Engine.Classes;
+﻿using Module.Engine.Classes;
 using Module.Framework;
-using SilkroadSecurityAPI;
-using _Agent = Module.Helpers.PacketManager.Agent.ServerPackets.Agent;
-using _Global = Module.Helpers.PacketManager.Agent.ServerPackets.Global;
-using _Login = Module.Helpers.PacketManager.Agent.ServerPackets.Login;
 using Module.Services;
+using SilkroadSecurityAPI;
 namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 {
     public class CharDataLoadingEnd : IPacketHandler

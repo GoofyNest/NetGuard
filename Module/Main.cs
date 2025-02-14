@@ -1,13 +1,14 @@
 ﻿using Module.Classes;
 using Module.Engine;
 using Module.Helpers.ItemReader;
+using Module.Helpers.PacketManager.Agent.Client;
 using Newtonsoft.Json;
 
 namespace Module
 {
     public class Main
     {
-        public static Config _config = new();
+        public static Module.Classes.Config _config = new();
         public static ModuleSettings _module = new();
         public static Settings _settings = new();
         public static Dictionary<int, ItemData> _items = new();
@@ -58,7 +59,7 @@ namespace Module
                     {
                         var bindingsContent = reader.ReadToEnd();
 
-                        var tempConfig = JsonConvert.DeserializeObject<Config>(bindingsContent);
+                        var tempConfig = JsonConvert.DeserializeObject<Module.Classes.Config>(bindingsContent);
 
                         if (tempConfig != null)
                         {
@@ -127,6 +128,7 @@ namespace Module
             if (_module.moduleType == ModuleType.AgentModule)
             {
                 ItemReader.Init();
+                Packets.Init();
             }
 
             WatchSettingsFile();
