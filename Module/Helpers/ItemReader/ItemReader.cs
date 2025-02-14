@@ -1,7 +1,5 @@
 ﻿using System.Text;
 using Module.Services;
-using ItemField = Module.Helpers.ItemReader.ItemData.ItemField;
-
 namespace Module.Helpers.ItemReader
 {
     public class ItemReader
