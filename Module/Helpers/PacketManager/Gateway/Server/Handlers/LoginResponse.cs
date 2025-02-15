@@ -12,8 +12,6 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             byte res = packet.ReadUInt8();
 
             if (res == 1)
@@ -22,7 +20,7 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
                 string host = packet.ReadAscii();
                 int port = packet.ReadUInt16();
 
-                var index = Main._config.ModuleBinding.FindIndex(m => m.moduleIP == host && m.modulePort == port);
+                var index = Main._config.ModuleBinding.FindIndex(m => m.ModuleIP == host && m.ModulePort == port);
                 if (index == -1)
                 {
                     Custom.WriteLine("Could not find agent bindings", ConsoleColor.Red);
@@ -32,20 +30,17 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
                 // If agent bindings are found, create the modified packet
                 var guardModule = Main._config.ModuleBinding[index];
 
-                Custom.WriteLine($"Using {guardModule.guardIP} {guardModule.guardPort}", ConsoleColor.Cyan);
+                Custom.WriteLine($"Using {guardModule.GuardIP} {guardModule.GuardPort}", ConsoleColor.Cyan);
 
-                var modifiedPacket = new Packet(SERVER_GATEWAY_LOGIN_RESPONSE, true);
-                modifiedPacket.WriteUInt8(res);
-                modifiedPacket.WriteUInt32(id);
-                modifiedPacket.WriteAscii(guardModule.guardIP);
-                modifiedPacket.WriteUInt16(guardModule.guardPort);
-                modifiedPacket.WriteUInt32(0);  // Add any other modifications you need
+                var modified = new Packet(SERVER_GATEWAY_LOGIN_RESPONSE, true);
+                modified.WriteUInt8(res);
+                modified.WriteUInt32(id);
+                modified.WriteAscii(guardModule.GuardIP);
+                modified.WriteUInt16(guardModule.GuardPort);
+                modified.WriteUInt32(0);  // Add any other modifications you need
                 // modifiedPacket.Lock(); Not sure if needed
 
-                response.SendImmediately = false;
-
-                response.ModifiedPacket = modifiedPacket;
-
+                response.ModifiedPackets.Add(new PacketList { Packet = modified });
                 return response; // Return true to indicate we modified the packet
 
 

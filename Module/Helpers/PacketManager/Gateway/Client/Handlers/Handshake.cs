@@ -13,9 +13,7 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
-            response.SendImmediately = false;
+            response.SkipSending = false;
             response.ResultType = PacketResultType.SkipSending;
 
             return response;

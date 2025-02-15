@@ -1,53 +1,84 @@
-﻿namespace Module.Classes
+﻿using Newtonsoft.Json;
+
+namespace Module.Classes
 {
+    public enum FileVersion
+    {
+        jSRO,
+        iSRO,
+        vSRO,
+        cSRO
+    }
+
     public class Settings
     {
-        public bool logWriting { get; set; } = true;
-        public bool disableConsole { get; set; } = false;
-        public AgentSettings agentSettings { get; set; } = new();
-        public ClientDataSettings clientDataSettings { get; set; } = new();
+        public bool DisableLogWriting { get; set; } = true;
+        public bool DisableConsoleLogging { get; set; } = false;
+        public AgentSettings Agent { get; set; } = new();
+        public Version ServerType { get; set; } = new();
+        public ClientData Data { get; set; } = new();
 
-        public ServerVersionInfo serverVersion { get; set; } = new();
-
-        public class ClientDataSettings()
+        public class ClientData()
         {
-            public string path { get; set; } = "client_data";
+            public string Path { get; set; } = "client_data";
         }
 
         public class AgentSettings()
         {
-            
+            public List<Operators> GameMasters { get; set; } = new();
         }
 
-        public class ServerVersion
+        public class Operators()
         {
-            public enum Version
+            public string Username { get; set; } = string.Empty;
+            public bool ShouldSpawnVisible { get; set; } = false;
+            public bool NoPinkChat { get; set; } = false;
+            public List<string> Permissions { get; set; } = new();
+            [JsonIgnore]
+            public List<string> DefaultPermissions { get; set; } = new()
             {
-                jSRO,
-                iSRO,
-                vSRO,
-                cSRO
-            }
+                "FindUser",
+                "GoTown",
+                "ToTown",
+                "WorldStatus",
+                "LoadMonster",
+                "MakeItem",
+                "MoveToUser",
+                "ZoeMonster",
+                "KickPlayer",
+                "Invisible",
+                "Invincible",
+                "Warp",
+                "RecallUser",
+                "AllowLogout",
+                "InitQ",
+                "ResetQ",
+                "CompQ",
+                "RemoveQ",
+                "MoveToNpc",
+                "StartCTF",
+                "SendNotice"
+            };
         }
 
-        public class ServerVersionInfo
+        public class Version
         {
             public string Description { get; set; } = "Defines the server version type";
-            public string[] AllowedValues { get; set; } = Enum.GetNames(typeof(ServerVersion.Version));
-            public string CurrentValue { get; set; } = ServerVersion.Version.jSRO.ToString();
+            public string[] AllowedValues { get; set; } = Enum.GetNames(typeof(FileVersion));
+            public string CurrentValue { get; set; } = FileVersion.jSRO.ToString();
         }
 
-        public GatewaySettings gatewaySettings { get; set; } = new();
+        public GatewaySettings Gateway { get; set; } = new();
 
         public class GatewaySettings()
         {
-            public IBuvChallange captchaSettings { get; set; } = new();
+            public Captcha LoginCaptcha { get; set; } = new();
         }
 
-        public class IBuvChallange()
+        public class Captcha()
         {
-            public bool bypassCaptcha { get; set; } = false;
-            public string captchaCode { get; set; } = "b";
+            public bool DisableCaptcha { get; set; } = false;
+            public string StaticCaptchaCode { get; set; } = "b";
         }
     }
 }

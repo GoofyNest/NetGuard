@@ -10,9 +10,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
         {
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
-
-            client.agentSettings.inCharSelectionScreen = true;
+            client.Agent.InCharSelectionScreen = true;
 
             return response;
         }

@@ -4,101 +4,101 @@ namespace Module.Engine.Classes
 {
     public class SessionData
     {
-        public PlayerInformation playerInfo { get; set; } = null!;
-        public GatewayServer gatewaySettings { get; set; } = null!;
-        public AgentServer agentSettings { get; set; } = null!;
+        public PlayerInformation PlayerInfo { get; set; } = null!;
+        public GatewayServer Gateway { get; set; } = null!;
+        public AgentServer Agent { get; set; } = null!;
     }
 
     public class PlayerInformation
     {
-        public string currentChar { get; set; } = string.Empty;
-        public IPInformation ipInfo { get; set; } = null!;
-        public AccountInformation accInfo { get; set; } = null!;
-        public List<CharacterInformation> charInfo { get; set; } = null!;
+        public string CurrentCharName { get; set; } = string.Empty;
+        public IPInformation IpInfo { get; set; } = null!;
+        public AccountInformation AccInfo { get; set; } = null!;
+        public List<CharacterInformation> CharInfo { get; set; } = null!;
     }
 
     public class IPInformation
     {
-        public string ip { get; set; } = string.Empty;
-        public DateTime timestamp { get; set; } = DateTime.UtcNow;
+        public string Ip { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class AccountInformation
     {
-        public string username { get; set; } = string.Empty;
-        public string password { get; set; } = string.Empty;
-        public string mac { get; set; } = string.Empty;
-        public DateTime timestamp { get; set; } = DateTime.UtcNow;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Mac { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class CharacterInformation
     {
-        public string charname { get; set; } = string.Empty;
+        public string Charname { get; set; } = string.Empty;
 
-        public long serverTime { get; set; }
-        public long refObjID { get; set; }
-        public int scale { get; set; }
-        public int curLevel { get; set; }
-        public int maxLevel { get; set; }
-        public ulong expOffset { get; set; }
-        public long sExpOffset { get; set; }
-        public ulong remainGold { get; set; }
-        public long remainSkillPoint { get; set; }
-        public int remainStatPoint { get; set; }
-        public int remainHwanCount { get; set; }
-        public long gatheredExpPoint { get; set; }
-        public long hp { get; set; }
-        public long mp { get; set; }
-        public int autoInverstExp { get; set; }
-        public int dailyPk { get; set; }
-        public int totalPk { get; set; }
-        public long pkPenaltyPoint { get; set; }
-        public int hwanLevel { get; set; }
-        public int pvpCape { get; set; }
+        public long ServerTime { get; set; }
+        public long RefObjID { get; set; }
+        public int Scale { get; set; }
+        public int CurLevel { get; set; }
+        public int MaxLevel { get; set; }
+        public ulong ExpOffset { get; set; }
+        public long SExpOffset { get; set; }
+        public ulong RemainGold { get; set; }
+        public long RemainSkillPoint { get; set; }
+        public int RemainStatPoint { get; set; }
+        public int RemainHwanCount { get; set; }
+        public long GatheredExpPoint { get; set; }
+        public long Hp { get; set; }
+        public long Mp { get; set; }
+        public int AutoInverstExp { get; set; }
+        public int DailyPk { get; set; }
+        public int TotalPk { get; set; }
+        public long PkPenaltyPoint { get; set; }
+        public int HwanLevel { get; set; }
+        public int PvpCape { get; set; }
 
-        public CharacterInventory inventory { get; set; } = null!;
+        public CharacterInventory Inventory { get; set; } = null!;
 
-        public DateTime timestamp { get; set; } = DateTime.UtcNow;
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     public class CharacterInventory
     {
-        public int size { get; set; }
-        public int itemCount { get; set; }
+        public int Size { get; set; }
+        public int ItemCount { get; set; }
 
-        public List<Item> items { get; set; } = null!;
+        public List<Item> Items { get; set; } = null!;
     }
 
     public class Item
     {
-        public int slot { get; set; }
-        public long id { get; set; }
-        public string codeName128 { get; set; } = string.Empty;
-        public int optLevel { get; set; }
-        public ulong variance { get; set; }
-        public long durability { get; set; }
-        public int magParamNum { get; set; }
+        public int Slot { get; set; }
+        public long Id { get; set; }
+        public string CodeName128 { get; set; } = string.Empty;
+        public int OptLevel { get; set; }
+        public ulong Variance { get; set; }
+        public long Durability { get; set; }
+        public int MagParamNum { get; set; }
 
         public override string ToString()
         {
-            return $"Slot: {slot}, ID: {id}, CodeName128: {codeName128}, OptLevel: {optLevel}, Variance: {variance}, Durability: {durability}, MagParamNum: {magParamNum}";
+            return $"Slot: {Slot}, ID: {Id}, CodeName128: {CodeName128}, OptLevel: {OptLevel}, Variance: {Variance}, Durability: {Durability}, MagParamNum: {MagParamNum}";
         }
     }
 
     public class GatewayServer
     {
-        public ushort serverID { get; set; }
+        public ushort ServerID { get; set; }
 
-        public bool sentPatchResponse { get; set; } = false;
-        public bool sentShardListResponse { get; set; } = false;
+        public bool SentPatchResponse { get; set; } = false;
+        public bool SentShardListResponse { get; set; } = false;
     }
 
     public class AgentServer
     {
-        public bool inCharSelectionScreen { get; set; } = false;
-        public bool sentJoinRequest {  get; set; } = false;
-        public bool isIngame { get; set; } = false;
-        public Packet charData { get; set; } = null!;
-        public int charDataProcess { get; set; } = 0;
+        public bool InCharSelectionScreen { get; set; } = false;
+        public bool SentJoinRequest {  get; set; } = false;
+        public bool IsIngame { get; set; } = false;
+        public Packet CharData { get; set; } = null!;
+        public int CharDataProcess { get; set; } = 0;
     }
 }

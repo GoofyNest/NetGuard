@@ -18,82 +18,79 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             */
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
+            client.Agent.InCharSelectionScreen = false;
+            client.Agent.IsIngame = true;
 
-            client.agentSettings.inCharSelectionScreen = false;
-            client.agentSettings.isIngame = true;
+            client.Agent.SentJoinRequest = false;
 
-
-            client.agentSettings.sentJoinRequest = false;
-
-            var charData = client.agentSettings.charData;
+            var charData = client.Agent.CharData;
 
             charData.Lock();
 
             var _settings = Main._settings;
-            var _files = _settings.serverVersion.CurrentValue;
+            var _files = _settings.ServerType.CurrentValue;
 
             bool vSRO = _files == "vSRO";
 
-            var _playerInfo = client.playerInfo;
+            var _playerInfo = client.PlayerInfo;
 
-            var charIndex = _playerInfo.charInfo.FindIndex(m => m.charname == _playerInfo.currentChar);
+            var charIndex = _playerInfo.CharInfo.FindIndex(m => m.Charname == _playerInfo.CurrentCharName);
 
-            var _char = _playerInfo.charInfo[charIndex];
+            var _char = _playerInfo.CharInfo[charIndex];
 
-            _char.serverTime = charData.ReadUInt32();
-            _char.refObjID = charData.ReadUInt32();
-            _char.scale = charData.ReadUInt8();
-            _char.curLevel = charData.ReadUInt8();
-            _char.maxLevel = charData.ReadUInt8();
-            _char.expOffset = charData.ReadUInt64();
-            _char.sExpOffset = charData.ReadUInt32();
-            _char.remainGold = charData.ReadUInt64();
-            _char.remainSkillPoint = charData.ReadUInt32();
-            _char.remainStatPoint = charData.ReadUInt16();
-            _char.remainHwanCount = charData.ReadUInt8();
-
-            if(vSRO)
-            {
-                _char.gatheredExpPoint = charData.ReadUInt32();
-            }
-
-            _char.hp = charData.ReadUInt32();
-            _char.mp = charData.ReadUInt32();
-            _char.autoInverstExp = charData.ReadUInt8();
-            _char.dailyPk = charData.ReadUInt8();
-            _char.totalPk = charData.ReadUInt16();
-            _char.pkPenaltyPoint = charData.ReadUInt32();
+            _char.ServerTime = charData.ReadUInt32();
+            _char.RefObjID = charData.ReadUInt32();
+            _char.Scale = charData.ReadUInt8();
+            _char.CurLevel = charData.ReadUInt8();
+            _char.MaxLevel = charData.ReadUInt8();
+            _char.ExpOffset = charData.ReadUInt64();
+            _char.SExpOffset = charData.ReadUInt32();
+            _char.RemainGold = charData.ReadUInt64();
+            _char.RemainSkillPoint = charData.ReadUInt32();
+            _char.RemainStatPoint = charData.ReadUInt16();
+            _char.RemainHwanCount = charData.ReadUInt8();
 
             if(vSRO)
             {
-                _char.hwanLevel = charData.ReadUInt8();
-                _char.pvpCape = charData.ReadUInt8();
+                _char.GatheredExpPoint = charData.ReadUInt32();
             }
 
-            _char.inventory = new();
+            _char.Hp = charData.ReadUInt32();
+            _char.Mp = charData.ReadUInt32();
+            _char.AutoInverstExp = charData.ReadUInt8();
+            _char.DailyPk = charData.ReadUInt8();
+            _char.TotalPk = charData.ReadUInt16();
+            _char.PkPenaltyPoint = charData.ReadUInt32();
 
-            var _inv = _char.inventory;
+            if(vSRO)
+            {
+                _char.HwanLevel = charData.ReadUInt8();
+                _char.PvpCape = charData.ReadUInt8();
+            }
 
-            _inv.size = charData.ReadUInt8();
-            _inv.itemCount = charData.ReadUInt8();
+            _char.Inventory = new();
+
+            var _inv = _char.Inventory;
+
+            _inv.Size = charData.ReadUInt8();
+            _inv.ItemCount = charData.ReadUInt8();
 
             var _allItems = Main._items;
 
             if(_allItems.Count == 0)
             {
-                Custom.WriteLine($"Please extract itemdata from Client and put it inside {_settings.clientDataSettings.path}");
+                Custom.WriteLine($"Please extract itemdata from Client and put it inside {_settings.Data.Path}");
                 return response;
             }
 
-            if (_inv.itemCount > 0)
-                _inv.items = new();
+            if (_inv.ItemCount > 0)
+                _inv.Items = new();
 
-            for (var d = 0; d < _inv.itemCount; d++)
+            for (var d = 0; d < _inv.ItemCount; d++)
             {
                 var _tempItem = new Item();
 
-                _tempItem.slot = charData.ReadUInt8();
+                _tempItem.Slot = charData.ReadUInt8();
 
                 if(vSRO)
                 {
@@ -127,9 +124,9 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                     }
                 }
 
-                _tempItem.id = charData.ReadUInt32(); //4   uint    item.RefItemID
+                _tempItem.Id = charData.ReadUInt32(); //4   uint    item.RefItemID
 
-                var itemFound = _allItems.TryGetValue((int)_tempItem.id, out var _foundItem);
+                var itemFound = _allItems.TryGetValue((int)_tempItem.Id, out var _foundItem);
 
                 if (!itemFound)
                     continue;
@@ -137,7 +134,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                 if (_foundItem == null)
                     continue;
 
-                _tempItem.codeName128 = _foundItem.CodeName128;
+                _tempItem.CodeName128 = _foundItem.CodeName128;
 
                 if (_foundItem.TypeID1 == 3)
                 {
@@ -147,12 +144,12 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                         //ITEM_CH
                         //ITEM_EU
                         //AVATAR_
-                        _tempItem.optLevel = charData.ReadUInt8();
-                        _tempItem.variance = charData.ReadUInt64();
-                        _tempItem.durability = charData.ReadUInt32();
-                        _tempItem.magParamNum = charData.ReadUInt8();
+                        _tempItem.OptLevel = charData.ReadUInt8();
+                        _tempItem.Variance = charData.ReadUInt64();
+                        _tempItem.Durability = charData.ReadUInt32();
+                        _tempItem.MagParamNum = charData.ReadUInt8();
 
-                        for (var paramIndex = 0; paramIndex < _tempItem.magParamNum; paramIndex++)
+                        for (var paramIndex = 0; paramIndex < _tempItem.MagParamNum; paramIndex++)
                         {
                             var magParamType = charData.ReadUInt32(); // 4   uint    magParam.Type
                             var magParamValue = charData.ReadUInt32(); // 4   uint    magParam.Value                
@@ -180,7 +177,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                             }
                         }
 
-                        Custom.WriteLine($"ITEM_ {_tempItem.slot} {_tempItem.id} {_tempItem.codeName128}");
+                        //Custom.WriteLine($"ITEM_ {_tempItem.Slot} {_tempItem.Id} {_tempItem.CodeName128}");
                     }
                     else if (_foundItem.TypeID2 == 2)
                     {
@@ -240,7 +237,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                         //ITEM_ETC
                         var itemStackCount = charData.ReadUInt16(); // 2   ushort  item.StackCount
 
-                        Custom.WriteLine($"ITEM_ETC: {_tempItem.slot} {_tempItem.id} {_tempItem.codeName128}");
+                        //Custom.WriteLine($"ITEM_ETC: {_tempItem.Slot} {_tempItem.Id} {_tempItem.CodeName128}");
 
                         if (_foundItem.TypeID3 == 11)
                         {
@@ -265,13 +262,15 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                     }
                 }
 
-                _inv.items.Add(_tempItem);
+                _inv.Items.Add(_tempItem);
             }
 
-            foreach(var dd in _inv.items)
-            {
-                Custom.WriteLine($"{dd.ToString()}");
-            }
+            //var packetList = new List<PacketList>();
+
+            //foreach(var dd in _inv.Items)
+            //{
+            //    Custom.WriteLine($"{dd.ToString()}");
+            //}
 
             return response;
         }

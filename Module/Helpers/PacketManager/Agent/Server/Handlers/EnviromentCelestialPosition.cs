@@ -10,8 +10,6 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
         {
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
-
             uint uniqueID = packet.ReadUInt32();
             ushort moonPhase = packet.ReadUInt16();
             byte hour = packet.ReadUInt8();

@@ -14,27 +14,25 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             byte locale = packet.ReadUInt8();
 
             Custom.WriteLine($"locale: {locale}", ConsoleColor.DarkMagenta);
 
-            client.playerInfo.accInfo = new();
+            client.PlayerInfo.AccInfo = new();
 
-            var accInfo = client.playerInfo.accInfo;
+            var accInfo = client.PlayerInfo.AccInfo;
 
-            accInfo.username = packet.ReadAscii();
-            accInfo.password = packet.ReadAscii();
+            accInfo.Username = packet.ReadAscii();
+            accInfo.Password = packet.ReadAscii();
 
-            client.gatewaySettings.serverID = packet.ReadUInt16();
+            client.Gateway.ServerID = packet.ReadUInt16();
 
-            if (!client.gatewaySettings.sentPatchResponse || !client.gatewaySettings.sentShardListResponse)
+            if (!client.Gateway.SentPatchResponse || !client.Gateway.SentShardListResponse)
             {
-                Custom.WriteLine($"sentPatchResponse: {client.gatewaySettings.sentPatchResponse}", ConsoleColor.DarkMagenta);
-                Custom.WriteLine($"sentShardListResponse: {client.gatewaySettings.sentShardListResponse}", ConsoleColor.DarkMagenta);
+                Custom.WriteLine($"sentPatchResponse: {client.Gateway.SentPatchResponse}", ConsoleColor.DarkMagenta);
+                Custom.WriteLine($"sentShardListResponse: {client.Gateway.SentShardListResponse}", ConsoleColor.DarkMagenta);
 
-                Custom.WriteLine($"Blocked potential exploit from {accInfo.username} {accInfo.password} {client.playerInfo.ipInfo.ip} for exploiting", ConsoleColor.Yellow);
+                Custom.WriteLine($"Blocked potential exploit from {accInfo.Username} {accInfo.Password} {client.PlayerInfo.IpInfo.Ip} for exploiting", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 

@@ -11,11 +11,9 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             if (packet.GetBytes().Length != 12)
             {
-                Custom.WriteLine($"Ignore packet GLOBAL_IDENTIFICATION from {client.playerInfo.ipInfo.ip}", ConsoleColor.Yellow);
+                Custom.WriteLine($"Ignore packet GLOBAL_IDENTIFICATION from {client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
             else

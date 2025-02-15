@@ -3,6 +3,7 @@ using Module.Engine;
 using Module.Helpers.ItemReader;
 using Module.Helpers.PacketManager.Agent.Client;
 using Newtonsoft.Json;
+using static Module.Classes.Settings;
 
 namespace Module
 {
@@ -25,11 +26,11 @@ namespace Module
 
         private static void LoadSettings(bool isMainFunction)
         {
-            if (File.Exists(_config.settingsPath))
+            if (File.Exists(_config.SettingsPath))
             {
                 try
                 {
-                    using (var stream = new FileStream(_config.settingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var stream = new FileStream(_config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     using (var reader = new StreamReader(stream))
                     {
                         var settingsContent = reader.ReadToEnd();
@@ -50,11 +51,11 @@ namespace Module
             if (!isMainFunction)
                 return;
 
-            if (File.Exists(_config.bindingsPath))
+            if (File.Exists(_config.BindingsPath))
             {
                 try
                 {
-                    using (var stream = new FileStream(_config.bindingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var stream = new FileStream(_config.BindingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     using (var reader = new StreamReader(stream))
                     {
                         var bindingsContent = reader.ReadToEnd();
@@ -73,9 +74,9 @@ namespace Module
                 }
             }
 
-            if (File.Exists(_config.settingsPath))
+            if (File.Exists(_config.SettingsPath))
             {
-                var settingsContent = File.ReadAllText(_config.settingsPath);
+                var settingsContent = File.ReadAllText(_config.SettingsPath);
 
                 var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
                 if (tempSettings != null)
@@ -83,11 +84,11 @@ namespace Module
                     _settings = tempSettings;
                 }
 
-                File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+                File.WriteAllText(_config.SettingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
             }
             else
             {
-                File.WriteAllText(_config.settingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+                File.WriteAllText(_config.SettingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
             }
         }
 
@@ -95,8 +96,8 @@ namespace Module
         {
             FileSystemWatcher watcher = new FileSystemWatcher
             {
-                Path = Path.GetDirectoryName(_config.settingsPath)!,
-                Filter = Path.GetFileName(_config.settingsPath),
+                Path = Path.GetDirectoryName(_config.SettingsPath)!,
+                Filter = Path.GetFileName(_config.SettingsPath),
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
                 EnableRaisingEvents = true
             };
@@ -113,22 +114,35 @@ namespace Module
 
             _module = _config.ModuleBinding[moduleIndex];
 
-            Console.Title = $"NetGuard | {_module.name}";
+            Console.Title = $"NetGuard | {_module.Name}";
 
             // Use these values in your method as needed
-            Console.WriteLine($"Guard IP: {_module.guardIP}, Guard Port: {_module.guardPort}, Module IP: {_module.moduleIP}, Module Port: {_module.modulePort}");
+            Console.WriteLine($"Guard IP: {_module.GuardIP}, Guard Port: {_module.GuardPort}, Module IP: {_module.ModuleIP}, Module Port: {_module.ModulePort}");
 
-            _config.logFile = Path.Combine(_config.logFolder, _module.name + ".txt");
+            _config.LogFile = Path.Combine(_config.LogFolder, _module.Name + ".txt");
 
-            Directory.CreateDirectory(_config.logFolder);
+            Directory.CreateDirectory(_config.LogFolder);
 
-            if (File.Exists(_config.logFile))
-                File.Delete(_config.logFile);
+            if (File.Exists(_config.LogFile))
+                File.Delete(_config.LogFile);
 
-            if (_module.moduleType == ModuleType.AgentModule)
+            if (_module.ModuleType == ModuleType.AgentModule)
             {
                 ItemReader.Init();
                 Packets.Init();
+
+                if (_settings.Agent.GameMasters.Count() == 0)
+                {
+                    var example = new Operators();
+                    example.Username = "netguard_example_325125124123124";
+                    example.NoPinkChat = false;
+                    example.Permissions = example.DefaultPermissions;
+                    example.ShouldSpawnVisible = false;
+
+                    _settings.Agent.GameMasters.Add(example);
+
+                    File.WriteAllText(_config.SettingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+                }
             }
 
             WatchSettingsFile();
@@ -141,7 +155,7 @@ namespace Module
         static async Task startAsyncServer()
         {
             AsyncServer server = new();
-            await server.StartAsync(_module.guardIP, _module.guardPort, _module.moduleType);
+            await server.StartAsync(_module.GuardIP, _module.GuardPort, _module.ModuleType);
         }
     }
 }

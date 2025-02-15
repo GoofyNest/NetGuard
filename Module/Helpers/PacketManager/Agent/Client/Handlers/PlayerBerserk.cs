@@ -11,13 +11,11 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             var flag = packet.ReadUInt8();
 
             if (flag > 1)
             {
-                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, using Invisible exploit", ConsoleColor.Yellow);
+                Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, using Invisible exploit", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
                 

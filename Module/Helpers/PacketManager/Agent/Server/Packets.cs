@@ -24,6 +24,7 @@
         COSInfo = 0x30C8,
         COSUpdate = 0x30C9,
         COSUpdateRideState = 0xB0CB,
-        EnvironmentCelestialPosition = 0x3020
+        EnvironmentCelestialPosition = 0x3020,
+        SilkUpdate = 0x3153,
     }
 }

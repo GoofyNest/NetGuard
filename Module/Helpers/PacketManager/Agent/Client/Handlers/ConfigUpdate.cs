@@ -10,8 +10,6 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             byte action = packet.ReadUInt8();
 
             if (action == 2) // Auto Potion

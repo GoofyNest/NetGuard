@@ -12,19 +12,15 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
         {
             PacketHandlingResult response = new();
 
-            IBuvChallange settings = Main._settings.gatewaySettings.captchaSettings;
+            var settings = Main._settings.Gateway.LoginCaptcha;
 
-            response.ModifiedPacket = null!;
-
-            if (!settings.bypassCaptcha)
+            if (!settings.DisableCaptcha)
                 return response;
 
-            var modifiedPacket = new Packet(GATEWAY_LOGIN_IBUV_ANSWER, false);
-            modifiedPacket.WriteAscii(settings.captchaCode);
+            var modified = new Packet(GATEWAY_LOGIN_IBUV_ANSWER, false);
+            modified.WriteAscii(settings.StaticCaptchaCode);
 
-            response.securityType = SecurityType.RemoteSecurity;
-            response.SendImmediately = true;
-            response.ModifiedPacket = modifiedPacket;
+            response.ModifiedPackets.Add(new PacketList { Packet = modified, SendImmediately = true, securityType = SecurityType.RemoteSecurity });
 
             return response;
         }

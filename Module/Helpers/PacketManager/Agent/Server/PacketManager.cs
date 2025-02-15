@@ -37,6 +37,9 @@ namespace Module.Helpers.PacketManager.Agent.Server
                 case (ushort)Login.AuthResponse:
                     return new AuthResponse();
 
+                case (ushort)Agent.SilkUpdate:
+                    return new SilkUpdate();
+
                 default:
                     //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
                     return null!;

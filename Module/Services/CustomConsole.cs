@@ -23,7 +23,7 @@
 
             string date = $"[{DateTime.Now:HH:mm:ss}] ";
 
-            if (!Main._settings.disableConsole)
+            if (!Main._settings.DisableConsoleLogging)
             {
                 lock (LogLock) // Ensure thread safety
                 {
@@ -45,7 +45,7 @@
 
         private static void WriteToLog(string message)
         {
-            if (!Main._settings.logWriting)
+            if (!Main._settings.DisableLogWriting)
                 return;
 
             try
@@ -53,7 +53,7 @@
                 lock (LogLock) // Ensure thread safety
                 {
                     // Use StreamWriter with BufferedStream for better performance
-                    using (StreamWriter writer = new StreamWriter(new BufferedStream(File.Open(Main._config.logFile, FileMode.Append, FileAccess.Write))))
+                    using (StreamWriter writer = new StreamWriter(new BufferedStream(File.Open(Main._config.LogFile, FileMode.Append, FileAccess.Write))))
                     {
                         writer.WriteLine(message);
                     }

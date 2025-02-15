@@ -14,8 +14,6 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             if (packet.GetBytes().Length > 0)
                 response.ResultType = PacketResultType.Block;
 

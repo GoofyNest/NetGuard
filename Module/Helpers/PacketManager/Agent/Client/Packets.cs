@@ -1,4 +1,6 @@
-﻿namespace Module.Helpers.PacketManager.Agent.Client
+﻿using Module.Services;
+
+namespace Module.Helpers.PacketManager.Agent.Client
 {
     public static class Packets
     {
@@ -88,7 +90,7 @@
             goodOpcodes.AddRange(Enum.GetValues(typeof(TAP)).Cast<ushort>());
             goodOpcodes.AddRange(Enum.GetValues(typeof(Teleport)).Cast<ushort>());
 
-            Console.WriteLine($"goodOpcodes count: {goodOpcodes.Count}");
+            Custom.WriteLine($"goodOpcodes count: {goodOpcodes.Count}");
         }
     }
 
@@ -147,7 +149,8 @@
 
     public enum Character : ushort
     {
-        InfoUpdate = 0x70A7
+        InfoUpdate = 0x70A7,
+        Action = 0x7074,
     }
 
     public enum CharScreen : ushort

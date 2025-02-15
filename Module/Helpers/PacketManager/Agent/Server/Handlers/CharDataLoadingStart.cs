@@ -18,9 +18,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             */
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
-
-            client.agentSettings.charData = null!;
+            client.Agent.CharData = null!;
 
             return response;
         }

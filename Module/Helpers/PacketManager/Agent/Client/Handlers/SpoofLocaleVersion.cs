@@ -10,12 +10,9 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
+            var modified = new Packet((ushort)Game.Ready1);
 
-            var modifiedPacket = new Packet((ushort)Game.Ready1);
-            response.ModifiedPacket = modifiedPacket;
-
-            response.SendImmediately = false;
+            response.ModifiedPackets.Add(new PacketList { Packet = modified });
 
             return response;
         }

@@ -18,13 +18,11 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             */
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
-
-            if (client.agentSettings.charData == null)
-                client.agentSettings.charData = new Packet(0x0000);
+            if (client.Agent.CharData == null)
+                client.Agent.CharData = new Packet(0x0000);
 
             for (var d = 0; d < packet.GetBytes().Length; d++)
-                client.agentSettings.charData.WriteUInt8(packet.ReadUInt8());
+                client.Agent.CharData.WriteUInt8(packet.ReadUInt8());
 
             return response;
         }

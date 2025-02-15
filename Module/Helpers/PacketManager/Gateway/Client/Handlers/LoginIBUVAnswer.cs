@@ -12,8 +12,6 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             string code = packet.ReadAscii();
 
             return response;

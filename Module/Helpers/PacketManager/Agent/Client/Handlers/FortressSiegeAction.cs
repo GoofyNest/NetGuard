@@ -12,13 +12,11 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             var message = packet.ReadAscii();
 
             if (Regex.IsMatch(message, @"['""\-]"))
             {
-                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, attempted SQL injection", ConsoleColor.Yellow);
+                Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, attempted SQL injection", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 

@@ -45,30 +45,30 @@ namespace Module.Engine
             _handlerType = _serverType;
             _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            _client.playerInfo = new();
-            _client.playerInfo.ipInfo = new();
+            _client.PlayerInfo = new();
+            _client.PlayerInfo.IpInfo = new();
 
             switch(_serverType)
             {
                 case ModuleType.GatewayModule:
                     {
-                        _client.gatewaySettings = new();
+                        _client.Gateway = new();
                     }
                     break;
 
                 case ModuleType.AgentModule:
                     {
-                        _client.agentSettings = new();
+                        _client.Agent = new();
                     }
                     break;
             }    
 
             if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
             {
-                _client.playerInfo.ipInfo.ip = endpoint.Address.ToString();
+                _client.PlayerInfo.IpInfo.Ip = endpoint.Address.ToString();
             }
 
-            Custom.WriteLine($"New connection {_client.playerInfo.ipInfo.ip}", ConsoleColor.Cyan);
+            Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -76,7 +76,7 @@ namespace Module.Engine
             try
             {
                 // Connect to the remote host asynchronously
-                await _moduleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_moduleSettings.moduleIP), _moduleSettings.modulePort));
+                await _moduleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_moduleSettings.ModuleIP), _moduleSettings.ModulePort));
 
                 // Generate security information
                 _localSecurity.GenerateSecurity(true, true, true);
@@ -89,7 +89,7 @@ namespace Module.Engine
             }
             catch (SocketException ex)
             {
-                Custom.WriteLine($"Remote host ({_moduleSettings.moduleIP}:{_moduleSettings.modulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
+                Custom.WriteLine($"Remote host ({_moduleSettings.ModuleIP}:{_moduleSettings.ModulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
                 HandleDisconnection();
             }
             catch (Exception ex)
@@ -143,61 +143,66 @@ namespace Module.Engine
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
-                            Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.playerInfo.ipInfo.ip}", ConsoleColor.Red);
+                            //Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Red);
                             continue;
                 
                         case PacketResultType.Disconnect:
-                            Custom.WriteLine($"Disconnected  {_client.playerInfo.ipInfo.ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
+                            //Custom.WriteLine($"Disconnected  {_client.PlayerInfo.IpInfo.Ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
                             HandleDisconnection();
                             continue;
                 
                         case PacketResultType.Ban:
-                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
+                            //Custom.WriteLine($"Not implemented", ConsoleColor.Red);
                             continue;
                 
                         case PacketResultType.SkipSending:
                             Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
-                            await Send(result.SendImmediately);
+                            await Send(result.SkipSending);
                             continue;
                 
                         case PacketResultType.DoReceive:
-                            Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                            //Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
                             await DoReceive(false);
                             continue;
                     }
-                
-                    if (result.ModifiedPacket != null)
+
+                    if(result.ModifiedPackets.Count > 0)
                     {
-                        switch(result.securityType)
+                        for (var d = 0; d < result.ModifiedPackets.Count; d++)
                         {
-                            case SecurityType.RemoteSecurity:
-                                {
-                                    _remoteSecurity.Send(result.ModifiedPacket);
-                                    await Send(result.SendImmediately);
-                                }
-                                break;
+                            var modifiedPacket = result.ModifiedPackets[d];
 
-                            case SecurityType.LocalSecurity:
-                                {
-                                    _localSecurity.Send(result.ModifiedPacket);
-                                    await Send(result.SendImmediately);
-                                }
-                                break;
+                            switch (modifiedPacket.securityType)
+                            {
+                                case SecurityType.RemoteSecurity:
+                                    {
+                                        _remoteSecurity.Send(modifiedPacket.Packet);
+                                        await Send(modifiedPacket.SendImmediately);
+                                    }
+                                    break;
 
-                            case SecurityType.Default:
-                                {
-                                    if (isClient)
+                                case SecurityType.LocalSecurity:
                                     {
-                                        _lastPackets.Enqueue(copyOfPacket);
-                                        _remoteSecurity.Send(result.ModifiedPacket);
+                                        _localSecurity.Send(modifiedPacket.Packet);
+                                        await Send(modifiedPacket.SendImmediately);
                                     }
-                                    else
+                                    break;
+
+                                case SecurityType.Default:
                                     {
-                                        _localSecurity.Send(result.ModifiedPacket);
+                                        if (isClient)
+                                        {
+                                            _lastPackets.Enqueue(copyOfPacket);
+                                            _remoteSecurity.Send(modifiedPacket.Packet);
+                                        }
+                                        else
+                                        {
+                                            _localSecurity.Send(modifiedPacket.Packet);
+                                        }
+                                        await Send(modifiedPacket.SendImmediately);
                                     }
-                                    await Send(result.SendImmediately);
-                                }
-                                break;
+                                    break;
+                            }
                         }
                         continue;
                     }
@@ -345,7 +350,7 @@ namespace Module.Engine
             if (bytesPerSecond <= 1000)
                 return;
 
-            Custom.WriteLine($"Client({_client.playerInfo.ipInfo.ip}) disconnected for flooding.", ConsoleColor.Yellow);
+            Custom.WriteLine($"Client({_client.PlayerInfo.IpInfo.Ip}) disconnected for flooding.", ConsoleColor.Yellow);
 
             HandleDisconnection();
         }

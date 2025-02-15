@@ -10,9 +10,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
         {
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
-
-            response.SendImmediately = true;
+            response.SkipSending = true;
             response.ResultType = PacketResultType.SkipSending;
 
             return response;

@@ -14,11 +14,9 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             if (packet.GetBytes().Length != 0)
             {
-                Custom.WriteLine($"Ignore packet CLIENT_GLOBAL_PING from {client.playerInfo.ipInfo.ip}", ConsoleColor.Yellow);
+                Custom.WriteLine($"Ignore packet CLIENT_GLOBAL_PING from {client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 

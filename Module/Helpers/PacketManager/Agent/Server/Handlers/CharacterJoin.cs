@@ -11,19 +11,17 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
         {
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
+            if (client.PlayerInfo.CharInfo == null)
+                client.PlayerInfo.CharInfo = new();
 
-            if (client.playerInfo.charInfo == null)
-                client.playerInfo.charInfo = new();
+            var charInfo = client.PlayerInfo.CharInfo;
 
-            var charInfo = client.playerInfo.charInfo;
-
-            var index = charInfo.FindIndex(m => m.charname == client.playerInfo.currentChar);
+            var index = charInfo.FindIndex(m => m.Charname == client.PlayerInfo.CurrentCharName);
 
             if (index == -1)
-                charInfo.Add(new CharacterInformation() { charname = client.playerInfo.currentChar });
+                charInfo.Add(new CharacterInformation() { Charname = client.PlayerInfo.CurrentCharName });
 
-            client.agentSettings.sentJoinRequest = true;
+            client.Agent.SentJoinRequest = true;
 
             return response;
         }

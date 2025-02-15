@@ -10,19 +10,17 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
             uint Token = packet.ReadUInt32(); //from LOGIN_RESPONSE
-            client.playerInfo.accInfo = new();
-            client.playerInfo.accInfo.username = packet.ReadAscii();
-            client.playerInfo.accInfo.password = packet.ReadAscii();
+            client.PlayerInfo.AccInfo = new();
+            client.PlayerInfo.AccInfo.Username = packet.ReadAscii();
+            client.PlayerInfo.AccInfo.Password = packet.ReadAscii();
             byte OperationType = packet.ReadUInt8();
 
             byte[] mac = packet.ReadUInt8Array(6);
             string mac_address = BitConverter.ToString(mac);
             int fail_count = mac.Count(b => b == 0x00);
 
-            client.playerInfo.accInfo.mac = mac_address;
+            client.PlayerInfo.AccInfo.Mac = mac_address;
 
             return response;
         }

@@ -11,11 +11,9 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
-            if (client.agentSettings.inCharSelectionScreen)
+            if (client.Agent.InCharSelectionScreen)
             {
-                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, attempt to crash people", ConsoleColor.Yellow);
+                Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, attempt to crash people", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 
@@ -23,7 +21,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             if(action > 2)
             {
-                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, attempt to crash people", ConsoleColor.Yellow);
+                Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, attempt to crash people", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 

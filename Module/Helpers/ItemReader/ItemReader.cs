@@ -9,15 +9,15 @@ namespace Module.Helpers.ItemReader
         public static void Init()
         {
             //var _files = Main._settings.serverVersion;
-            var _settings = Main._settings.clientDataSettings;
+            var _settings = Main._settings.Data;
 
-            if(!Directory.Exists(_settings.path))
+            if(!Directory.Exists(_settings.Path))
             {
-                Custom.WriteLine($"Creating folder {_settings.path}");
-                Directory.CreateDirectory(_settings.path);
+                Custom.WriteLine($"Creating folder {_settings.Path}");
+                Directory.CreateDirectory(_settings.Path);
             }
 
-            var folderFiles = Directory.GetFiles(_settings.path);
+            var folderFiles = Directory.GetFiles(_settings.Path);
             var _items = Main._items;
 
             foreach (var file in folderFiles)
@@ -80,9 +80,9 @@ namespace Module.Helpers.ItemReader
                 }
             }
 
-            if(folderFiles.Length == 0)
+            if(folderFiles.Count() == 0)
             {
-                Custom.WriteLine($"Please extract itemdata from Client and put it inside {_settings.path}");
+                Custom.WriteLine($"Please extract itemdata from Client and put it inside {_settings.Path}");
             }
             else
             {

@@ -10,9 +10,7 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
         {
             PacketHandlingResult response = new();
 
-            response.ModifiedPacket = null!;
-
-            client.gatewaySettings.sentShardListResponse = true;
+            client.Gateway.SentShardListResponse = true;
 
             return response;
         }

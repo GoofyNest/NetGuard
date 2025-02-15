@@ -10,8 +10,6 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
         {
             PacketHandlingResult response = new PacketHandlingResult();
 
-            response.ModifiedPacket = null!;
-
             return response;
         }
     }

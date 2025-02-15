@@ -15,7 +15,7 @@ namespace Module.Helpers.PacketManager.Agent.Client
 
                 This code will force people to login to send the rest of the Client -> Server packets
             */
-            if(client.agentSettings.isIngame == false)
+            if(client.Agent.IsIngame == false)
             {
                 /*
                     Block all known / unknown SR_ShardManager exploits
@@ -23,7 +23,7 @@ namespace Module.Helpers.PacketManager.Agent.Client
 
                     This code will limit people from sending unknown packets whilst in the Char selection screen
                 */
-                if (client.agentSettings.inCharSelectionScreen)
+                if (client.Agent.InCharSelectionScreen)
                 {
                     switch (packet.Opcode)
                     {
@@ -35,8 +35,8 @@ namespace Module.Helpers.PacketManager.Agent.Client
                                 // These packets are allowed in character selection.
                                 if (packet.Opcode == (ushort)CharScreen.SelectionJoin)
                                 {
-                                    if (!client.agentSettings.sentJoinRequest)
-                                        client.playerInfo.currentChar = packet.ReadAscii(); // Temp storing char name, check CharacterJoin.cs in Server handler
+                                    if (!client.Agent.SentJoinRequest)
+                                        client.PlayerInfo.CurrentCharName = packet.ReadAscii(); // Temp storing char name, check CharacterJoin.cs in Server handler
                                 }
 
                                 // Do nothing, allow this
@@ -46,7 +46,7 @@ namespace Module.Helpers.PacketManager.Agent.Client
                     }
 
                     // Other packets are dropped in character selection
-                    Custom.WriteLine($"Prevented {client.playerInfo.ipInfo.ip}, Sending unknown packets whilst in char selection", ConsoleColor.Yellow);
+                    Custom.WriteLine($"Prevented {client.PlayerInfo.IpInfo.Ip}, Sending unknown packets whilst in char selection", ConsoleColor.Yellow);
                     return new DefaultBlock();
                 }
 
@@ -63,7 +63,7 @@ namespace Module.Helpers.PacketManager.Agent.Client
                         return new Handshake();
                 }
 
-                Custom.WriteLine($"Prevented {client.playerInfo.ipInfo.ip}, Sending inGame packets whilst offline", ConsoleColor.Yellow);
+                Custom.WriteLine($"Prevented {client.PlayerInfo.IpInfo.Ip}, Sending inGame packets whilst offline", ConsoleColor.Yellow);
                 return new DefaultBlock();
             }
 
@@ -85,15 +85,15 @@ namespace Module.Helpers.PacketManager.Agent.Client
                 case (ushort)Global.AcceptHandshake:
                 case (ushort)Global.HandShake:
                     {
-                        if (client.agentSettings.inCharSelectionScreen)
+                        if (client.Agent.InCharSelectionScreen)
                         {
-                            Custom.WriteLine($"Prevented {client.playerInfo.ipInfo.ip}, Sending login packets whilst in char screen", ConsoleColor.Yellow);
+                            Custom.WriteLine($"Prevented {client.PlayerInfo.IpInfo.Ip}, Sending login packets whilst in char screen", ConsoleColor.Yellow);
                             return new DefaultBlock();
                         }
 
-                        if(client.agentSettings.isIngame)
+                        if(client.Agent.IsIngame)
                         {
-                            Custom.WriteLine($"Prevented {client.playerInfo.ipInfo.ip}, Sending login packets whilst in-game", ConsoleColor.Yellow);
+                            Custom.WriteLine($"Prevented {client.PlayerInfo.IpInfo.Ip}, Sending login packets whilst in-game", ConsoleColor.Yellow);
                             return new DefaultBlock();
                         }
                         return null!;
@@ -104,19 +104,22 @@ namespace Module.Helpers.PacketManager.Agent.Client
                 case (ushort)CharScreen.SelectionJoin:
                 case (ushort)CharScreen.SelectionAction:
                     {
-                        if (!client.agentSettings.inCharSelectionScreen)
+                        if (!client.Agent.InCharSelectionScreen)
                         {
-                            Custom.WriteLine($"Prevented {client.playerInfo.ipInfo.ip}, Sending char screen packets when not logged in", ConsoleColor.Yellow);
+                            Custom.WriteLine($"Prevented {client.PlayerInfo.IpInfo.Ip}, Sending char screen packets when not logged in", ConsoleColor.Yellow);
                             return new DefaultBlock();
                         }
 
-                        if(client.agentSettings.isIngame)
+                        if(client.Agent.IsIngame)
                         {
-                            Custom.WriteLine($"Prevented {client.playerInfo.ipInfo.ip}, Sending char screen packets when in-game", ConsoleColor.Yellow);
+                            Custom.WriteLine($"Prevented {client.PlayerInfo.IpInfo.Ip}, Sending char screen packets when in-game", ConsoleColor.Yellow);
                             return new DefaultBlock();
                         }
                         return null!;
                     }
+
+                case (ushort)Operator.Command:
+                    return new GMCommand();
 
                 case (ushort)Skill.MasteryLearn:
                     return new SkillMasteryLearn();
@@ -126,6 +129,9 @@ namespace Module.Helpers.PacketManager.Agent.Client
 
                 case (ushort)MagicOption.Grant:
                     return new MagicOptionGrant();
+
+                case (ushort)Chat.Chat:
+                    return new ChatMessage();
 
                 case (ushort)Guild.UpdateNotice:
                     return new GuildUpdateNotice();

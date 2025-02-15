@@ -19,11 +19,18 @@ namespace Module.Framework
         LocalSecurity
     }
 
+    public class PacketList
+    {
+        public required Packet Packet { get; set; }
+        public bool SendImmediately { get; set; } = false; // Whether Send(true) or Send(false)
+        public SecurityType securityType { get; set; } = SecurityType.Default; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
+    }
+
     public class PacketHandlingResult
     {
         public PacketResultType ResultType { get; set; } = PacketResultType.None;
-        public Packet ModifiedPacket { get; set; } = null!;
-        public bool SendImmediately { get; set; } = false; // Whether Send(true) or Send(false)
-        public SecurityType securityType { get; set; } = SecurityType.Default; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
+        public List<PacketList> ModifiedPackets { get; set; } = new();
+        public bool SkipSending { get; set; } = false;
+
     }
 }
