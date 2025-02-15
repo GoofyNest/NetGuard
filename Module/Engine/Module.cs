@@ -358,6 +358,26 @@ namespace Module.Engine
 
         private void HandleDisconnection()
         {
+            try
+            {
+                if (_moduleSocket != null)
+                {
+                    if (_moduleSocket.Connected)
+                    {
+                        _moduleSocket.Shutdown(SocketShutdown.Both);
+                    }
+                    _moduleSocket.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"HandleDisconnection()::Error closing module socket. Exception: {ex}", ConsoleColor.Red);
+            }
+            finally
+            {
+                _moduleSocket = null!;
+            }
+
             // Notify other parts of the system, if delegate is set
             _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _handlerType);
         }
