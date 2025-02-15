@@ -4,16 +4,14 @@ namespace Module.Engine.Classes
 {
     public class SessionData
     {
-        public PlayerInformation playerInfo { get; set; } = new();
-        public GatewayServer gatewaySettings { get; set; } = new();
-        public GameServer gameSettings { get; set; } = new();
-        public ShardServer shardSettings { get; set; } = new();
+        public PlayerInformation playerInfo { get; set; } = null!;
+        public GatewayServer gatewaySettings { get; set; } = null!;
+        public AgentServer agentSettings { get; set; } = null!;
     }
 
     public class PlayerInformation
     {
         public string currentChar { get; set; } = string.Empty;
-        public bool sentJoinRequest = false;
         public IPInformation ipInfo { get; set; } = null!;
         public AccountInformation accInfo { get; set; } = null!;
         public List<CharacterInformation> charInfo { get; set; } = null!;
@@ -95,15 +93,12 @@ namespace Module.Engine.Classes
         public bool sentShardListResponse { get; set; } = false;
     }
 
-    public class GameServer
+    public class AgentServer
     {
+        public bool inCharSelectionScreen { get; set; } = false;
+        public bool sentJoinRequest {  get; set; } = false;
+        public bool isIngame { get; set; } = false;
         public Packet charData { get; set; } = null!;
         public int charDataProcess { get; set; } = 0;
-    }
-
-    public class ShardServer
-    {
-        public bool inCharSelection { get; set; } = false;
-        public bool exploitIwaFix { get; set; } = true;
     }
 }

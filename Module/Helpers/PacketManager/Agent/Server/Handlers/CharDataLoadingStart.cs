@@ -20,7 +20,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
             response.ModifiedPacket = null!;
 
-            client.gameSettings.charData = null!;
+            client.agentSettings.charData = null!;
 
             return response;
         }

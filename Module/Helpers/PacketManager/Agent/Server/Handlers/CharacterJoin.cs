@@ -23,7 +23,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             if (index == -1)
                 charInfo.Add(new CharacterInformation() { charname = client.playerInfo.currentChar });
 
-            client.playerInfo.sentJoinRequest = true;
+            client.agentSettings.sentJoinRequest = true;
 
             return response;
         }

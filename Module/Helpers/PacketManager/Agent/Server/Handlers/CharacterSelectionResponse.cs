@@ -12,7 +12,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
             response.ModifiedPacket = null!;
 
-            client.shardSettings.inCharSelection = true;
+            client.agentSettings.inCharSelectionScreen = true;
 
             return response;
         }

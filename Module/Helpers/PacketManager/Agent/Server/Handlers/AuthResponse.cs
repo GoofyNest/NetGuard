@@ -17,7 +17,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             byte errorCode = packet.ReadUInt8();
 
             if (errorCode == 0x01)
-                client.shardSettings.inCharSelection = true;
+                client.agentSettings.inCharSelectionScreen = true;
 
             Custom.WriteLine($"SERVER_AGENT_AUTH_RESPONSE {errorCode}", ConsoleColor.Cyan);
 

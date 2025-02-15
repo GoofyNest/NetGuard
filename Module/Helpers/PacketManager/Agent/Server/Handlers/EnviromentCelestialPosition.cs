@@ -17,8 +17,6 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             byte hour = packet.ReadUInt8();
             byte minute = packet.ReadUInt8();
 
-            client.shardSettings.exploitIwaFix = false;
-
             return response;
         }
     }

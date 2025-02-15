@@ -1,6 +1,7 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
 using Module.Helpers.PacketManager.Agent.Server.Handlers;
+using Module.Services;
 using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Server
@@ -9,6 +10,8 @@ namespace Module.Helpers.PacketManager.Agent.Server
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
+            Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.DarkMagenta);
+
             switch (packet.Opcode)
             {
                 case (ushort)Global.Ping:

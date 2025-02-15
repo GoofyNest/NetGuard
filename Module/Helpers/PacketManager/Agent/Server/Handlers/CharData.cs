@@ -20,11 +20,11 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
             response.ModifiedPacket = null!;
 
-            if (client.gameSettings.charData == null)
-                client.gameSettings.charData = new Packet(0x0000);
+            if (client.agentSettings.charData == null)
+                client.agentSettings.charData = new Packet(0x0000);
 
             for (var d = 0; d < packet.GetBytes().Length; d++)
-                client.gameSettings.charData.WriteUInt8(packet.ReadUInt8());
+                client.agentSettings.charData.WriteUInt8(packet.ReadUInt8());
 
             return response;
         }

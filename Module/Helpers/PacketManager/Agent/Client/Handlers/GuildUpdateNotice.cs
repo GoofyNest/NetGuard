@@ -2,6 +2,7 @@
 using System.Text.RegularExpressions;
 using Module.Engine.Classes;
 using Module.Framework;
+using Module.Services;
 using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
@@ -20,6 +21,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
             if (Regex.IsMatch(guildNoticeMessage, @"['""\-]") ||
                 Regex.IsMatch(guildNoticeTitle, @"['""\-]"))
             {
+                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, attempted SQL injection", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 

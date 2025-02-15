@@ -45,15 +45,28 @@ namespace Module.Engine
             _handlerType = _serverType;
             _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
+            _client.playerInfo = new();
+            _client.playerInfo.ipInfo = new();
+
+            switch(_serverType)
+            {
+                case ModuleType.GatewayModule:
+                    {
+                        _client.gatewaySettings = new();
+                    }
+                    break;
+
+                case ModuleType.AgentModule:
+                    {
+                        _client.agentSettings = new();
+                    }
+                    break;
+            }    
+
             if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
             {
-                _client.playerInfo.ipInfo = new();
-
-
                 _client.playerInfo.ipInfo.ip = endpoint.Address.ToString();
             }
-            else
-                _client.playerInfo.ipInfo = new();
 
             Custom.WriteLine($"New connection {_client.playerInfo.ipInfo.ip}", ConsoleColor.Cyan);
         }

@@ -1,5 +1,6 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
+using Module.Services;
 using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
@@ -12,13 +13,19 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             response.ModifiedPacket = null!;
 
-            if (client.shardSettings.exploitIwaFix)
+            if (client.agentSettings.inCharSelectionScreen)
+            {
+                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, attempt to crash people", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
+            }
 
             byte action = packet.ReadUInt8();
 
             if(action > 2)
+            {
+                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, attempt to crash people", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
+            }
 
             switch (action)
             {

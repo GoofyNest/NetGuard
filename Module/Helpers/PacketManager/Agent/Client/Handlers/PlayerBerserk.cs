@@ -1,5 +1,6 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
+using Module.Services;
 using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
@@ -15,7 +16,11 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
             var flag = packet.ReadUInt8();
 
             if (flag > 1)
+            {
+                Custom.WriteLine($"Prevented {client.playerInfo.accInfo.username}, using Invisible exploit", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
+            }
+                
 
             return response;
         }

@@ -20,10 +20,13 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
             response.ModifiedPacket = null!;
 
-            client.shardSettings.inCharSelection = false;
-            client.playerInfo.sentJoinRequest = false;
+            client.agentSettings.inCharSelectionScreen = false;
+            client.agentSettings.isIngame = true;
 
-            var charData = client.gameSettings.charData;
+
+            client.agentSettings.sentJoinRequest = false;
+
+            var charData = client.agentSettings.charData;
 
             charData.Lock();
 
