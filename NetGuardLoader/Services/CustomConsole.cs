@@ -2,9 +2,7 @@
 {
     public static class Custom
     {
-        private static readonly object LogLock = new object();
-
-        private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new Dictionary<ConsoleColor, string>
+        private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new()
         {
             { ConsoleColor.Yellow, "[WARN] " },
             { ConsoleColor.DarkYellow, "[WARN] " },

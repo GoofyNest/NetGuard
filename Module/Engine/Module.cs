@@ -77,11 +77,11 @@ namespace Module.Engine
         {
             try
             {
-                // Connect to the remote host asynchronously
-                await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
-
                 // Generate security information
                 _localSecurity.GenerateSecurity(true, true, true);
+
+                // Connect to the remote host asynchronously
+                await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
 
                 // Begin receiving data
                 await DoReceive(true);

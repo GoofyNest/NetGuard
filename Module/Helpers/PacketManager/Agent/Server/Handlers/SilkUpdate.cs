@@ -21,7 +21,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             {
                 var _admin = Settings.Agent.GameMasters[adminIndex];
 
-                if (_admin.ShouldSpawnVisible && !charInfo.isVisible)
+                if (_admin.ShouldSpawnVisible && !charInfo.IsVisible)
                 {
                     response.ModifiedPackets.Add(new PacketList() { Packet = packet });
 
@@ -29,7 +29,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                     test.WriteUInt8(14);
 
                     response.ModifiedPackets.Add(new PacketList() { Packet = test, SecurityType = SecurityType.RemoteSecurity, SendImmediately = true });
-                    charInfo.isVisible = true;
+                    charInfo.IsVisible = true;
                 }
             }
 

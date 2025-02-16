@@ -4,16 +4,16 @@ namespace SilkroadSecurityAPI
 {
     public class Blowfish
     {
-        private static uint[] bf_P =
-        {
+        private static readonly uint[] BfP =
+        [
             0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344,
             0xa4093822, 0x299f31d0, 0x082efa98, 0xec4e6c89,
             0x452821e6, 0x38d01377, 0xbe5466cf, 0x34e90c6c,
             0xc0ac29b7, 0xc97c50dd, 0x3f84d5b5, 0xb5470917,
-            0x9216d5d9, 0x8979fb1b,
-        };
+            0x9216d5d9, 0x8979fb1b
+        ];
 
-        private static uint[,] bf_S =
+        private static readonly uint[,] BfS =
         {
             {
                 0xd1310ba6, 0x98dfb5ac, 0x2ffd72db, 0xd01adfb7, 0xb8e1afed, 0x6a267e96, 0xba7c9045, 0xf12c7f99,
@@ -156,13 +156,13 @@ namespace SilkroadSecurityAPI
             }
         };
 
-        uint[] PArray;
-        uint[,] SBoxes;
+        private readonly uint[] _pArray;
+        private readonly uint[,] _sBoxes;
 
         public Blowfish()
         {
-            PArray = new uint[18];
-            SBoxes = new uint[4, 256];
+            _pArray = new uint[18];
+            _sBoxes = new uint[4, 256];
         }
 
         private uint S(uint x, int i)
@@ -175,17 +175,17 @@ namespace SilkroadSecurityAPI
             x >>= (24 - (8 * i));
             x &= 0xFF;
 
-            return SBoxes[i, x];
+            return _sBoxes[i, x];
         }
 
-        private uint bf_F(uint x)
+        private uint Bf_F(uint x)
         {
             return (((S(x, 0) + S(x, 1)) ^ S(x, 2)) + S(x, 3));
         }
 
         private void ROUND(ref uint a, uint b, int n)
         {
-            a ^= (bf_F(b) ^ PArray[n]);
+            a ^= (Bf_F(b) ^ _pArray[n]);
         }
 
         private void Blowfish_encipher(ref uint xl, ref uint xr)
@@ -193,7 +193,7 @@ namespace SilkroadSecurityAPI
             uint Xl = xl;
             uint Xr = xr;
 
-            Xl ^= PArray[0];
+            Xl ^= _pArray[0];
             ROUND(ref Xr, Xl, 1); ROUND(ref Xl, Xr, 2);
             ROUND(ref Xr, Xl, 3); ROUND(ref Xl, Xr, 4);
             ROUND(ref Xr, Xl, 5); ROUND(ref Xl, Xr, 6);
@@ -202,7 +202,7 @@ namespace SilkroadSecurityAPI
             ROUND(ref Xr, Xl, 11); ROUND(ref Xl, Xr, 12);
             ROUND(ref Xr, Xl, 13); ROUND(ref Xl, Xr, 14);
             ROUND(ref Xr, Xl, 15); ROUND(ref Xl, Xr, 16);
-            Xr ^= PArray[17];
+            Xr ^= _pArray[17];
 
             xr = Xl;
             xl = Xr;
@@ -213,7 +213,7 @@ namespace SilkroadSecurityAPI
             uint Xl = xl;
             uint Xr = xr;
 
-            Xl ^= PArray[17];
+            Xl ^= _pArray[17];
             ROUND(ref Xr, Xl, 16); ROUND(ref Xl, Xr, 15);
             ROUND(ref Xr, Xl, 14); ROUND(ref Xl, Xr, 13);
             ROUND(ref Xr, Xl, 12); ROUND(ref Xl, Xr, 11);
@@ -222,7 +222,7 @@ namespace SilkroadSecurityAPI
             ROUND(ref Xr, Xl, 6); ROUND(ref Xl, Xr, 5);
             ROUND(ref Xr, Xl, 4); ROUND(ref Xl, Xr, 3);
             ROUND(ref Xr, Xl, 2); ROUND(ref Xl, Xr, 1);
-            Xr ^= PArray[0];
+            Xr ^= _pArray[0];
 
             xl = Xr;
             xr = Xl;
@@ -237,23 +237,28 @@ namespace SilkroadSecurityAPI
         // Sets up the blowfish object with this specific key.
         public void Initialize(byte[] key_ptr, int offset, int length)
         {
+            if(offset > 0)
+            {
+
+            }
+
             uint i, j;
             uint data, datal, datar;
 
             for (i = 0; i < 18; ++i)
             {
-                PArray[i] = bf_P[i];
+                _pArray[i] = BfP[i];
             }
 
             for (i = 0; i < 4; ++i)
             {
                 for (j = 0; j < 256; ++j)
                 {
-                    SBoxes[i, j] = bf_S[i, j];
+                    _sBoxes[i, j] = BfS[i, j];
                 }
             }
 
-            byte[] temp = new byte[4];
+            var temp = new byte[4];
             j = 0;
             for (i = 0; i < 16 + 2; ++i)
             {
@@ -262,7 +267,7 @@ namespace SilkroadSecurityAPI
                 temp[1] = key_ptr[(j + 2) % length];
                 temp[0] = key_ptr[(j + 3) % length];
                 data = BitConverter.ToUInt32(temp, 0);
-                PArray[i] ^= data;
+                _pArray[i] ^= data;
                 j = (j + 4) % (uint)length;
             }
 
@@ -272,8 +277,8 @@ namespace SilkroadSecurityAPI
             for (i = 0; i < 16 + 2; i += 2)
             {
                 Blowfish_encipher(ref datal, ref datar);
-                PArray[i] = datal;
-                PArray[i + 1] = datar;
+                _pArray[i] = datal;
+                _pArray[i + 1] = datar;
             }
 
             for (i = 0; i < 4; ++i)
@@ -281,8 +286,8 @@ namespace SilkroadSecurityAPI
                 for (j = 0; j < 256; j += 2)
                 {
                     Blowfish_encipher(ref datal, ref datar);
-                    SBoxes[i, j] = datal;
-                    SBoxes[i, j + 1] = datar;
+                    _sBoxes[i, j] = datal;
+                    _sBoxes[i, j + 1] = datar;
                 }
             }
         }
@@ -292,6 +297,7 @@ namespace SilkroadSecurityAPI
         // is about to be encoded or decoded.
         public int GetOutputLength(int length)
         {
+            _ = this;
             return (length % 8) == 0 ? length : length + (8 - (length % 8));
         }
 

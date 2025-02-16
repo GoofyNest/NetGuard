@@ -20,7 +20,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             if (charInfo == null)
                 return response;
 
-            charInfo.isVisible = false;
+            charInfo.IsVisible = false;
 
             return response;
         }
