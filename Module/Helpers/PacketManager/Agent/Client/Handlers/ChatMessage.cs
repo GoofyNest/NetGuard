@@ -61,7 +61,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
             if (_admin.NoPinkChat && chatType == 3)
                 message = ";" + message;
 
-            modified.WriteAscii("is the client gay?");
+            modified.WriteAscii(message);
 
             response.ModifiedPackets.Add(new PacketList() { Packet = modified, SendImmediately = true, SecurityType = SecurityType.RemoteSecurity });
 
