@@ -12,28 +12,20 @@ namespace Module.Helpers.PacketManager.Gateway.Server
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
-            switch (packet.Opcode)
+            if(client != null)
             {
-                case LOGIN_SERVER_HANDSHAKE:
-                case ACCEPT_HANDSHAKE:
-                    return new Handshake();
 
-                case SERVER_GATEWAY_LOGIN_RESPONSE:
-                    return new LoginResponse();
-
-                case SERVER_GATEWAY_SHARD_LIST_RESPONSE:
-                    return new ShardListResponse();
-
-                case SERVER_GATEWAY_PATCH_RESPONSE:
-                    return new PatchResponse();
-
-                case SERVER_GATEWAY_LOGIN_IBUV_CHALLENGE:
-                    return new LoginIBUVChallange();
-
-                default:
-                    Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
-                    return null!;
             }
+
+            return packet.Opcode switch
+            {
+                LOGIN_SERVER_HANDSHAKE or ACCEPT_HANDSHAKE => new Handshake(),
+                SERVER_GATEWAY_LOGIN_RESPONSE => new LoginResponse(),
+                SERVER_GATEWAY_SHARD_LIST_RESPONSE => new ShardListResponse(),
+                SERVER_GATEWAY_PATCH_RESPONSE => new PatchResponse(),
+                SERVER_GATEWAY_LOGIN_IBUV_CHALLENGE => new LoginIBUVChallange(),
+                _ => null!,//Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
+            };
         }
     }
 }

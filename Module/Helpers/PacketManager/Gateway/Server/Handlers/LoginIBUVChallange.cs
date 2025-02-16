@@ -1,7 +1,6 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
 using SilkroadSecurityAPI;
-using static Module.Classes.Settings;
 using static Module.Helpers.PacketManager.Gateway.Opcodes.Client;
 
 namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
@@ -12,7 +11,7 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
         {
             PacketHandlingResult response = new();
 
-            var settings = Main._settings.Gateway.LoginCaptcha;
+            var settings = Main.Settings.Gateway.LoginCaptcha;
 
             if (!settings.DisableCaptcha)
                 return response;
@@ -20,7 +19,7 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
             var modified = new Packet(GATEWAY_LOGIN_IBUV_ANSWER, false);
             modified.WriteAscii(settings.StaticCaptchaCode);
 
-            response.ModifiedPackets.Add(new PacketList { Packet = modified, SendImmediately = true, securityType = SecurityType.RemoteSecurity });
+            response.ModifiedPackets.Add(new PacketList { Packet = modified, SendImmediately = true, SecurityType = SecurityType.RemoteSecurity });
 
             return response;
         }

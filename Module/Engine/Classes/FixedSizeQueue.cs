@@ -2,15 +2,10 @@
 
 namespace Module.Engine.Classes
 {
-    public class FixedSizeQueue<T>
+    public class FixedSizeQueue<T>(int maxSize)
     {
         private readonly ConcurrentQueue<T> _queue = new();
-        private readonly int _maxSize;
-
-        public FixedSizeQueue(int maxSize)
-        {
-            _maxSize = maxSize;
-        }
+        private readonly int _maxSize = maxSize;
 
         public void Enqueue(T item)
         {
@@ -23,7 +18,7 @@ namespace Module.Engine.Classes
 
         public IEnumerable<T> GetAllItems()
         {
-            return _queue.ToArray();
+            return [.. _queue];
         }
     }
 }

@@ -20,7 +20,7 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
                 string host = packet.ReadAscii();
                 int port = packet.ReadUInt16();
 
-                var index = Main._config.ModuleBinding.FindIndex(m => m.ModuleIP == host && m.ModulePort == port);
+                var index = Main.Config.ModuleBinding.FindIndex(m => m.ModuleIP == host && m.ModulePort == port);
                 if (index == -1)
                 {
                     Custom.WriteLine("Could not find agent bindings", ConsoleColor.Red);
@@ -28,7 +28,7 @@ namespace Module.Helpers.PacketManager.Gateway.Server.Handlers
                 }
 
                 // If agent bindings are found, create the modified packet
-                var guardModule = Main._config.ModuleBinding[index];
+                var guardModule = Main.Config.ModuleBinding[index];
 
                 Custom.WriteLine($"Using {guardModule.GuardIP} {guardModule.GuardPort}", ConsoleColor.Cyan);
 

@@ -1,5 +1,6 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
+using Module.Helpers.PacketManager.Agent.Client;
 using Module.Services;
 using SilkroadSecurityAPI;
 namespace Module.Helpers.PacketManager.Agent.Server.Handlers
@@ -16,7 +17,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
                 <3
             */
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             client.Agent.InCharSelectionScreen = false;
             client.Agent.IsIngame = true;
@@ -27,8 +28,8 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
             charData.Lock();
 
-            var _settings = Main._settings;
-            var _files = _settings.ServerType.CurrentValue;
+            var Settings = Main.Settings;
+            var _files = Settings.ServerType.CurrentValue;
 
             bool vSRO = _files == "vSRO";
 
@@ -75,24 +76,25 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             _inv.Size = charData.ReadUInt8();
             _inv.ItemCount = charData.ReadUInt8();
 
-            var _allItems = Main._items;
+            var _allItems = Main.Items;
 
             if(_allItems.Count == 0)
             {
-                Custom.WriteLine($"Please extract itemdata from Client and put it inside {_settings.Data.Path}");
+                Custom.WriteLine($"Please extract itemdata from Client and put it inside {Settings.Data.Path}");
                 return response;
             }
 
             if (_inv.ItemCount > 0)
-                _inv.Items = new();
+                _inv.Items = [];
 
             for (var d = 0; d < _inv.ItemCount; d++)
             {
-                var _tempItem = new Item();
+                Item _tempItem = new()
+                {
+                    Slot = charData.ReadUInt8()
+                };
 
-                _tempItem.Slot = charData.ReadUInt8();
-
-                if(vSRO)
+                if (vSRO)
                 {
                     var itemRentType = charData.ReadUInt32();
 
@@ -264,6 +266,151 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
                 _inv.Items.Add(_tempItem);
             }
+
+            if (vSRO)
+                return response;
+
+            var unk1 = charData.ReadUInt8(); //1 byte unkByte1 //not a counter
+
+            //Masteries
+            var nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
+            while (nextMastery == 1)
+            {
+                var masteryId = charData.ReadUInt32(); // 4   uint    mastery.ID
+                var masteryLevel = charData.ReadUInt8(); // 1   byte    mastery.Level   
+                nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
+            }
+
+            var unk2 = charData.ReadUInt8(); // 1   byte    unkByte2    //not a counter
+
+            //Skills
+            var nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
+            while (nextSkill == 1)
+            {
+                var skillId = charData.ReadUInt32(); // 4   uint    skill.ID
+                var skillEnabled = charData.ReadUInt8(); // 1   byte    skill.Enabled   
+
+                nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
+            }
+
+            //Quests
+            var completedQuestCount = charData.ReadUInt16(); // 2   ushort  CompletedQuestCount
+            var completedQuests = charData.ReadUInt32Array(completedQuestCount); // *   uint[]  CompletedQuests
+
+            var activeQuestCount = charData.ReadUInt8(); // 1   byte    ActiveQuestCount
+            Custom.WriteLine($"activeQuestCount: {activeQuestCount}");
+
+            for (var activeQuestIndex = 0; activeQuestIndex < activeQuestCount; activeQuestIndex++)
+            {
+                var questRefQuestId = charData.ReadUInt32(); // 4   uint    quest.RefQuestID
+                var questAchievementCount = charData.ReadUInt8(); // 1   byte    quest.AchievementCount
+                var questRequiresAutoShareParty = charData.ReadUInt8(); // 1   byte    quest.RequiresAutoShareParty
+                var questType = charData.ReadUInt8(); // 1   byte    quest.Type
+                if (questType == 28)
+                {
+                    var questRemainingTime = charData.ReadUInt32(); // 4   uint    remainingTime
+                }
+
+                var questStatus = charData.ReadUInt8(); // 1   byte    quest.Status
+
+                if (questType != 8)
+                {
+                    var questObjectiveCount = charData.ReadUInt8(); // 1   byte    quest.ObjectiveCount
+                    for (var objectiveIndex = 0; objectiveIndex < questObjectiveCount; objectiveIndex++)
+                    {
+                        var questObjectiveId = charData.ReadUInt8(); // 1   byte    objective.ID
+                        var questObjectiveStatus =
+                            charData.ReadUInt8(); // 1   byte    objective.Status        //0 = Done, 1  = On
+                        var questObjectiveName =
+                            charData.ReadAscii(); // 2   ushort  objective.Name.Length // *   string  objective.Name
+                        var objectiveTaskCount = charData.ReadUInt8(); // 1   byte    objective.TaskCount
+                        for (var taskIndex = 0; taskIndex < objectiveTaskCount; taskIndex++)
+                        {
+                            var questTaskValue = charData.ReadUInt32(); // 4   uint    task.Value
+                        }
+                    }
+                }
+
+                if (questType == 88)
+                {
+                    var refObjCount = charData.ReadUInt8(); // 1   byte    RefObjCount
+                    for (var refObjIndex = 0; refObjIndex < refObjCount; refObjIndex++)
+                        charData.ReadUInt32(); // 4   uint    RefObjID    //NPCs
+                }
+            }
+
+            var unk3 = charData.ReadUInt8(); // 1   byte    unkByte3        //Structure changes!!!
+            Custom.WriteLine($"Unknown3 : {unk3}");
+
+            var UniqueCharID = charData.ReadUInt32(); // 4   uint    UniqueID
+
+            //Position
+            var LatestRegionId = charData.ReadUInt16(); // 2   ushort  Position.RegionID
+            var PositionX = charData.ReadFloat(); // 4   float   Position.X
+            var PositionY = charData.ReadFloat(); // 4   float   Position.Y
+            var PositionZ = charData.ReadFloat(); // 4   float   Position.Z
+            var positionAngle = charData.ReadUInt16(); // 2   ushort  Position.Angle
+
+            Custom.WriteLine($"LatestRegionId: {LatestRegionId}, posX: {PositionX} posY: {PositionY} posZ: {PositionZ} angle: {positionAngle}");
+
+            //Movement
+            var movementHasDestination = charData.ReadUInt8(); // 1   byte    Movement.HasDestination
+            var movementType = charData.ReadUInt8(); // 1   byte    Movement.Type
+            if (movementHasDestination == 1)
+            {
+                var movementDestionationRegion = charData.ReadUInt16(); // 2   ushort  Movement.DestinationRegion        
+                if (LatestRegionId < short.MaxValue)
+                {
+                    //World
+                    var movementDestinationOffsetX = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetX
+                    var movementDestinationOffsetY = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetY
+                    var movementDestinationOffsetZ = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetZ
+                }
+                else
+                {
+                    //Dungeon
+                    var movementDestinationOffsetX = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetX
+                    var movementDestinationOffsetY = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetY
+                    var movementDestinationOffsetZ = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetZ
+                }
+            }
+            else
+            {
+                var movementSource =
+                    charData.ReadUInt8(); // 1   byte    Movement.Source     //0 = Spinning, 1 = Sky-/Key-walking
+                var movementAngle =
+                    charData.ReadUInt16(); // 2   ushort  Movement.Angle      //Represents the new angle, character is looking at
+            }
+
+            var lifeState = charData.ReadUInt8();
+            Custom.WriteLine($"lifeState: {lifeState}");
+
+            var unk4 = charData.ReadUInt8(); // 1   byte    State.unkByte0
+            Custom.WriteLine($"Unknown3 : {unk4}");
+
+            var motionState = charData.ReadUInt8();
+            Custom.WriteLine($"motionState: {motionState}");
+
+            var stateWalkSpeed = charData.ReadFloat(); // 4   float   State.WalkSpeed
+            var stateRunSpeed = charData.ReadFloat(); // 4   float   State.RunSpeed
+            var stateHwanSpeed = charData.ReadFloat(); // 4   float   State.HwanSpeed
+            var stateBuffCount = charData.ReadUInt8(); // 1   byte    State.BuffCount
+
+            //for (var i = 0; i < stateBuffCount; i++)
+            //{
+            //    var buffRefSkillId = charData.ReadUInt32(); // 4   uint    Buff.RefSkillID
+            //    var buffDuration = charData.ReadUInt32(); // 4   uint    Buff.Duration
+            //
+            //    var skillFound = _sharedObjects.RefSkill.TryGetValue((int)buffRefSkillId, out var skill);
+            //
+            //    if (!skillFound) continue;
+            //    if (skill.ParamsContains(1701213281))
+            //    {
+            //        //1701213281 -> atfe -> "auto transfer effect" like Recovery Division
+            //        var isCreator = _packet.ReadUInt8(); // 1   bool    IsCreator
+            //    }
+            //}
+
 
             //var packetList = new List<PacketList>();
 

@@ -9,21 +9,21 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
-            var _settings = Main._settings;
+            var Settings = Main.Settings;
 
-            var adminIndex = _settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+            var adminIndex = Settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
             if (adminIndex > -1)
             {
-                var _admin = _settings.Agent.GameMasters[adminIndex];
+                var _admin = Settings.Agent.GameMasters[adminIndex];
 
                 if (_admin.ShouldSpawnVisible)
                 {
                     response.ModifiedPackets.Add(new PacketList() { Packet = packet });
                     var modified = new Packet((ushort)Operator.Command);
                     modified.WriteUInt8(14);
-                    response.ModifiedPackets.Add(new PacketList() { Packet = modified, securityType = SecurityType.RemoteSecurity, SendImmediately = false });
+                    response.ModifiedPackets.Add(new PacketList() { Packet = modified, SecurityType = SecurityType.RemoteSecurity, SendImmediately = false });
                 }
             }
 

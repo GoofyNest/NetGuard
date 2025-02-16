@@ -10,7 +10,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             byte errorCode = packet.ReadUInt8();
 

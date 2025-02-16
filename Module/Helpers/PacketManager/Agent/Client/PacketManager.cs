@@ -67,12 +67,12 @@ namespace Module.Helpers.PacketManager.Agent.Client
                 return new DefaultBlock();
             }
 
-            if (Packets.badOpcodes.Contains(packet.Opcode))
+            if (Packets.BadOpcodes.Contains(packet.Opcode))
             {
                 return new DefaultBlock(); // Block the exploit
             }
 
-            if (!Packets.goodOpcodes.Contains(packet.Opcode))
+            if (!Packets.GoodOpcodes.Contains(packet.Opcode))
             {
                 Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.DarkMagenta);
             }

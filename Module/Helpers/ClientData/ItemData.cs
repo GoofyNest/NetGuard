@@ -1,4 +1,4 @@
-﻿namespace Module.Helpers.ItemReader
+﻿namespace Module.Helpers.ClientData
 {
     public enum ItemField
     {

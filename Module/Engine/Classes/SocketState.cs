@@ -2,15 +2,9 @@
 
 namespace Module.Engine.Classes
 {
-    public class SocketState
+    public class SocketState(Socket socket, byte[] buffer)
     {
-        public Socket Socket { get; set; }
-        public byte[] Buffer { get; set; }
-
-        public SocketState(Socket socket, byte[] buffer)
-        {
-            Socket = socket;
-            Buffer = buffer;
-        }
+        public Socket Socket { get; set; } = socket;
+        public byte[] Buffer { get; set; } = buffer;
     }
 }

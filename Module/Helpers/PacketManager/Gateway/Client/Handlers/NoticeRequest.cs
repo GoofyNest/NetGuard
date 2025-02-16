@@ -14,7 +14,7 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            byte contentID = packet.ReadUInt8();
+            //byte contentID = packet.ReadUInt8();
 
             if (packet.GetBytes().Length > 1)
                 response.ResultType = PacketResultType.Block;

@@ -11,7 +11,7 @@ namespace NetGuardLoader.Classes
 
     public class Config
     {
-        public List<ModuleSettings> ModuleBinding = new();
+        public List<ModuleSettings> ModuleBinding = [];
         public string DllPath { get; set; } = "Module.dll";
 
         public string LogFolder = "log";

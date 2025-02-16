@@ -10,7 +10,7 @@ namespace Module.Classes
         cSRO
     }
 
-    public class Settings
+    public class ProgramSettings
     {
         public bool DisableLogWriting { get; set; } = true;
         public bool DisableConsoleLogging { get; set; } = false;
@@ -25,7 +25,7 @@ namespace Module.Classes
 
         public class AgentSettings()
         {
-            public List<Operators> GameMasters { get; set; } = new();
+            public List<Operators> GameMasters { get; set; } = [];
         }
 
         public class Operators()
@@ -33,10 +33,10 @@ namespace Module.Classes
             public string Username { get; set; } = string.Empty;
             public bool ShouldSpawnVisible { get; set; } = false;
             public bool NoPinkChat { get; set; } = false;
-            public List<string> Permissions { get; set; } = new();
+            public List<string> Permissions { get; set; } = [];
             [JsonIgnore]
-            public List<string> DefaultPermissions { get; set; } = new()
-            {
+            public List<string> DefaultPermissions { get; set; } =
+            [
                 "FindUser",
                 "GoTown",
                 "ToTown",
@@ -58,7 +58,7 @@ namespace Module.Classes
                 "MoveToNpc",
                 "StartCTF",
                 "SendNotice"
-            };
+            ];
         }
 
         public class Version

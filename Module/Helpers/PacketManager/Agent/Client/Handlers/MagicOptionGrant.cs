@@ -11,7 +11,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            var _files = Main._settings.ServerType.CurrentValue;
+            var _files = Main.Settings.ServerType.CurrentValue;
 
             if (_files == "jSRO")
             {

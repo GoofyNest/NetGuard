@@ -10,7 +10,7 @@ namespace Module.Engine
     {
         private Socket _listenerSocket = null!;
         private ModuleType _serverType;
-        private CancellationTokenSource _cancellationTokenSource = new();
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
         private Task _acceptTask = Task.CompletedTask;  // A completed task as a default value
 
         public delegate void DelClientDisconnect(int clientId, ref Socket clientSocket, ModuleType handlerType);
@@ -49,7 +49,7 @@ namespace Module.Engine
             {
                 try
                 {
-                    var clientSocket = await _listenerSocket.AcceptAsync();
+                    var clientSocket = await _listenerSocket.AcceptAsync(cancellationToken);
 
                     // If Module constructor does async work, ensure it’s handled asynchronously
                     int clientId = (int)Interlocked.Increment(ref _clientIdCounter) & int.MaxValue;
@@ -61,7 +61,7 @@ namespace Module.Engine
                     }
 
                     // Use the cancellation token directly here
-                    _ = Task.Run(() => HandleClientAsync(clientId, module, cancellationToken), cancellationToken);
+                    _ = Task.Run(() => HandleClientAsync(module, cancellationToken), cancellationToken);
                 }
                 catch (SocketException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -74,7 +74,7 @@ namespace Module.Engine
             }
         }
 
-        private async Task HandleClientAsync(int clientId, Module module, CancellationToken cancellationToken)
+        private async Task HandleClientAsync(Module module, CancellationToken cancellationToken)
         {
             try
             {
@@ -86,7 +86,7 @@ namespace Module.Engine
                     case ModuleType.AgentModule:
                         {
                             // If the Module class uses async operations, you might need to await it
-                            await module.StartAsync(cancellationToken);  // Assuming there's an async method to handle client in Module
+                            await module.StartAsync();  // Assuming there's an async method to handle client in Module
                         }
                         break;
                     default:
@@ -118,7 +118,7 @@ namespace Module.Engine
             catch(Exception ex) 
             {
                 Custom.WriteLine($"Client {clientId} failed to remove from list", ConsoleColor.Yellow);
-                Custom.WriteLine($"{ex.ToString()}");
+                Custom.WriteLine($"{ex}");
             }
 
             // Handle socket cleanup
@@ -146,7 +146,7 @@ namespace Module.Engine
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
+            GC.SuppressFinalize(this);  // This should only be called in Dispose, not in DisposeAsync
         }
 
         private void Dispose(bool disposing)
@@ -161,17 +161,19 @@ namespace Module.Engine
 
         public async ValueTask DisposeAsync()
         {
-            Dispose(true);
+            // Only async-specific cleanup code goes here
             if (_acceptTask != null)
             {
                 await _acceptTask;  // ✅ Prevents deadlocks
             }
-            GC.SuppressFinalize(this);
+
+            // No need to call GC.SuppressFinalize here.
+            Dispose(false);  // You may still call Dispose(false) for any non-managed cleanup
         }
 
         ~AsyncServer()
         {
-            Dispose(false);
+            Dispose(false);  // Only clean up unmanaged resources if Dispose wasn't called
         }
     }
 }

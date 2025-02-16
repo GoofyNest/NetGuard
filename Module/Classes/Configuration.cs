@@ -7,9 +7,9 @@
         AgentModule
     }
 
-    public class Config
+    public class Configuration
     {
-        public List<ModuleSettings> ModuleBinding = new();
+        public List<ModuleSettings> ModuleBinding = [];
         public string DllPath { get; set; } = "Module.dll";
         public string LogFolder = "log";
         public string BindingsPath { get; set; } = "config\\bindings.json";

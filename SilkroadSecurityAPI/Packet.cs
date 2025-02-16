@@ -6,67 +6,57 @@ namespace SilkroadSecurityAPI
 {
     public class Packet
     {
-        private ushort m_opcode { get; set; }
-        private bool m_encrypted { get; set; }
-        private bool m_massive { get; set; }
-        private bool m_locked { get; set; }
-        private byte[] m_reader_bytes { get; set; }
+        private bool Locked { get; set; }
+        private byte[] Reader_bytes { get; set; }
         private PacketWriter m_writer;
         private PacketReader m_reader;
 
-        public ushort Opcode
-        {
-            get { return m_opcode; }
-        }
-        public bool Encrypted
-        {
-            get { return m_encrypted; }
-        }
-        public bool Massive
-        {
-            get { return m_massive; }
-        }
+        public ushort Opcode { get; }
+
+        public bool Encrypted { get; }
+
+        public bool Massive { get; }
 
         public Packet(Packet rhs)
         {
-            m_opcode = rhs.Opcode;
-            m_encrypted = rhs.Encrypted;
-            m_massive = rhs.Massive;
+            Opcode = rhs.Opcode;
+            Encrypted = rhs.Encrypted;
+            Massive = rhs.Massive;
 
-            m_locked = rhs.m_locked;
-            if (!m_locked)
+            Locked = rhs.Locked;
+            if (!Locked)
             {
                 m_writer = new PacketWriter();
                 m_reader = null!;
-                m_reader_bytes = null!;
+                Reader_bytes = null!;
                 m_writer.Write(rhs.m_writer.GetBytes());
             }
             else
             {
                 m_writer = null!;
-                m_reader_bytes = rhs.m_reader_bytes;
-                m_reader = new PacketReader(m_reader_bytes);
+                Reader_bytes = rhs.Reader_bytes;
+                m_reader = new PacketReader(Reader_bytes);
             }
         }
 
         public Packet(ushort opcode)
         {
-            m_opcode = opcode;
-            m_encrypted = false;
-            m_massive = false;
+            Opcode = opcode;
+            Encrypted = false;
+            Massive = false;
             m_writer = new PacketWriter();
             m_reader = null!;
-            m_reader_bytes = null!;
+            Reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted)
         {
-            m_opcode = opcode;
-            m_encrypted = encrypted;
-            m_massive = false;
+            Opcode = opcode;
+            Encrypted = encrypted;
+            Massive = false;
             m_writer = new PacketWriter();
             m_reader = null!;
-            m_reader_bytes = null!;
+            Reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted, bool massive)
@@ -74,12 +64,12 @@ namespace SilkroadSecurityAPI
             if (encrypted && massive)
                 throw new Exception("[Packet::Packet] Packets cannot both be massive and encrypted!");
 
-            m_opcode = opcode;
-            m_encrypted = encrypted;
-            m_massive = massive;
+            Opcode = opcode;
+            Encrypted = encrypted;
+            Massive = massive;
             m_writer = new PacketWriter();
             m_reader = null!;
-            m_reader_bytes = null!;
+            Reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted, bool massive, byte[] bytes)
@@ -87,13 +77,13 @@ namespace SilkroadSecurityAPI
             if (encrypted && massive)
                 throw new Exception("[Packet::Packet] Packets cannot both be massive and encrypted!");
 
-            m_opcode = opcode;
-            m_encrypted = encrypted;
-            m_massive = massive;
+            Opcode = opcode;
+            Encrypted = encrypted;
+            Massive = massive;
             m_writer = new PacketWriter();
             m_writer.Write(bytes);
             m_reader = null!;
-            m_reader_bytes = null!;
+            Reader_bytes = null!;
         }
 
         public Packet(ushort opcode, bool encrypted, bool massive, byte[] bytes, int offset, int length)
@@ -101,38 +91,38 @@ namespace SilkroadSecurityAPI
             if (encrypted && massive)
                 throw new Exception("[Packet::Packet] Packets cannot both be massive and encrypted!");
 
-            m_opcode = opcode;
-            m_encrypted = encrypted;
-            m_massive = massive;
+            Opcode = opcode;
+            Encrypted = encrypted;
+            Massive = massive;
             m_writer = new PacketWriter();
             m_writer.Write(bytes, offset, length);
             m_reader = null!;
-            m_reader_bytes = null!;
+            Reader_bytes = null!;
         }
 
         public byte[] GetBytes()
         {
-            if (m_locked)
-                return m_reader_bytes;
+            if (Locked)
+                return Reader_bytes;
 
             return m_writer.GetBytes();
         }
 
         public void Lock()
         {
-            if (!m_locked)
+            if (!Locked)
             {
-                m_reader_bytes = m_writer.GetBytes();
-                m_reader = new PacketReader(m_reader_bytes);
+                Reader_bytes = m_writer.GetBytes();
+                m_reader = new PacketReader(Reader_bytes);
                 m_writer.Close();
                 m_writer = null!;
-                m_locked = true;
+                Locked = true;
             }
         }
 
         public long SeekRead(long offset, SeekOrigin orgin)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.BaseStream.Seek(offset, orgin);
@@ -140,7 +130,7 @@ namespace SilkroadSecurityAPI
 
         public int RemainingRead()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return (int)(m_reader.BaseStream.Length - m_reader.BaseStream.Position);
@@ -148,7 +138,7 @@ namespace SilkroadSecurityAPI
 
         public byte ReadUInt8()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadByte();
@@ -156,7 +146,7 @@ namespace SilkroadSecurityAPI
 
         public sbyte ReadInt8()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadSByte();
@@ -164,7 +154,7 @@ namespace SilkroadSecurityAPI
 
         public UInt16 ReadUInt16()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadUInt16();
@@ -172,7 +162,7 @@ namespace SilkroadSecurityAPI
 
         public Int16 ReadInt16()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadInt16();
@@ -180,7 +170,7 @@ namespace SilkroadSecurityAPI
 
         public UInt32 ReadUInt32()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadUInt32();
@@ -188,7 +178,7 @@ namespace SilkroadSecurityAPI
 
         public Int32 ReadInt32()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadInt32();
@@ -196,7 +186,7 @@ namespace SilkroadSecurityAPI
 
         public UInt64 ReadUInt64()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadUInt64();
@@ -204,7 +194,7 @@ namespace SilkroadSecurityAPI
 
         public Int64 ReadInt64()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadInt64();
@@ -212,7 +202,7 @@ namespace SilkroadSecurityAPI
 
         public Single ReadSingle()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadSingle();
@@ -220,7 +210,7 @@ namespace SilkroadSecurityAPI
 
         public Double ReadDouble()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             return m_reader.ReadDouble();
@@ -233,7 +223,7 @@ namespace SilkroadSecurityAPI
 
         public string ReadAscii(int codepage)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             // Read the length of the string
@@ -258,7 +248,7 @@ namespace SilkroadSecurityAPI
 
         public String ReadUnicode()
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             UInt16 length = m_reader.ReadUInt16();
@@ -269,7 +259,7 @@ namespace SilkroadSecurityAPI
 
         public byte[] ReadUInt8Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             byte[] values = new byte[count];
@@ -283,7 +273,7 @@ namespace SilkroadSecurityAPI
 
         public sbyte[] ReadInt8Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             sbyte[] values = new sbyte[count];
@@ -296,7 +286,7 @@ namespace SilkroadSecurityAPI
 
         public UInt16[] ReadUInt16Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             UInt16[] values = new UInt16[count];
@@ -309,7 +299,7 @@ namespace SilkroadSecurityAPI
 
         public Int16[] ReadInt16Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             Int16[] values = new Int16[count];
@@ -322,7 +312,7 @@ namespace SilkroadSecurityAPI
 
         public UInt32[] ReadUInt32Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             UInt32[] values = new UInt32[count];
@@ -335,7 +325,7 @@ namespace SilkroadSecurityAPI
 
         public Int32[] ReadInt32Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             Int32[] values = new Int32[count];
@@ -348,7 +338,7 @@ namespace SilkroadSecurityAPI
 
         public UInt64[] ReadUInt64Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             UInt64[] values = new UInt64[count];
@@ -362,7 +352,7 @@ namespace SilkroadSecurityAPI
 
         public Int64[] ReadInt64Array(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             Int64[] values = new Int64[count];
@@ -375,7 +365,7 @@ namespace SilkroadSecurityAPI
 
         public Single[] ReadSingleArray(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             Single[] values = new Single[count];
@@ -388,7 +378,7 @@ namespace SilkroadSecurityAPI
 
         public Double[] ReadDoubleArray(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             Double[] values = new Double[count];
@@ -399,31 +389,9 @@ namespace SilkroadSecurityAPI
             return values;
         }
 
-        public String[] ReadAsciiArray(int count)
-        {
-            return ReadAsciiArray(1252);
-        }
-
-        public String[] ReadAsciiArray(int codepage, int count)
-        {
-            if (!m_locked)
-                throw new Exception("Cannot Read from an unlocked Packet.");
-
-            String[] values = new String[count];
-
-            for (int x = 0; x < count; ++x)
-            {
-                UInt16 length = m_reader.ReadUInt16();
-                byte[] bytes = m_reader.ReadBytes(length);
-                values[x] = Encoding.UTF7.GetString(bytes);
-            }
-
-            return values;
-        }
-
         public String[] ReadUnicodeArray(int count)
         {
-            if (!m_locked)
+            if (!Locked)
                 throw new Exception("Cannot Read from an unlocked Packet.");
 
             String[] values = new String[count];
@@ -440,7 +408,7 @@ namespace SilkroadSecurityAPI
 
         public long SeekWrite(long offset, SeekOrigin orgin)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             return m_writer.BaseStream.Seek(offset, orgin);
@@ -448,7 +416,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt8(byte value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -456,7 +424,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt8(sbyte value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -464,7 +432,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt16(UInt16 value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -472,13 +440,15 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt16(Int16 value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
+
+            m_writer.Write(value);
         }
 
         public void WriteUInt32(UInt32 value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -486,7 +456,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt32(Int32 value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -494,14 +464,14 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt64(UInt64 value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
             m_writer.Write(value);
         }
 
         public void WriteInt64(Int64 value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -509,7 +479,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteSingle(Single value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -517,7 +487,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteDouble(Double value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(value);
@@ -530,21 +500,16 @@ namespace SilkroadSecurityAPI
 
         public void WriteAscii(string value, int code_page)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             // Ensure the encoding is found based on the provided code_page
-            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(code_page);
-
-            if (encoding == null)
-            {
-                throw new Exception($"Encoding with codepage {code_page} not found.");
-            }
+            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(code_page) ?? throw new Exception($"Encoding with codepage {code_page} not found.");
 
             // Convert the string to bytes using the encoding
             byte[] codepage_bytes = encoding.GetBytes(value);
 
-            string utf7_value = Encoding.UTF7.GetString(codepage_bytes);
+            string utf7_value = Encoding.UTF8.GetString(codepage_bytes);
 
             byte[] bytes = Encoding.Default.GetBytes(utf7_value);
 
@@ -555,7 +520,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUnicode(String value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             byte[] bytes = Encoding.Unicode.GetBytes(value);
@@ -566,7 +531,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt8(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write((byte)(Convert.ToUInt64(value) & 0xFF));
@@ -574,7 +539,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt8(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write((sbyte)(Convert.ToInt64(value) & 0xFF));
@@ -582,7 +547,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt16(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write((ushort)(Convert.ToUInt64(value) & 0xFFFF));
@@ -591,7 +556,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt16(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write((ushort)(Convert.ToInt64(value) & 0xFFFF));
@@ -600,7 +565,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt32(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write((uint)(Convert.ToUInt64(value) & 0xFFFFFFFF));
@@ -608,7 +573,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt32(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write((int)(Convert.ToInt64(value) & 0xFFFFFFFF));
@@ -616,7 +581,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt64(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(Convert.ToUInt64(value));
@@ -624,7 +589,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt64(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(Convert.ToInt64(value));
@@ -632,7 +597,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteSingle(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(Convert.ToSingle(value));
@@ -640,7 +605,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteDouble(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(Convert.ToDouble(value));
@@ -653,25 +618,20 @@ namespace SilkroadSecurityAPI
 
         public void WriteAscii(object value, int code_page)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             // Ensure value is not null
             string valueAsString = value?.ToString() ?? string.Empty;
 
             // Get the encoding based on codepage
-            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(code_page);
-
-            if (encoding == null)
-            {
-                throw new Exception($"Encoding with codepage {code_page} not found.");
-            }
+            var encoding = CodePagesEncodingProvider.Instance.GetEncoding(code_page) ?? throw new Exception($"Encoding with codepage {code_page} not found.");
 
             // Convert string to bytes using the obtained encoding
             byte[] codepage_bytes = encoding.GetBytes(valueAsString);
 
             // Optionally, if you need UTF-8 conversion, do it here
-            byte[] bytes = Encoding.Default.GetBytes(Encoding.UTF7.GetString(codepage_bytes));
+            byte[] bytes = Encoding.Default.GetBytes(Encoding.UTF8.GetString(codepage_bytes));
 
             // Write length and bytes
             m_writer.Write((ushort)bytes.Length);
@@ -680,7 +640,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUnicode(object value)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             string valueAsString = value?.ToString() ?? string.Empty;
@@ -693,7 +653,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt8Array(byte[] values)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             m_writer.Write(values);
@@ -701,7 +661,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt8Array(byte[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -715,7 +675,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt16Array(UInt16[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -728,7 +688,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt16Array(Int16[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -744,7 +704,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt32Array(UInt32[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -760,7 +720,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt32Array(Int32[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -776,7 +736,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt64Array(UInt64[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -792,7 +752,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt64Array(Int64[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -808,7 +768,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteSingleArray(float[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -824,7 +784,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteDoubleArray(double[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -840,7 +800,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteAsciiArray(String[] values, int index, int count, int codepage)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -866,7 +826,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUnicodeArray(String[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -882,7 +842,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt8Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -898,7 +858,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt8Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -914,7 +874,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt16Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -928,7 +888,7 @@ namespace SilkroadSecurityAPI
         }
         public void WriteInt16Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -944,7 +904,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt32Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -960,7 +920,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt32Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -976,7 +936,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteUInt64Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -992,7 +952,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteInt64Array(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -1008,7 +968,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteSingleArray(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -1024,7 +984,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteDoubleArray(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -1040,7 +1000,7 @@ namespace SilkroadSecurityAPI
 
         public void WriteAsciiArray(object[] values, int index, int count, int codepage)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -1064,7 +1024,7 @@ namespace SilkroadSecurityAPI
         }
         public void WriteUnicodeArray(object[] values, int index, int count)
         {
-            if (m_locked)
+            if (Locked)
                 throw new Exception("Cannot Write to a locked Packet.");
 
             for (int x = index; x < index + count; ++x)
@@ -1073,5 +1033,26 @@ namespace SilkroadSecurityAPI
                 WriteUnicode(values[x]?.ToString() ?? string.Empty);
             }
         }
+
+        public float ReadFloat()
+        {
+            if (!Locked)
+            {
+                throw new Exception("Cannot Read from an unlocked Packet.");
+            }
+
+            return m_reader.ReadSingle();
+        }
+
+        public void WriteFloat(float value)
+        {
+            if (Locked)
+            {
+                throw new Exception("Cannot Write to a locked Packet.");
+            }
+
+            m_writer.Write(value);
+        }
+
     }
 }

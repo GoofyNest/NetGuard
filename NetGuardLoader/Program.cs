@@ -7,47 +7,47 @@ namespace NetGuardLoader
 {
     internal class Program
     {
-        public static Config _config = new();
+        public static Config Config = new();
 
         public static string module = "";
         public static int moduleIndex = -1;
 
         private static void LoadSettings()
         {
-            if (File.Exists(_config.BindingsPath))
+            if (File.Exists(Config.BindingsPath))
             {
-                Custom.WriteLine($"Loaded existing settings from {_config.BindingsPath}");
+                Custom.WriteLine($"Loaded existing settings from {Config.BindingsPath}");
 
-                var bindingsContent = File.ReadAllText(_config.BindingsPath);
+                var bindingsContent = File.ReadAllText(Config.BindingsPath);
 
                 var tempConfig = JsonConvert.DeserializeObject<Config>(bindingsContent);
 
                 if (tempConfig != null)
                 {
-                    _config = tempConfig;
+                    Config = tempConfig;
                 }
 
-                foreach (var _module in _config.ModuleBinding)
+                foreach (var Module in Config.ModuleBinding)
                 {
-                    string moduleName = _module.ModuleType.ToString();
+                    string moduleName = Module.ModuleType.ToString();
 
-                    if (_module.Name.Contains("Example"))
+                    if (Module.Name.Contains("Example"))
                     {
                         Custom.WriteLine($"Seems like you still have {moduleName} named Example", ConsoleColor.Cyan);
                     }
                 }
 
-                File.WriteAllText(_config.BindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
+                File.WriteAllText(Config.BindingsPath, JsonConvert.SerializeObject(Config, Formatting.Indented));
             }
             else
             {
-                Custom.WriteLine($"Creating new settings file {_config.BindingsPath}");
+                Custom.WriteLine($"Creating new settings file {Config.BindingsPath}");
 
-                _config.ModuleBinding.Add(new ModuleSettings() { Name = "Example #1", ModuleType = ModuleType.GatewayModule });
+                Config.ModuleBinding.Add(new ModuleSettings() { Name = "Example #1", ModuleType = ModuleType.GatewayModule });
 
                 for (var i = 0; i < 3; i++)
                 {
-                    _config.ModuleBinding.Add(new ModuleSettings() 
+                    Config.ModuleBinding.Add(new ModuleSettings() 
                     { 
                         Name = "Example #" + (i + 1), 
                         GuardPort = 15884 + i, 
@@ -56,7 +56,7 @@ namespace NetGuardLoader
                     });
                 }
 
-                File.WriteAllText(_config.BindingsPath, JsonConvert.SerializeObject(_config, Formatting.Indented));
+                File.WriteAllText(Config.BindingsPath, JsonConvert.SerializeObject(Config, Formatting.Indented));
             }
         }
 
@@ -84,7 +84,7 @@ namespace NetGuardLoader
 
                 try
                 {
-                    int.TryParse(args[0], out moduleIndex);
+                    bool v = int.TryParse(args[0], out moduleIndex);
                 }
                 catch (Exception ex)
                 {
@@ -93,12 +93,12 @@ namespace NetGuardLoader
 
                 try
                 {
-                    var _module = _config.ModuleBinding[moduleIndex];
+                    var Module = Config.ModuleBinding[moduleIndex];
 
-                    byte[] dllBytes = File.ReadAllBytes(_config.DllPath);
+                    byte[] dllBytes = File.ReadAllBytes(Config.DllPath);
                     var _response = Convert.ToBase64String(dllBytes);
 
-                    Custom.WriteLine($"Loading dll {_config.DllPath}", ConsoleColor.DarkMagenta);
+                    Custom.WriteLine($"Loading dll {Config.DllPath}", ConsoleColor.DarkMagenta);
 
                     // Load DLL from byte array
                     using var stream = new MemoryStream(dllBytes);
@@ -106,7 +106,7 @@ namespace NetGuardLoader
                     var loadedAssembly = assemblyLoadContext.LoadFromStream(stream);
 
                     // Set arguments for the loaded module
-                    object[] sharedArgs = { moduleIndex };
+                    object[] sharedArgs = [moduleIndex];
 
                     // Get type and method from the loaded assembly
                     var targetType = loadedAssembly.GetType("Module.Main");

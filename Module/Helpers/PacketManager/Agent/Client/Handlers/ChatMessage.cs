@@ -11,9 +11,9 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            var _settings = Main._settings;
+            var Settings = Main.Settings;
 
-            Packet modified = new Packet(0x7025);
+            Packet modified = new(0x7025);
 
             /*
                 1 = /TEXTCHAT
@@ -37,7 +37,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             string message = packet.ReadAscii();
 
-            var adminIndex = _settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+            var adminIndex = Settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
             if (adminIndex == -1 && chatType == 7)
             {
                 Custom.WriteLine($"Blocked GM notice from {client.PlayerInfo.AccInfo.Username}");
@@ -48,7 +48,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
             if (adminIndex == -1)
                 return response;
 
-            var _admin = _settings.Agent.GameMasters[adminIndex];
+            var _admin = Settings.Agent.GameMasters[adminIndex];
             var _permission = _admin.Permissions;
 
             if(!_permission.Contains("SendNotice") && chatType == 7)
@@ -63,7 +63,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             modified.WriteAscii(message);
 
-            response.ModifiedPackets.Add(new PacketList() { Packet = modified, SendImmediately = true, securityType = SecurityType.RemoteSecurity });
+            response.ModifiedPackets.Add(new PacketList() { Packet = modified, SendImmediately = true, SecurityType = SecurityType.RemoteSecurity });
 
             return response;
         }

@@ -17,24 +17,24 @@ namespace Module.Engine
     {
         public int ClientId { get; }  // Store client ID
         private Socket _clientSocket;
-        private AsyncServer.DelClientDisconnect _clientDisconnectHandler;
+        private readonly AsyncServer.DelClientDisconnect _clientDisconnectHandler;
 
-        private Socket _moduleSocket;
-        private ModuleType _handlerType;
+        private Socket ModuleSocket;
+        private readonly ModuleType _handlerType;
 
-        private byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
-        private byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
+        private readonly byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
+        private readonly byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
-        private Security _localSecurity = new();
-        private Security _remoteSecurity = new();
+        private readonly Security _localSecurity = new();
+        private readonly Security _remoteSecurity = new();
 
         public static FixedSizeQueue<Packet> _lastPackets = new(100);
         private ulong _bytesReceivedFromClient = 0;
-        private DateTime _startTime = DateTime.Now;
+        private readonly DateTime _startTime = DateTime.Now;
 
-        private ModuleSettings _moduleSettings = Main._module;
+        private readonly ModuleSettings ModuleSettings = Main.Module;
 
-        private SessionData _client = new();
+        private readonly SessionData _client = new();
 
         public Module(int clientId, Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
         {
@@ -43,12 +43,14 @@ namespace Module.Engine
             _clientDisconnectHandler = delDisconnect;
 
             _handlerType = _serverType;
-            _moduleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            ModuleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            _client.PlayerInfo = new();
-            _client.PlayerInfo.IpInfo = new();
+            _client.PlayerInfo = new()
+            {
+                IpInfo = new()
+            };
 
-            switch(_serverType)
+            switch (_serverType)
             {
                 case ModuleType.GatewayModule:
                     {
@@ -71,12 +73,12 @@ namespace Module.Engine
             Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public async Task StartAsync()
         {
             try
             {
                 // Connect to the remote host asynchronously
-                await _moduleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_moduleSettings.ModuleIP), _moduleSettings.ModulePort));
+                await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
 
                 // Generate security information
                 _localSecurity.GenerateSecurity(true, true, true);
@@ -89,7 +91,7 @@ namespace Module.Engine
             }
             catch (SocketException ex)
             {
-                Custom.WriteLine($"Remote host ({_moduleSettings.ModuleIP}:{_moduleSettings.ModulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
+                Custom.WriteLine($"Remote host ({ModuleSettings.ModuleIP}:{ModuleSettings.ModulePort}) is unreachable. Exception: {ex}", ConsoleColor.Red);
                 HandleDisconnection();
             }
             catch (Exception ex)
@@ -172,7 +174,7 @@ namespace Module.Engine
                         {
                             var modifiedPacket = result.ModifiedPackets[d];
 
-                            switch (modifiedPacket.securityType)
+                            switch (modifiedPacket.SecurityType)
                             {
                                 case SecurityType.RemoteSecurity:
                                     {
@@ -227,7 +229,7 @@ namespace Module.Engine
         {
             try
             {
-                Socket socket = isClient ? _clientSocket : _moduleSocket;
+                Socket socket = isClient ? _clientSocket : ModuleSocket;
                 byte[] buffer = isClient ? _localBuffer : _remoteBuffer;
 
                 if (socket == null || !socket.Connected)
@@ -266,8 +268,7 @@ namespace Module.Engine
             try
             {
                 // Retrieve the state object from AsyncState
-                var state = iar.AsyncState as SocketState;
-                if (state == null || state.Socket == null)
+                if (iar.AsyncState is not SocketState state || state.Socket == null)
                 {
                     Custom.WriteLine("Error: Socket or state is null.", ConsoleColor.Red);
                     return;
@@ -290,7 +291,7 @@ namespace Module.Engine
                     await Task.Run(() => HandleReceivedData(bytesReceived, true));
                     await DoReceive(true);  // Continue receiving from client
                 }
-                else if (socket == _moduleSocket)
+                else if (socket == ModuleSocket)
                 {
                     // Server-specific data handling
                     await Task.Run(() => HandleReceivedData(bytesReceived, false));
@@ -312,7 +313,7 @@ namespace Module.Engine
             if (security == null)
                 return;  // Early return if security is null
 
-            var socket = toHost ? _moduleSocket : _clientSocket;
+            var socket = toHost ? ModuleSocket : _clientSocket;
             if (socket == null)
                 return;  // Early return if socket is null
 
@@ -365,13 +366,13 @@ namespace Module.Engine
         {
             try
             {
-                if (_moduleSocket != null)
+                if (ModuleSocket != null)
                 {
-                    if (_moduleSocket.Connected)
+                    if (ModuleSocket.Connected)
                     {
-                        _moduleSocket.Shutdown(SocketShutdown.Both);
+                        ModuleSocket.Shutdown(SocketShutdown.Both);
                     }
-                    _moduleSocket.Close();
+                    ModuleSocket.Close();
                 }
             }
             catch (Exception ex)
@@ -380,7 +381,7 @@ namespace Module.Engine
             }
             finally
             {
-                _moduleSocket = null!;
+                ModuleSocket = null!;
             }
 
             // Notify other parts of the system, if delegate is set

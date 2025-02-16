@@ -1,18 +1,18 @@
 ﻿using Module.Classes;
 using Module.Engine;
-using Module.Helpers.ItemReader;
+using Module.Helpers;
+using Module.Helpers.ClientData;
 using Module.Helpers.PacketManager.Agent.Client;
 using Newtonsoft.Json;
-using static Module.Classes.Settings;
 
 namespace Module
 {
     public class Main
     {
-        public static Module.Classes.Config _config = new();
-        public static ModuleSettings _module = new();
-        public static Settings _settings = new();
-        public static Dictionary<int, ItemData> _items = new();
+        public static Configuration Config { get; private set; } = new();
+        public static ModuleSettings Module { get; private set; } = new();
+        public static ProgramSettings Settings { get; private set; } = new();
+        public static Dictionary<int, ItemData> Items { get; private set; } = [];
 
         static void ConsolePoolThread()
         {
@@ -21,25 +21,28 @@ namespace Module
                 Thread.Sleep(1);
 
                 string cmd = Console.ReadLine() ?? string.Empty;
+
+                if(cmd == "test")
+                {
+
+                }
             }
         }
 
         private static void LoadSettings(bool isMainFunction)
         {
-            if (File.Exists(_config.SettingsPath))
+            if (File.Exists(Config.SettingsPath))
             {
                 try
                 {
-                    using (var stream = new FileStream(_config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var reader = new StreamReader(stream))
-                    {
-                        var settingsContent = reader.ReadToEnd();
+                    using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(stream);
+                    var settingsContent = reader.ReadToEnd();
 
-                        var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
-                        if(tempSettings != null)
-                        {
-                            _settings = tempSettings;
-                        }
+                    var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(settingsContent);
+                    if (tempSettings != null)
+                    {
+                        Settings = tempSettings;
                     }
                 }
                 catch (IOException ex)
@@ -51,21 +54,19 @@ namespace Module
             if (!isMainFunction)
                 return;
 
-            if (File.Exists(_config.BindingsPath))
+            if (File.Exists(Config.BindingsPath))
             {
                 try
                 {
-                    using (var stream = new FileStream(_config.BindingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                    using (var reader = new StreamReader(stream))
+                    using var stream = new FileStream(Config.BindingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(stream);
+                    var bindingsContent = reader.ReadToEnd();
+
+                    var tempConfig = JsonConvert.DeserializeObject<Configuration>(bindingsContent);
+
+                    if (tempConfig != null)
                     {
-                        var bindingsContent = reader.ReadToEnd();
-
-                        var tempConfig = JsonConvert.DeserializeObject<Module.Classes.Config>(bindingsContent);
-
-                        if (tempConfig != null)
-                        {
-                            _config = tempConfig;
-                        }
+                        Config = tempConfig;
                     }
                 }
                 catch (IOException ex)
@@ -74,30 +75,30 @@ namespace Module
                 }
             }
 
-            if (File.Exists(_config.SettingsPath))
+            if (File.Exists(Config.SettingsPath))
             {
-                var settingsContent = File.ReadAllText(_config.SettingsPath);
+                var settingsContent = File.ReadAllText(Config.SettingsPath);
 
-                var tempSettings = JsonConvert.DeserializeObject<Settings>(settingsContent);
+                var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(settingsContent);
                 if (tempSettings != null)
                 {
-                    _settings = tempSettings;
+                    Settings = tempSettings;
                 }
 
-                File.WriteAllText(_config.SettingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+                File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
             }
             else
             {
-                File.WriteAllText(_config.SettingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+                File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
             }
         }
 
         private static void WatchSettingsFile()
         {
-            FileSystemWatcher watcher = new FileSystemWatcher
+            FileSystemWatcher watcher = new()
             {
-                Path = Path.GetDirectoryName(_config.SettingsPath)!,
-                Filter = Path.GetFileName(_config.SettingsPath),
+                Path = Path.GetDirectoryName(Config.SettingsPath)!,
+                Filter = Path.GetFileName(Config.SettingsPath),
                 NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
                 EnableRaisingEvents = true
             };
@@ -112,50 +113,51 @@ namespace Module
         {
             LoadSettings(true);
 
-            _module = _config.ModuleBinding[moduleIndex];
+            Module = Config.ModuleBinding[moduleIndex];
 
-            Console.Title = $"NetGuard | {_module.Name}";
+            Console.Title = $"NetGuard | {Module.Name}";
 
             // Use these values in your method as needed
-            Console.WriteLine($"Guard IP: {_module.GuardIP}, Guard Port: {_module.GuardPort}, Module IP: {_module.ModuleIP}, Module Port: {_module.ModulePort}");
+            Console.WriteLine($"Guard IP: {Module.GuardIP}, Guard Port: {Module.GuardPort}, Module IP: {Module.ModuleIP}, Module Port: {Module.ModulePort}");
 
-            _config.LogFile = Path.Combine(_config.LogFolder, _module.Name + ".txt");
+            Config.LogFile = Path.Combine(Config.LogFolder, Module.Name + ".txt");
 
-            Directory.CreateDirectory(_config.LogFolder);
+            Directory.CreateDirectory(Config.LogFolder);
 
-            if (File.Exists(_config.LogFile))
-                File.Delete(_config.LogFile);
+            if (File.Exists(Config.LogFile))
+                File.Delete(Config.LogFile);
 
-            if (_module.ModuleType == ModuleType.AgentModule)
+            if (Module.ModuleType == ModuleType.AgentModule)
             {
-                ItemReader.Init();
+                Reader.Init();
                 Packets.Init();
 
-                if (_settings.Agent.GameMasters.Count() == 0)
+                if (Settings.Agent.GameMasters.Count == 0)
                 {
-                    var example = new Operators();
-                    example.Username = "netguard_example_325125124123124";
-                    example.NoPinkChat = false;
+                    var example = new ProgramSettings.Operators
+                    {
+                        Username = "netguard_example_325125124123124",
+                        NoPinkChat = false,
+                        ShouldSpawnVisible = false
+                    };
                     example.Permissions = example.DefaultPermissions;
-                    example.ShouldSpawnVisible = false;
 
-                    _settings.Agent.GameMasters.Add(example);
+                    Settings.Agent.GameMasters.Add(example);
 
-                    File.WriteAllText(_config.SettingsPath, JsonConvert.SerializeObject(_settings, Formatting.Indented));
+                    File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
                 }
             }
 
             WatchSettingsFile();
 
-            Task.Run(() => startAsyncServer());
-
+            Task.Run(() => StartAsyncServer());
             new Thread(ConsolePoolThread).Start();
         }
 
-        static async Task startAsyncServer()
+        static async Task StartAsyncServer()
         {
             AsyncServer server = new();
-            await server.StartAsync(_module.GuardIP, _module.GuardPort, _module.ModuleType);
+            await server.StartAsync(Module.GuardIP, Module.GuardPort, Module.ModuleType);
         }
     }
 }

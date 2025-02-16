@@ -12,7 +12,7 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
         {
             PacketHandlingResult response = new();
 
-            string code = packet.ReadAscii();
+            //string code = packet.ReadAscii();
 
             return response;
         }

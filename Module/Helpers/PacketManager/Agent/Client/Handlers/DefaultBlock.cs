@@ -8,9 +8,10 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new();
-
-            response.ResultType = PacketResultType.Block;
+            PacketHandlingResult response = new()
+            {
+                ResultType = PacketResultType.Block
+            };
 
             return response;
         }

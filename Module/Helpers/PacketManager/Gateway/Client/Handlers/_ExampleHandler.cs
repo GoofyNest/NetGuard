@@ -7,7 +7,7 @@ using static Module.Helpers.PacketManager.Gateway.Opcodes.Server;
 
 namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
 {
-    public class _ExampleHandler : IPacketHandler
+    public class ExampleHandler : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {

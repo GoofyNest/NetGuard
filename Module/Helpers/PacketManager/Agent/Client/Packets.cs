@@ -4,8 +4,8 @@ namespace Module.Helpers.PacketManager.Agent.Client
 {
     public static class Packets
     {
-        public static readonly HashSet<ushort> badOpcodes = new HashSet<ushort>
-        {
+        public static readonly HashSet<ushort> BadOpcodes =
+        [
             0x0000, // unk1
             0x3510, // GameServerCrasher
             0x34BB, // SpawnMonster
@@ -50,47 +50,46 @@ namespace Module.Helpers.PacketManager.Agent.Client
             0xa200, // unk33
             0xa203, // unk34
             0x4444  // unk35
-        };
+        ];
 
-        public static List<ushort> goodOpcodes = new();
-
+        public static List<ushort> GoodOpcodes { get; private set; } = [];
         public static void Init()
         {
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Global)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Academy)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Alchemy)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Authentication)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(BattleArena)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(CAS)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Character)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(CharScreen)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Chat)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Community)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Config)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Consignment)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(COS)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Entity)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Exchange)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(FGW)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(FlagWar)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(FRPVP)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Game)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Guide)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Guild)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Inventory)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Logout)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(MagicOption)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Operator)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Party)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Quest)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Siege)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Silk)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Skill)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Stall)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(TAP)).Cast<ushort>());
-            goodOpcodes.AddRange(Enum.GetValues(typeof(Teleport)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Global)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Academy)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Alchemy)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Authentication)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(BattleArena)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(CAS)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Character)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(CharScreen)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Chat)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Community)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Config)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Consignment)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(COS)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Entity)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Exchange)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(FGW)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(FlagWar)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(FRPVP)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Game)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Guide)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Guild)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Inventory)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Logout)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(MagicOption)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Operator)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Party)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Quest)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Siege)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Silk)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Skill)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Stall)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(TAP)).Cast<ushort>());
+            GoodOpcodes.AddRange(Enum.GetValues(typeof(Teleport)).Cast<ushort>());
 
-            Custom.WriteLine($"goodOpcodes count: {goodOpcodes.Count}");
+            Custom.WriteLine($"GoodOpcodes count: {GoodOpcodes.Count}");
         }
     }
 

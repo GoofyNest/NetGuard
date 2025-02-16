@@ -23,13 +23,13 @@ namespace Module.Framework
     {
         public required Packet Packet { get; set; }
         public bool SendImmediately { get; set; } = false; // Whether Send(true) or Send(false)
-        public SecurityType securityType { get; set; } = SecurityType.Default; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
+        public SecurityType SecurityType { get; set; } = SecurityType.Default; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
     }
 
     public class PacketHandlingResult
     {
         public PacketResultType ResultType { get; set; } = PacketResultType.None;
-        public List<PacketList> ModifiedPackets { get; set; } = new();
+        public List<PacketList> ModifiedPackets { get; set; } = [];
         public bool SkipSending { get; set; } = false;
 
     }

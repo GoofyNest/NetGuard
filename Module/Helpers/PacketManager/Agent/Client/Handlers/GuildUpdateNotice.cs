@@ -7,7 +7,7 @@ using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 {
-    public class GuildUpdateNotice : IPacketHandler
+    public partial class GuildUpdateNotice : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
@@ -16,8 +16,8 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
             var guildNoticeTitle = packet.ReadAscii();
             var guildNoticeMessage = packet.ReadAscii();
 
-            if (Regex.IsMatch(guildNoticeMessage, @"['""\-]") ||
-                Regex.IsMatch(guildNoticeTitle, @"['""\-]"))
+            if (SQLInjectPRevention().IsMatch(guildNoticeMessage) ||
+                SQLInjectPRevention().IsMatch(guildNoticeTitle))
             {
                 Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, attempted SQL injection", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
@@ -25,5 +25,8 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             return response;
         }
+
+        [GeneratedRegex(@"['""\-]")]
+        private partial Regex SQLInjectPRevention();
     }
 }

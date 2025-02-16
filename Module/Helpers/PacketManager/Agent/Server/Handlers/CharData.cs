@@ -16,10 +16,10 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 
                 <3
             */
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             if (client.Agent.CharData == null)
-                client.Agent.CharData = new Packet(0x0000);
+                client.Agent.CharData = new(0x0000);
 
             for (var d = 0; d < packet.GetBytes().Length; d++)
                 client.Agent.CharData.WriteUInt8(packet.ReadUInt8());

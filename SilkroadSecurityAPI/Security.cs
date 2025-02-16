@@ -263,8 +263,8 @@ namespace SilkroadSecurityAPI
         TransferBuffer m_recv_buffer;
         TransferBuffer m_current_buffer;
 
-        ushort m_massive_count;
-        Packet m_massive_packet;
+        ushort Massive_count;
+        Packet Massive_packet;
 
         #region CoreSecurityFunction
         // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
@@ -855,8 +855,8 @@ namespace SilkroadSecurityAPI
             m_recv_buffer = new TransferBuffer(8192); // must be at minimal 2 bytes!
             m_current_buffer = null!;
 
-            m_massive_count = 0;
-            m_massive_packet = null!;
+            Massive_count = 0;
+            Massive_packet = null!;
         }
 
         // Changes the 0x2001 identify packet data that will be sent out by
@@ -1137,23 +1137,23 @@ namespace SilkroadSecurityAPI
                     byte mode = packet_data.ReadByte();
                     if (mode == 1)
                     {
-                        m_massive_count = packet_data.ReadUInt16();
+                        Massive_count = packet_data.ReadUInt16();
                         ushort contained_packet_opcode = packet_data.ReadUInt16();
-                        m_massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
+                        Massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
                     }
                     else
                     {
-                        if (m_massive_packet == null)
+                        if (Massive_packet == null)
                         {
                             throw (new Exception("[SecurityAPI::Recv] A malformed 0x600D packet was received."));
                         }
-                        m_massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
-                        m_massive_count--;
-                        if (m_massive_count == 0)
+                        Massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
+                        Massive_count--;
+                        if (Massive_count == 0)
                         {
-                            m_massive_packet.Lock();
-                            m_incoming_packets.Add(m_massive_packet);
-                            m_massive_packet = null!;
+                            Massive_packet.Lock();
+                            m_incoming_packets.Add(Massive_packet);
+                            Massive_packet = null!;
                         }
                     }
 

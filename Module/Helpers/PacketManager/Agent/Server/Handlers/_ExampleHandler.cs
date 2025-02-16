@@ -4,11 +4,11 @@ using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Server.Handlers
 {
-    public class _ExampleHandler : IPacketHandler
+    public class ExampleHandler : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             return response;
         }

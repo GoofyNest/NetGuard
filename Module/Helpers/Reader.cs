@@ -1,24 +1,23 @@
 ﻿using System.Text;
+using Module.Helpers.ClientData;
 using Module.Services;
-namespace Module.Helpers.ItemReader
+namespace Module.Helpers
 {
-    public class ItemReader
+    public class Reader
     {
-
-
         public static void Init()
         {
-            //var _files = Main._settings.serverVersion;
-            var _settings = Main._settings.Data;
+            //var _files = Main.Settings.serverVersion;
+            var Settings = Main.Settings.Data;
 
-            if(!Directory.Exists(_settings.Path))
+            if (!Directory.Exists(Settings.Path))
             {
-                Custom.WriteLine($"Creating folder {_settings.Path}");
-                Directory.CreateDirectory(_settings.Path);
+                Custom.WriteLine($"Creating folder {Settings.Path}");
+                Directory.CreateDirectory(Settings.Path);
             }
 
-            var folderFiles = Directory.GetFiles(_settings.Path);
-            var _items = Main._items;
+            var folderFiles = Directory.GetFiles(Settings.Path);
+            var Items = Main.Items;
 
             foreach (var file in folderFiles)
             {
@@ -26,7 +25,7 @@ namespace Module.Helpers.ItemReader
                     continue;
 
                 var data = File.ReadAllLines(file, Encoding.Unicode).ToList();
-                for (var i = 0; i < data.Count(); i++)
+                for (var i = 0; i < data.Count; i++)
                 {
                     var line = data[i];
                     var searchBetweenTabs = line.Split('\t');
@@ -68,25 +67,25 @@ namespace Module.Helpers.ItemReader
                             }
                         }
                         // Ensure we have a valid ID before adding to the dictionary
-                        if (_tempItemData.ID > 0 && !_items.ContainsKey(_tempItemData.ID))
+                        if (_tempItemData.ID > 0 && !Items.ContainsKey(_tempItemData.ID))
                         {
-                            _items[_tempItemData.ID] = _tempItemData;
+                            Items[_tempItemData.ID] = _tempItemData;
                         }
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         Custom.WriteLine(ex.ToString());
                     }
                 }
             }
 
-            if(folderFiles.Count() == 0)
+            if (folderFiles.Length == 0)
             {
-                Custom.WriteLine($"Please extract itemdata from Client and put it inside {_settings.Path}");
+                Custom.WriteLine($"Please extract itemdata from Client and put it inside {Settings.Path}");
             }
             else
             {
-                Custom.WriteLine($"Items loaded successfully {_items.Count}");
+                Custom.WriteLine($"Items loaded successfully {Items.Count}");
             }
         }
     }

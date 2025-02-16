@@ -6,7 +6,7 @@ using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 {
-    public class FortressSiegeAction : IPacketHandler
+    public partial class FortressSiegeAction : IPacketHandler
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
@@ -14,7 +14,7 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             var message = packet.ReadAscii();
 
-            if (Regex.IsMatch(message, @"['""\-]"))
+            if (SQLInjectPrevention().IsMatch(message))
             {
                 Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, attempted SQL injection", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
@@ -22,5 +22,9 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
 
             return response;
         }
+
+        // Removing the 'static' modifier, since it's generated automatically
+        [GeneratedRegex(@"['""\-]")]
+        private partial Regex SQLInjectPrevention();
     }
 }

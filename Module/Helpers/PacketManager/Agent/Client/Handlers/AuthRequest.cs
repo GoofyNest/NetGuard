@@ -11,9 +11,11 @@ namespace Module.Helpers.PacketManager.Agent.Client.Handlers
             PacketHandlingResult response = new();
 
             uint Token = packet.ReadUInt32(); //from LOGIN_RESPONSE
-            client.PlayerInfo.AccInfo = new();
-            client.PlayerInfo.AccInfo.Username = packet.ReadAscii();
-            client.PlayerInfo.AccInfo.Password = packet.ReadAscii();
+            client.PlayerInfo.AccInfo = new()
+            {
+                Username = packet.ReadAscii(),
+                Password = packet.ReadAscii()
+            };
             byte OperationType = packet.ReadUInt8();
 
             byte[] mac = packet.ReadUInt8Array(6);

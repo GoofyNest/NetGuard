@@ -2,9 +2,9 @@
 {
     public static class Custom
     {
-        private static readonly object LogLock = new object();
+        private static readonly object LogLock = new();
 
-        private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new Dictionary<ConsoleColor, string>
+        private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new()
         {
             { ConsoleColor.Yellow, "[WARN] " },
             { ConsoleColor.DarkYellow, "[WARN] " },
@@ -23,7 +23,7 @@
 
             string date = $"[{DateTime.Now:HH:mm:ss}] ";
 
-            if (!Main._settings.DisableConsoleLogging)
+            if (!Main.Settings.DisableConsoleLogging)
             {
                 lock (LogLock) // Ensure thread safety
                 {
@@ -45,7 +45,7 @@
 
         private static void WriteToLog(string message)
         {
-            if (!Main._settings.DisableLogWriting)
+            if (!Main.Settings.DisableLogWriting)
                 return;
 
             try
@@ -53,10 +53,8 @@
                 lock (LogLock) // Ensure thread safety
                 {
                     // Use StreamWriter with BufferedStream for better performance
-                    using (StreamWriter writer = new StreamWriter(new BufferedStream(File.Open(Main._config.LogFile, FileMode.Append, FileAccess.Write))))
-                    {
-                        writer.WriteLine(message);
-                    }
+                    using StreamWriter writer = new(new BufferedStream(File.Open(Main.Config.LogFile, FileMode.Append, FileAccess.Write)));
+                    writer.WriteLine(message);
                 }
             }
             catch (UnauthorizedAccessException ex)

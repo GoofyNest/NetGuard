@@ -9,10 +9,10 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new PacketHandlingResult();
+            PacketHandlingResult response = new();
 
             if (client.PlayerInfo.CharInfo == null)
-                client.PlayerInfo.CharInfo = new();
+                client.PlayerInfo.CharInfo = [];
 
             var charInfo = client.PlayerInfo.CharInfo;
 

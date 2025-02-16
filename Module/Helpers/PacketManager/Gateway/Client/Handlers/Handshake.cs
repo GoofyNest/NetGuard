@@ -11,10 +11,11 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            PacketHandlingResult response = new();
-
-            response.SkipSending = false;
-            response.ResultType = PacketResultType.SkipSending;
+            PacketHandlingResult response = new()
+            {
+                SkipSending = false,
+                ResultType = PacketResultType.SkipSending
+            };
 
             return response;
         }
