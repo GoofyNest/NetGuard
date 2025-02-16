@@ -3,6 +3,7 @@ using Module.Engine;
 using Module.Helpers;
 using Module.Helpers.ClientData;
 using Module.Helpers.PacketManager.Agent.Client;
+using Module.Services;
 using Newtonsoft.Json;
 
 namespace Module
@@ -13,6 +14,7 @@ namespace Module
         public static ModuleSettings Module { get; set; } = new();
         public static ProgramSettings Settings { get; set; } = new();
         public static Dictionary<int, ItemData> Items { get; set; } = [];
+        public static Dictionary<int, SkillData> Skills { get; set; } = [];
 
         static void ConsolePoolThread()
         {
@@ -117,9 +119,6 @@ namespace Module
 
             Console.Title = $"NetGuard | {Module.Name}";
 
-            // Use these values in your method as needed
-            Console.WriteLine($"Guard IP: {Module.GuardIP}, Guard Port: {Module.GuardPort}, Module IP: {Module.ModuleIP}, Module Port: {Module.ModulePort}");
-
             Config.LogFile = Path.Combine(Config.LogFolder, Module.Name + ".txt");
 
             Directory.CreateDirectory(Config.LogFolder);
@@ -149,6 +148,9 @@ namespace Module
             }
 
             WatchSettingsFile();
+
+            // Use these values in your method as needed
+            Custom.WriteLine($"Guard IP: {Module.GuardIP}, Guard Port: {Module.GuardPort}, Module IP: {Module.ModuleIP}, Module Port: {Module.ModulePort}", ConsoleColor.Magenta);
 
             Task.Run(() => StartAsyncServer());
             new Thread(ConsolePoolThread).Start();

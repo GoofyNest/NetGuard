@@ -98,7 +98,7 @@ namespace NetGuardLoader
                     byte[] dllBytes = File.ReadAllBytes(Config.DllPath);
                     var _response = Convert.ToBase64String(dllBytes);
 
-                    Custom.WriteLine($"Loading dll {Config.DllPath}", ConsoleColor.DarkMagenta);
+                    Custom.WriteLine($"Loading dll {Config.DllPath}", ConsoleColor.Magenta);
 
                     // Load DLL from byte array
                     using var stream = new MemoryStream(dllBytes);
@@ -139,7 +139,7 @@ namespace NetGuardLoader
         {
             ConsoleHelper.DisableQuickEdit();
 
-            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Title = "NetGuard | Loader";
             Console.WriteLine(@"
                                                                                                                      

@@ -17,7 +17,7 @@ namespace Module.Helpers.PacketManager.Gateway.Client.Handlers
             if (packet.GetBytes().Length > 0)
                 response.ResultType = PacketResultType.Block;
 
-            Custom.WriteLine($"CLIENT_GATEWAY_SHARD_LIST_REQUEST {packet.GetBytes().Length}", ConsoleColor.DarkMagenta);
+            Custom.WriteLine($"CLIENT_GATEWAY_SHARD_LIST_REQUEST {packet.GetBytes().Length}", ConsoleColor.Magenta);
 
             return response;
         }

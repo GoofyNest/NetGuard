@@ -1,15 +1,15 @@
-﻿namespace Module.Services
+﻿using System.Text;
+
+namespace Module.Services
 {
     public static class Custom
     {
-        private static readonly object LogLock = new();
-
         private static readonly Dictionary<ConsoleColor, string> ColorPrefixes = new()
         {
             { ConsoleColor.Yellow, "[WARN] " },
             { ConsoleColor.DarkYellow, "[WARN] " },
-            { ConsoleColor.Magenta, "[DEBUG] " },
             { ConsoleColor.DarkMagenta, "[DEBUG] " },
+            { ConsoleColor.Magenta, "[DEBUG] " },
             { ConsoleColor.Red, "[ERROR] " },
             { ConsoleColor.DarkRed, "[ERROR] " },
             { ConsoleColor.Cyan, "[NOTIFY] " },
@@ -17,30 +17,21 @@
             { ConsoleColor.DarkBlue, "[INFO] " }
         };
 
-        public static void WriteLine(string message, ConsoleColor color = ConsoleColor.White)
+        public static void WriteLine(string message, ConsoleColor color = ConsoleColor.Green)
         {
             string prefix = GetPrefix(color);
-
             string date = $"[{DateTime.Now:HH:mm:ss}] ";
 
-            if (!Main.Settings.DisableConsoleLogging)
-            {
-                lock (LogLock) // Ensure thread safety
-                {
-                    Console.ForegroundColor = color;
-                    Console.Write(prefix);
-                    Console.ResetColor();
+            // Assemble the full log line (prefix + date + message)
+            string finalMessage = $"{prefix}{date}{message}";
 
-                    // Display timestamp
-                    Console.ForegroundColor = ConsoleColor.DarkCyan;
-                    Console.Write(date);
-                    Console.ResetColor();
+            // Write the full line atomically with one Console.WriteLine (avoids color mismatches)
+            Console.ForegroundColor = color;
+            Console.WriteLine(finalMessage);
+            Console.ResetColor();
 
-                    Console.WriteLine(message);
-                }
-            }
-
-            WriteToLog(prefix + date + message);
+            // Write to log file
+            WriteToLog(finalMessage);
         }
 
         private static void WriteToLog(string message)
@@ -50,10 +41,9 @@
 
             try
             {
-                lock (LogLock) // Ensure thread safety
+                using (var fileStream = new FileStream(Main.Config.LogFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+                using (var writer = new StreamWriter(fileStream))
                 {
-                    // Use StreamWriter with BufferedStream for better performance
-                    using StreamWriter writer = new(new BufferedStream(File.Open(Main.Config.LogFile, FileMode.Append, FileAccess.Write)));
                     writer.WriteLine(message);
                 }
             }

@@ -158,12 +158,12 @@ namespace Module.Engine
                             continue;
                 
                         case PacketResultType.SkipSending:
-                            Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                            Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.Magenta);
                             await Send(result.SkipSending);
                             continue;
                 
                         case PacketResultType.DoReceive:
-                            Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                            Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.Magenta);
                             await DoReceive(false);
                             continue;
                     }
