@@ -39,8 +39,10 @@ namespace SilkroadSecurityAPI
         // Returns a SecurityFlags object from a byte.
         static SecurityFlags ToSecurityFlags(byte value)
         {
-            SecurityFlags flags = new SecurityFlags();
-            flags.none = (byte)(value & 1);
+            SecurityFlags flags = new()
+            {
+                none = (byte)(value & 1)
+            };
             value >>= 1;
             flags.blowfish = (byte)(value & 1);
             value >>= 1;
@@ -55,7 +57,6 @@ namespace SilkroadSecurityAPI
             flags._7 = (byte)(value & 1);
             value >>= 1;
             flags._8 = (byte)(value & 1);
-            value >>= 1;
             return flags;
         }
         #endregion
@@ -66,7 +67,7 @@ namespace SilkroadSecurityAPI
         {
             uint[] security_table = new uint[0x10000];
             byte[] base_security_table =
-            {
+            [
                 0xB1, 0xD6, 0x8B, 0x96, 0x96, 0x30, 0x07, 0x77, 0x2C, 0x61, 0x0E, 0xEE, 0xBA, 0x51, 0x09, 0x99,
                 0x19, 0xC4, 0x6D, 0x07, 0x8F, 0xF4, 0x6A, 0x70, 0x35, 0xA5, 0x63, 0xE9, 0xA3, 0x95, 0x64, 0x9E,
                 0x32, 0x88, 0xDB, 0x0E, 0xA4, 0xB8, 0xDC, 0x79, 0x1E, 0xE9, 0xD5, 0xE0, 0x88, 0xD9, 0xD2, 0x97,
@@ -131,37 +132,35 @@ namespace SilkroadSecurityAPI
                 0x05, 0x3B, 0xD0, 0xBA, 0xA3, 0x06, 0xD7, 0xCD, 0xE9, 0x57, 0xDE, 0x54, 0xBF, 0x67, 0xD9, 0x23,
                 0x2E, 0x72, 0x66, 0xB3, 0xB8, 0x4A, 0x61, 0xC4, 0x02, 0x1B, 0x38, 0x5D, 0x94, 0x2B, 0x6F, 0x2B,
                 0x37, 0xBE, 0xCB, 0xB4, 0xA1, 0x8E, 0xCC, 0xC3, 0x1B, 0xDF, 0x0D, 0x5A, 0x8D, 0xED, 0x02, 0x2D,
-            };
+            ];
 
-            using (MemoryStream in_memory_stream = new MemoryStream(base_security_table, false))
+            using (MemoryStream in_memory_stream = new(base_security_table, false))
             {
-                using (BinaryReader reader = new BinaryReader(in_memory_stream))
+                using BinaryReader reader = new(in_memory_stream);
+                int index = 0;
+                for (int edi = 0; edi < 1024; edi += 4)
                 {
-                    int index = 0;
-                    for (int edi = 0; edi < 1024; edi += 4)
+                    uint edx = reader.ReadUInt32();
+                    for (uint ecx = 0; ecx < 256; ++ecx)
                     {
-                        uint edx = reader.ReadUInt32();
-                        for (uint ecx = 0; ecx < 256; ++ecx)
+                        uint eax = ecx >> 1;
+                        if ((ecx & 1) != 0)
                         {
-                            uint eax = ecx >> 1;
-                            if ((ecx & 1) != 0)
+                            eax ^= edx;
+                        }
+                        for (int bit = 0; bit < 7; ++bit)
+                        {
+                            if ((eax & 1) != 0)
                             {
+                                eax >>= 1;
                                 eax ^= edx;
                             }
-                            for (int bit = 0; bit < 7; ++bit)
+                            else
                             {
-                                if ((eax & 1) != 0)
-                                {
-                                    eax >>= 1;
-                                    eax ^= edx;
-                                }
-                                else
-                                {
-                                    eax >>= 1;
-                                }
+                                eax >>= 1;
                             }
-                            security_table[index++] = eax;
                         }
+                        security_table[index++] = eax;
                     }
                 }
             }
@@ -170,7 +169,7 @@ namespace SilkroadSecurityAPI
         }
 
         // Use one security table for all objects.
-        static uint[] global_security_table = GenerateSecurityTable();
+        readonly static uint[] global_security_table = GenerateSecurityTable();
         #endregion
 
         #region WIN32_Helper_Functions
@@ -202,7 +201,7 @@ namespace SilkroadSecurityAPI
         #endregion
 
         #region Random
-        static Random random = new Random();
+        readonly static Random random = new();
 
         static UInt64 NextUInt64()
         {
@@ -241,7 +240,7 @@ namespace SilkroadSecurityAPI
         uint m_crc_seed;
         ulong m_initial_blowfish_key;
         ulong m_handshake_blowfish_key;
-        byte[] m_count_byte_seeds;
+        readonly byte[] m_count_byte_seeds;
         ulong m_client_key;
         ulong m_challenge_key;
 
@@ -253,22 +252,22 @@ namespace SilkroadSecurityAPI
         byte m_identity_flag;
         String m_identity_name;
 
-        List<Packet> m_incoming_packets;
-        List<Packet> m_outgoing_packets;
+        public static List<Packet> MIncomingPackets { get; set; } = [];
+        public static List<Packet> MOutgoingPackets { get; set; } = [];
 
-        List<ushort> m_enc_opcodes;
+        readonly List<ushort> m_enc_opcodes;
 
-        Blowfish m_blowfish;
+        readonly Blowfish m_blowfish;
 
-        TransferBuffer m_recv_buffer;
-        TransferBuffer m_current_buffer;
+        private readonly TransferBuffer m_recv_buffer;
+        private TransferBuffer m_current_buffer;
 
         ushort Massive_count;
         Packet Massive_packet;
 
         #region CoreSecurityFunction
         // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
-        uint GenerateValue(ref uint val)
+        private static uint GenerateValue(ref uint val)
         {
             for (int i = 0; i < 32; ++i)
             {
@@ -297,7 +296,7 @@ namespace SilkroadSecurityAPI
         }
 
         // Helper function used in the handshake, X may be a or b, this clean version of the function is from jMerlin (Func_X_4)
-        uint G_pow_X_mod_P(uint P, uint X, uint G)
+        private static uint G_pow_X_mod_P(uint P, uint X, uint G)
         {
             long result = 1;
             long mult = G;
@@ -311,14 +310,14 @@ namespace SilkroadSecurityAPI
                 {
                     result = (mult * result) % P;
                 }
-                X = X >> 1;
+                X >>= 1;
                 mult = (mult * mult) % P;
             }
             return (uint)result;
         }
 
         // Helper function used in the handshake (Func_X_2)
-        void KeyTransformValue(ref ulong val, uint key, byte key_byte)
+        private static void KeyTransformValue(ref ulong val, uint key, byte key_byte)
         {
             byte[] stream = BitConverter.GetBytes(val);
             stream[0] ^= (byte)(stream[0] + LOBYTE_(LOWORD_(key)) + key_byte);
@@ -371,7 +370,7 @@ namespace SilkroadSecurityAPI
             m_security_flags = flags;
             m_client_security = true;
 
-            Packet response = new Packet(0x5000);
+            Packet response = new(0x5000);
 
             response.WriteUInt8(m_security_flag);
 
@@ -406,7 +405,7 @@ namespace SilkroadSecurityAPI
                 response.WriteUInt32(m_value_A);
             }
 
-            m_outgoing_packets.Add(response);
+            MOutgoingPackets.Add(response);
         }
 
         void Handshake(ushort packet_opcode, PacketReader packet_data, bool packet_encrypted)
@@ -474,8 +473,6 @@ namespace SilkroadSecurityAPI
                         throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (programmer error)."));
                     }
                 }
-
-                ulong key_array = 0;
                 byte[] tmp_bytes;
 
                 m_value_B = packet_data.ReadUInt32();
@@ -483,7 +480,7 @@ namespace SilkroadSecurityAPI
 
                 m_value_K = G_pow_X_mod_P(m_value_p, m_value_x, m_value_B);
 
-                key_array = MAKELONGLONG_(m_value_A, m_value_B);
+                ulong key_array = MAKELONGLONG_(m_value_A, m_value_B);
                 KeyTransformValue(ref key_array, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_K)) & 0x03));
                 m_blowfish.Initialize(BitConverter.GetBytes(key_array));
 
@@ -509,14 +506,16 @@ namespace SilkroadSecurityAPI
                 KeyTransformValue(ref m_handshake_blowfish_key, m_value_K, 0x3);
                 m_blowfish.Initialize(BitConverter.GetBytes(m_handshake_blowfish_key));
 
-                SecurityFlags tmp_flags = new SecurityFlags();
-                tmp_flags.handshake_response = 1;
+                SecurityFlags tmp_flags = new()
+                {
+                    handshake_response = 1
+                };
                 byte tmp_flag = FromSecurityFlags(tmp_flags);
 
-                Packet response = new Packet(0x5000);
+                Packet response = new(0x5000);
                 response.WriteUInt8(tmp_flag);
                 response.WriteUInt64(m_challenge_key);
-                m_outgoing_packets.Add(response);
+                MOutgoingPackets.Add(response);
             }
             else
             {
@@ -598,10 +597,10 @@ namespace SilkroadSecurityAPI
                     }
 
                     // Handshake challenge
-                    Packet response = new Packet(0x5000);
+                    Packet response = new(0x5000);
                     response.WriteUInt32(m_value_B);
                     response.WriteUInt64(m_client_key);
-                    m_outgoing_packets.Insert(0, response);
+                    MOutgoingPackets.Insert(0, response);
 
                     // The handshake has started
                     m_started_handshake = true;
@@ -615,16 +614,16 @@ namespace SilkroadSecurityAPI
                     }
 
                     // Handshake accepted
-                    Packet response1 = new Packet(0x9000);
+                    Packet response1 = new(0x9000);
 
                     // Identify
-                    Packet response2 = new Packet(0x2001, true, false);
+                    Packet response2 = new(0x2001, true, false);
                     response2.WriteAscii(m_identity_name);
                     response2.WriteUInt8(m_identity_flag);
 
                     // Insert at the front, we want 0x9000 first, then 0x2001
-                    m_outgoing_packets.Insert(0, response2);
-                    m_outgoing_packets.Insert(0, response1);
+                    MOutgoingPackets.Insert(0, response2);
+                    MOutgoingPackets.Insert(0, response1);
 
                     // Mark the handshake as accepted now
                     m_started_handshake = true;
@@ -644,7 +643,7 @@ namespace SilkroadSecurityAPI
             ushort data_length = (ushort)data.Length;
 
             // Add the packet header to the start of the data
-            PacketWriter writer = new PacketWriter();
+            PacketWriter writer = new();
             writer.Write(data_length); // packet size
             writer.Write(opcode); // packet opcode
             writer.Write((ushort)0); // packet security bytes
@@ -716,7 +715,7 @@ namespace SilkroadSecurityAPI
         bool HasPacketToSend()
         {
             // No packets, easy case
-            if (m_outgoing_packets.Count == 0)
+            if (MOutgoingPackets.Count == 0)
             {
                 return false;
             }
@@ -729,7 +728,7 @@ namespace SilkroadSecurityAPI
             }
 
             // Otherwise, check to see if we have pending handshake packets to send
-            Packet packet = m_outgoing_packets[0];
+            Packet packet = MOutgoingPackets[0];
             if (packet.Opcode == 0x5000 || packet.Opcode == 0x9000)
             {
                 return true;
@@ -741,29 +740,27 @@ namespace SilkroadSecurityAPI
 
         KeyValuePair<TransferBuffer, Packet> GetPacketToSend()
         {
-            if (m_outgoing_packets.Count == 0)
+            if (MOutgoingPackets.Count == 0)
             {
                 throw (new Exception("[SecurityAPI::GetPacketToSend] No packets are avaliable to send."));
             }
 
-            Packet packet = m_outgoing_packets[0];
-            m_outgoing_packets.RemoveAt(0);
+            Packet packet = MOutgoingPackets[0];
+            MOutgoingPackets.RemoveAt(0);
 
             if (packet.Massive)
             {
                 ushort parts = 0;
 
-                PacketWriter final = new PacketWriter();
-                PacketWriter final_data = new PacketWriter();
+                PacketWriter final = new();
+                PacketWriter final_data = new();
 
                 byte[] input_data = packet.GetBytes();
-                PacketReader input_reader = new PacketReader(input_data);
-
-                TransferBuffer workspace = new TransferBuffer(4089, 0, (int)input_data.Length);
+                TransferBuffer workspace = new(4089, 0, (int)input_data.Length);
 
                 while (workspace.Size > 0)
                 {
-                    PacketWriter part_data = new PacketWriter();
+                    PacketWriter part_data = new();
 
                     int cur_size = workspace.Size > 4089 ? 4089 : workspace.Size; // Max buffer size is 4kb for the client
 
@@ -780,7 +777,7 @@ namespace SilkroadSecurityAPI
                 }
 
                 // Write the final header packet to the front of the packet
-                PacketWriter final_header = new PacketWriter();
+                PacketWriter final_header = new();
                 final_header.Write((byte)1); // Header flag
                 final_header.Write((short)parts);
                 final_header.Write(packet.Opcode);
@@ -839,16 +836,18 @@ namespace SilkroadSecurityAPI
             m_identity_flag = 0;
             m_identity_name = "SR_Client";
 
-            m_outgoing_packets = new List<Packet>();
-            m_incoming_packets = new List<Packet>();
+            MOutgoingPackets = [];
+            MIncomingPackets = [];
 
-            m_enc_opcodes = new List<ushort>();
-            m_enc_opcodes.Add(0x2001);
-            m_enc_opcodes.Add(0x6100);
-            m_enc_opcodes.Add(0x6101);
-            m_enc_opcodes.Add(0x6102);
-            m_enc_opcodes.Add(0x6103);
-            m_enc_opcodes.Add(0x6107);
+            m_enc_opcodes =
+            [
+                0x2001,
+                0x6100,
+                0x6101,
+                0x6102,
+                0x6103,
+                0x6107,
+            ];
 
             m_blowfish = new Blowfish();
 
@@ -871,7 +870,7 @@ namespace SilkroadSecurityAPI
         // is being used to process an incoming connection's data (server).
         public void GenerateSecurity(bool blowfish, bool security_bytes, bool handshake)
         {
-            SecurityFlags flags = new SecurityFlags();
+            SecurityFlags flags = new();
             if (blowfish)
             {
                 flags.none = 0;
@@ -914,7 +913,7 @@ namespace SilkroadSecurityAPI
                 throw (new Exception("[SecurityAPI::Send] Handshake packets cannot be sent through this function."));
             }
 
-            m_outgoing_packets.Add(packet);
+            MOutgoingPackets.Add(packet);
         }
 
         // Transfers raw incoming data into the security object. Call TransferIncoming to
@@ -928,7 +927,7 @@ namespace SilkroadSecurityAPI
         // obtain a list of ready to process packets.
         public void Recv(TransferBuffer raw_buffer)
         {
-            List<TransferBuffer> incoming_buffers_tmp = new List<TransferBuffer>();
+            List<TransferBuffer> incoming_buffers_tmp = [];
             int length = raw_buffer.Size - raw_buffer.Offset;
             int index = 0;
             while (length > 0)
@@ -1032,7 +1031,7 @@ namespace SilkroadSecurityAPI
 
             int bufferCount = incoming_buffers_tmp.Count;
 
-            for (var i = 0; i < incoming_buffers_tmp.Count; i++)
+            for (var i = 0; i < bufferCount; i++)
             {
                 var buffer = incoming_buffers_tmp[i];
 
@@ -1062,7 +1061,7 @@ namespace SilkroadSecurityAPI
                     buffer.Buffer = new_buffer;
                 }
 
-                PacketReader packet_data = new PacketReader(buffer.Buffer);
+                PacketReader packet_data = new(buffer.Buffer);
                 packet_size = packet_data.ReadUInt16();
                 ushort packet_opcode = packet_data.ReadUInt16();
                 byte packet_security_count = packet_data.ReadByte();
@@ -1118,7 +1117,7 @@ namespace SilkroadSecurityAPI
 
                     packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
                     packet.Lock();
-                    m_incoming_packets.Add(packet);
+                    MIncomingPackets.Add(packet);
 
                     continue;
                 }
@@ -1152,7 +1151,7 @@ namespace SilkroadSecurityAPI
                         if (Massive_count == 0)
                         {
                             Massive_packet.Lock();
-                            m_incoming_packets.Add(Massive_packet);
+                            MIncomingPackets.Add(Massive_packet);
                             Massive_packet = null!;
                         }
                     }
@@ -1162,7 +1161,7 @@ namespace SilkroadSecurityAPI
 
                 packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
                 packet.Lock();
-                m_incoming_packets.Add(packet);
+                MIncomingPackets.Add(packet);
             }
         }
 
@@ -1170,11 +1169,11 @@ namespace SilkroadSecurityAPI
         // If no buffers are available for sending, null is returned.
         public List<KeyValuePair<TransferBuffer, Packet>> TransferOutgoing()
         {
-            List<KeyValuePair<TransferBuffer, Packet>> buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
+            List<KeyValuePair<TransferBuffer, Packet>> buffers = [];
 
             if (HasPacketToSend())
             {
-                buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
+                buffers = [];
                 while (HasPacketToSend())
                 {
                     buffers.Add(GetPacketToSend());
@@ -1188,12 +1187,14 @@ namespace SilkroadSecurityAPI
         // null is returned.
         public List<Packet> TransferIncoming()
         {
-            List<Packet> packets = new List<Packet>();
+            List<Packet> packets = [];
 
-            if (m_incoming_packets.Count > 0)
+            if (MIncomingPackets.Count > 0)
             {
-                packets = m_incoming_packets;
-                m_incoming_packets = new List<Packet>();
+                packets = MIncomingPackets;
+                MIncomingPackets = [];
+
+                return packets;
             }
 
             return packets;
