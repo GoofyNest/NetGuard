@@ -52,7 +52,7 @@ namespace Module.Helpers.PacketManager.Agent.Client
             0x4444  // unk35
         ];
 
-        public static List<ushort> GoodOpcodes { get; private set; } = [];
+        public static List<ushort> GoodOpcodes { get; set; } = [];
         public static void Init()
         {
             GoodOpcodes.AddRange(Enum.GetValues(typeof(Global)).Cast<ushort>());

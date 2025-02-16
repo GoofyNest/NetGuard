@@ -3,16 +3,17 @@ using Module.Engine;
 using Module.Helpers;
 using Module.Helpers.ClientData;
 using Module.Helpers.PacketManager.Agent.Client;
+using Module.Services;
 using Newtonsoft.Json;
 
 namespace Module
 {
     public class Main
     {
-        public static Configuration Config { get; private set; } = new();
-        public static ModuleSettings Module { get; private set; } = new();
-        public static ProgramSettings Settings { get; private set; } = new();
-        public static Dictionary<int, ItemData> Items { get; private set; } = [];
+        public static Configuration Config { get; set; } = new();
+        public static ModuleSettings Module { get; set; } = new();
+        public static ProgramSettings Settings { get; set; } = new();
+        public static Dictionary<int, ItemData> Items { get; set; } = [];
 
         static void ConsolePoolThread()
         {
