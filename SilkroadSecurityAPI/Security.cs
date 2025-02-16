@@ -969,7 +969,7 @@ namespace SilkroadSecurityAPI
                             packet_size &= 0x7FFF; // Mask off the encryption.
                             if (m_security_flags.blowfish == 1)
                             {
-                                packet_size = 2 + m_blowfish.GetOutputLength(packet_size + 4);
+                                packet_size = 2 + Blowfish.GetOutputLength(packet_size + 4);
                             }
                             else
                             {
