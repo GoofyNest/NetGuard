@@ -21,7 +21,7 @@ namespace Module.Framework
 
     public class PacketList
     {
-        public required Packet Packet { get; set; }
+        public Packet Packet { get; set; } = null!;
         public bool SendImmediately { get; set; } = false; // Whether Send(true) or Send(false)
         public SecurityType SecurityType { get; set; } = SecurityType.Default; // Whether to use _remoteSecurity.Send or _localSecurity.Send to spoof a packet
     }

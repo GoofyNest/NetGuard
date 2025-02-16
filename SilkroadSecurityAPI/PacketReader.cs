@@ -4,23 +4,19 @@ namespace SilkroadSecurityAPI
 {
     internal class PacketReader : System.IO.BinaryReader
     {
-        private readonly byte[] Input;
+        byte[] m_input;
 
         public PacketReader(byte[] input)
             : base(new MemoryStream(input, false))
         {
-            Input = input;
+            m_input = input;
         }
 
         public PacketReader(byte[] input, int index, int count)
             : base(new MemoryStream(input, index, count, false))
         {
-            Input = input;
+            m_input = input;
         }
 
-        public byte[] GetRawInput()
-        {
-            return Input;
-        }
     }
 }

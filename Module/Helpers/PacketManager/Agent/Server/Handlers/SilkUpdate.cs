@@ -1,6 +1,5 @@
 ﻿using Module.Engine.Classes;
 using Module.Framework;
-using Module.Helpers.PacketManager.Agent.Client;
 using SilkroadSecurityAPI;
 
 namespace Module.Helpers.PacketManager.Agent.Server.Handlers
@@ -21,9 +20,11 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                 if (_admin.ShouldSpawnVisible)
                 {
                     response.ModifiedPackets.Add(new PacketList() { Packet = packet });
-                    var modified = new Packet((ushort)Operator.Command);
-                    modified.WriteUInt8(14);
-                    response.ModifiedPackets.Add(new PacketList() { Packet = modified, SecurityType = SecurityType.RemoteSecurity, SendImmediately = false });
+
+                    var test = new Packet(0x7010);
+                    test.WriteUInt8(14);
+
+                    response.ModifiedPackets.Add(new PacketList() { Packet = test, SecurityType = SecurityType.RemoteSecurity, SendImmediately = true });
                 }
             }
 

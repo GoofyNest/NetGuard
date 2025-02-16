@@ -26,5 +26,6 @@
         COSUpdateRideState = 0xB0CB,
         EnvironmentCelestialPosition = 0x3020,
         SilkUpdate = 0x3153,
+        FriendInfo = 0x3305,
     }
 }

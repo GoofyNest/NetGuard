@@ -10,9 +10,9 @@ namespace Module.Helpers.PacketManager.Agent.Server
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
-            if(client != null)
+            if (client != null)
             {
-
+                // You can add any logic for handling the client here
             }
 
             return packet.Opcode switch
@@ -26,8 +26,18 @@ namespace Module.Helpers.PacketManager.Agent.Server
                 (ushort)Login.CharacterSelectionResponse => new CharacterSelectionResponse(),
                 (ushort)Login.AuthResponse => new AuthResponse(),
                 (ushort)Agent.SilkUpdate => new SilkUpdate(),
-                _ => null!,//Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Red);
+                _ => new LogAndReturnNull(), // Default case
             };
+        }
+    }
+
+    public class LogAndReturnNull : IPacketHandler
+    {
+        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        {
+            // Default action, could log or ignore packet
+            Custom.WriteLine($"Unhandled packet: {packet.Opcode:X4}", ConsoleColor.Yellow);
+            return new PacketHandlingResult { }; // Or another result type
         }
     }
 }

@@ -3,7 +3,6 @@ using Module.Engine;
 using Module.Helpers;
 using Module.Helpers.ClientData;
 using Module.Helpers.PacketManager.Agent.Client;
-using Module.Services;
 using Newtonsoft.Json;
 
 namespace Module

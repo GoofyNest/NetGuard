@@ -124,7 +124,7 @@ namespace Module.Engine
             for (int i = 0; i < count; i++)
             {
                 Packet packet = receivedPackets[i];
-                var copyOfPacket = packet;
+                //var copyOfPacket = packet;
 
                 // Get the appropriate packet handler
 
@@ -145,16 +145,16 @@ namespace Module.Engine
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
-                            //Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Red);
+                            Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Red);
                             continue;
                 
                         case PacketResultType.Disconnect:
-                            //Custom.WriteLine($"Disconnected  {_client.PlayerInfo.IpInfo.Ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
+                            Custom.WriteLine($"Disconnected  {_client.PlayerInfo.IpInfo.Ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
                             HandleDisconnection();
                             continue;
                 
                         case PacketResultType.Ban:
-                            //Custom.WriteLine($"Not implemented", ConsoleColor.Red);
+                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
                             continue;
                 
                         case PacketResultType.SkipSending:
@@ -163,14 +163,15 @@ namespace Module.Engine
                             continue;
                 
                         case PacketResultType.DoReceive:
-                            //Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
+                            Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.DarkMagenta);
                             await DoReceive(false);
                             continue;
                     }
 
-                    if(result.ModifiedPackets.Count > 0)
+                    var modifiedCount = result.ModifiedPackets.Count;
+                    if(modifiedCount > 0)
                     {
-                        for (var d = 0; d < result.ModifiedPackets.Count; d++)
+                        for (var d = 0; d < modifiedCount; d++)
                         {
                             var modifiedPacket = result.ModifiedPackets[d];
 
@@ -194,14 +195,14 @@ namespace Module.Engine
                                     {
                                         if (isClient)
                                         {
-                                            _lastPackets.Enqueue(copyOfPacket);
+                                            //_lastPackets.Enqueue(copyOfPacket);
                                             _remoteSecurity.Send(modifiedPacket.Packet);
                                         }
                                         else
                                         {
                                             _localSecurity.Send(modifiedPacket.Packet);
                                         }
-                                        await Send(modifiedPacket.SendImmediately);
+                                        await Send(isClient);
                                     }
                                     break;
                             }
@@ -213,7 +214,7 @@ namespace Module.Engine
                 // Enqueue and send the original packet
                 if (isClient)
                 {
-                    _lastPackets.Enqueue(copyOfPacket);
+                    //_lastPackets.Enqueue(copyOfPacket);
                     _remoteSecurity.Send(packet);
                 }
                 else

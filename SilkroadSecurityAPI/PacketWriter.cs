@@ -4,7 +4,7 @@ namespace SilkroadSecurityAPI
 {
     internal class PacketWriter : BinaryWriter
     {
-        private readonly MemoryStream m_ms;
+        MemoryStream m_ms;
 
         public PacketWriter()
         {
