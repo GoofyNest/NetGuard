@@ -33,28 +33,29 @@ namespace Module
 
         private static void LoadSettings(bool isMainFunction)
         {
-            if (File.Exists(Config.SettingsPath))
+            if (!isMainFunction)
             {
-                try
+                if (File.Exists(Config.SettingsPath))
                 {
-                    using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var reader = new StreamReader(stream);
-                    var settingsContent = reader.ReadToEnd();
-
-                    var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(settingsContent);
-                    if (tempSettings != null)
+                    try
                     {
-                        Settings = tempSettings;
+                        using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var reader = new StreamReader(stream);
+                        var settingsContent = reader.ReadToEnd();
+
+                        var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(settingsContent);
+                        if (tempSettings != null)
+                        {
+                            Settings = tempSettings;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error reading settings file: {ex.Message}");
                     }
                 }
-                catch (IOException ex)
-                {
-                    Console.WriteLine($"Error reading settings file: {ex.Message}");
-                }
-            }
-
-            if (!isMainFunction)
                 return;
+            }
 
             if (File.Exists(Config.BindingsPath))
             {
@@ -71,7 +72,7 @@ namespace Module
                         Config = tempConfig;
                     }
                 }
-                catch (IOException ex)
+                catch (Exception ex)
                 {
                     Console.WriteLine($"Error reading settings file: {ex.Message}");
                 }
@@ -79,15 +80,25 @@ namespace Module
 
             if (File.Exists(Config.SettingsPath))
             {
-                var settingsContent = File.ReadAllText(Config.SettingsPath);
-
-                var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(settingsContent);
-                if (tempSettings != null)
+                try
                 {
-                    Settings = tempSettings;
-                }
+                    using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var reader = new StreamReader(stream);
+                    var bindingsContent = reader.ReadToEnd();
 
-                File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
+                    var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(bindingsContent);
+
+                    if (tempSettings != null)
+                    {
+                        Settings = tempSettings;
+                    }
+
+                    File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error reading settings file: {ex.Message}");
+                }
             }
             else
             {
