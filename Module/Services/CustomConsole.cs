@@ -1,6 +1,4 @@
-﻿using System.Text;
-
-namespace Module.Services
+﻿namespace Module.Services
 {
     public static class Custom
     {
@@ -41,11 +39,9 @@ namespace Module.Services
 
             try
             {
-                using (var fileStream = new FileStream(Main.Config.LogFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
-                using (var writer = new StreamWriter(fileStream))
-                {
+                using var fileStream = new FileStream(Main.Config.LogFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                using var writer = new StreamWriter(fileStream);
                     writer.WriteLine(message);
-                }
             }
             catch (UnauthorizedAccessException ex)
             {

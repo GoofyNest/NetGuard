@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using Module.Engine.Classes;
 using Module.Helpers.ClientData;
 using Module.Services;
 namespace Module.Helpers
@@ -19,8 +18,6 @@ namespace Module.Helpers
 
             var folderFiles = Directory.GetFiles(Settings.Path);
             var fileCount = folderFiles.Length;
-
-            
 
             for (var i = 0; i < fileCount; i++)
             {

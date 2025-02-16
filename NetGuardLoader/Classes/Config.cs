@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace NetGuardLoader.Classes
+﻿namespace NetGuardLoader.Classes
 {
     public enum ModuleType : byte
     {
