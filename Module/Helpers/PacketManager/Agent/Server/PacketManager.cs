@@ -36,7 +36,7 @@ namespace Module.Helpers.PacketManager.Agent.Server
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
             // Default action, could log or ignore packet
-            Custom.WriteLine($"Unhandled packet: {packet.Opcode:X4}", ConsoleColor.Yellow);
+            //Custom.WriteLine($"Unhandled packet: {packet.Opcode:X4}", ConsoleColor.Yellow);
             return new PacketHandlingResult { }; // Or another result type
         }
     }
