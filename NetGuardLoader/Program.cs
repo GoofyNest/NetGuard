@@ -1,5 +1,5 @@
 ﻿using System.Runtime.Loader;
-using NetGuardLoader.Classes;
+using NetGuardLoader.Config;
 using NetGuardLoader.Services;
 using Newtonsoft.Json;
 
@@ -7,7 +7,7 @@ namespace NetGuardLoader
 {
     internal class Program
     {
-        public static Config Config = new();
+        public static NetworkConfig Config = new();
 
         public static string module = "";
         public static int moduleIndex = -1;
@@ -20,7 +20,7 @@ namespace NetGuardLoader
 
                 var bindingsContent = File.ReadAllText(Config.BindingsPath);
 
-                var tempConfig = JsonConvert.DeserializeObject<Config>(bindingsContent);
+                var tempConfig = JsonConvert.DeserializeObject<NetworkConfig>(bindingsContent);
 
                 if (tempConfig != null)
                 {

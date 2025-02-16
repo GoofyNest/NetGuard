@@ -1,18 +1,18 @@
-﻿using Module.Classes;
-using Module.Engine;
+﻿using Module.Config;
+using Module.Networking;
 using Module.Helpers;
 using Module.Helpers.ClientData;
-using Module.Helpers.PacketManager.Agent.Client;
 using Module.Services;
 using Newtonsoft.Json;
+using Module.PacketHandler.Agent.Client;
 
 namespace Module
 {
     public class Main
     {
-        public static Configuration Config { get; set; } = new();
+        public static NetworkConfig Config { get; set; } = new();
         public static ModuleSettings Module { get; set; } = new();
-        public static ProgramSettings Settings { get; set; } = new();
+        public static AppSettings Settings { get; set; } = new();
         public static Dictionary<int, ItemData> Items { get; set; } = [];
         public static Dictionary<int, SkillData> Skills { get; set; } = [];
 
@@ -43,7 +43,7 @@ namespace Module
                         using var reader = new StreamReader(stream);
                         var settingsContent = reader.ReadToEnd();
 
-                        var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(settingsContent);
+                        var tempSettings = JsonConvert.DeserializeObject<AppSettings>(settingsContent);
                         if (tempSettings != null)
                         {
                             Settings = tempSettings;
@@ -65,7 +65,7 @@ namespace Module
                     using var reader = new StreamReader(stream);
                     var bindingsContent = reader.ReadToEnd();
 
-                    var tempConfig = JsonConvert.DeserializeObject<Configuration>(bindingsContent);
+                    var tempConfig = JsonConvert.DeserializeObject<NetworkConfig>(bindingsContent);
 
                     if (tempConfig != null)
                     {
@@ -86,7 +86,7 @@ namespace Module
                     using var reader = new StreamReader(stream);
                     var bindingsContent = reader.ReadToEnd();
 
-                    var tempSettings = JsonConvert.DeserializeObject<ProgramSettings>(bindingsContent);
+                    var tempSettings = JsonConvert.DeserializeObject<AppSettings>(bindingsContent);
 
                     if (tempSettings != null)
                     {
@@ -140,11 +140,11 @@ namespace Module
             if (Module.ModuleType == ModuleType.AgentModule)
             {
                 Reader.Init();
-                Packets.Init();
+                PacketType.Init();
 
                 if (Settings.Agent.GameMasters.Count == 0)
                 {
-                    var example = new ProgramSettings.Operators
+                    var example = new AppSettings.Operators
                     {
                         Username = "netguard_example_325125124123124",
                         NoPinkChat = false,
