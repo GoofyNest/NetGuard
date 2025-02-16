@@ -15,6 +15,13 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             //byte hour = packet.ReadUInt8();
             //byte minute = packet.ReadUInt8();
 
+            var charInfo = client.PlayerInfo.CharInfo.Find(m => m.Charname == client.PlayerInfo.CurrentCharName);
+
+            if (charInfo == null)
+                return response;
+
+            charInfo.isVisible = false;
+
             return response;
         }
     }

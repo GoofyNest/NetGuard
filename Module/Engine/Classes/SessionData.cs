@@ -34,6 +34,7 @@ namespace Module.Engine.Classes
     public class CharacterInformation
     {
         public string Charname { get; set; } = string.Empty;
+        public bool isVisible { get; set; } = false;
 
         public long ServerTime { get; set; }
         public long RefObjID { get; set; }

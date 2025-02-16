@@ -11,13 +11,17 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
             PacketHandlingResult response = new();
 
             var Settings = Main.Settings;
+            var charInfo = client.PlayerInfo.CharInfo.Find(m => m.Charname == client.PlayerInfo.CurrentCharName);
+
+            if (charInfo == null)
+                return response;
 
             var adminIndex = Settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
             if (adminIndex > -1)
             {
                 var _admin = Settings.Agent.GameMasters[adminIndex];
 
-                if (_admin.ShouldSpawnVisible)
+                if (_admin.ShouldSpawnVisible && !charInfo.isVisible)
                 {
                     response.ModifiedPackets.Add(new PacketList() { Packet = packet });
 
@@ -25,6 +29,7 @@ namespace Module.Helpers.PacketManager.Agent.Server.Handlers
                     test.WriteUInt8(14);
 
                     response.ModifiedPackets.Add(new PacketList() { Packet = test, SecurityType = SecurityType.RemoteSecurity, SendImmediately = true });
+                    charInfo.isVisible = true;
                 }
             }
 
