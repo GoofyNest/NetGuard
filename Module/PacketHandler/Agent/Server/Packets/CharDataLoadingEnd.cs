@@ -22,7 +22,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
 
             client.Agent.SentJoinRequest = false;
 
-            var charData = client.Agent.CharData;
+            Packet charData = client.Agent.CharData;
 
             charData.Lock();
 
@@ -35,7 +35,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
 
             var charIndex = _playerInfo.CharInfo.FindIndex(m => m.Charname == _playerInfo.CurrentCharName);
 
-            var _char = _playerInfo.CharInfo[charIndex];
+            CharacterInformation _char = _playerInfo.CharInfo[charIndex];
 
             _char.ServerTime = charData.ReadUInt32();
             _char.RefObjID = charData.ReadUInt32();
@@ -67,25 +67,144 @@ namespace Module.PacketHandler.Agent.Server.Packets
                 _char.PvpCape = charData.ReadUInt8();
             }
 
-            _char.Inventory = new();
+            HandleItems(_char, charData, vSRO);
 
-            var _inv = _char.Inventory;
-
-            _inv.Size = charData.ReadUInt8();
-            _inv.ItemCount = charData.ReadUInt8();
-
-            var _allItems = Main.Items;
-
-            if (_allItems.Count == 0)
-            {
-                Custom.WriteLine($"Please extract itemdata from Client and put it inside {Settings.Data.Path}");
+            if (vSRO)
                 return response;
+
+            var Skills = Main.Skills;
+
+            var unk1 = charData.ReadUInt8(); //1 byte unkByte1 //not a counter
+            Custom.WriteLine($"Unknown1: {unk1}");
+
+            //Masteries
+            var nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
+            while (nextMastery == 1)
+            {
+                var masteryId = charData.ReadUInt32(); // 4   uint    mastery.ID
+                var masteryLevel = charData.ReadUInt8(); // 1   byte    mastery.Level   
+                nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
             }
 
-            if (_inv.ItemCount > 0)
-                _inv.Items = [];
+            var unk2 = charData.ReadUInt8(); // 1   byte    unkByte2    //not a counter
+            Custom.WriteLine($"Unknown2: {unk2}");
 
-            for (var d = 0; d < _inv.ItemCount; d++)
+            //Skills
+            var nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
+            while (nextSkill == 1)
+            {
+                var skillId = charData.ReadUInt32(); // 4   uint    skill.ID
+                var skillEnabled = charData.ReadUInt8(); // 1   byte    skill.Enabled   
+
+                nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
+            }
+
+            HandleQuests(charData);
+
+            var unk3 = charData.ReadUInt8(); // 1   byte    unkByte3        //Structure changes!!!
+            Custom.WriteLine($"Unknown3: {unk3}");
+
+            var UniqueCharID = charData.ReadUInt32(); // 4   uint    UniqueID
+            Custom.WriteLine($"UniqueCharID: {UniqueCharID}");
+
+            HandlePosition(charData);
+
+            var lifeState = charData.ReadUInt8();
+            Custom.WriteLine($"lifeState: {lifeState}");
+
+            var unk4 = charData.ReadUInt8(); // 1   byte    State.unkByte0
+            Custom.WriteLine($"Unknown4: {unk4}");
+
+            var motionState = charData.ReadUInt8();
+            Custom.WriteLine($"motionState: {motionState}");
+
+            var stateWalkSpeed = charData.ReadFloat(); // 4   float   State.WalkSpeed
+            var stateRunSpeed = charData.ReadFloat(); // 4   float   State.RunSpeed
+            var stateHwanSpeed = charData.ReadFloat(); // 4   float   State.HwanSpeed
+            var stateBuffCount = charData.ReadUInt8(); // 1   byte    State.BuffCount
+
+            for (var i = 0; i < stateBuffCount; i++)
+            {
+                var buffRefSkillId = charData.ReadUInt32(); // 4   uint    Buff.RefSkillID
+                var buffDuration = charData.ReadUInt32(); // 4   uint    Buff.Duration
+            
+                var skillFound = Skills.TryGetValue((int)buffRefSkillId, out var skill);
+            
+                if (!skillFound) continue;
+
+                if (skill == null)
+                    continue;
+
+                if (skill.ParamsContains(1701213281))
+                {
+                    //1701213281 -> atfe -> "auto transfer effect" like Recovery Division
+                    var isCreator = charData.ReadUInt8(); // 1   bool    IsCreator
+                }
+            }
+
+            var name = charData.ReadAscii();
+            Custom.WriteLine($"name: {name}");
+            var jobName = charData.ReadAscii();
+            Custom.WriteLine($"jobName: {jobName}");
+            var jobType = charData.ReadUInt8();
+            Custom.WriteLine($"jobType: {jobType}");
+            var jobLevel = charData.ReadUInt8();
+            Custom.WriteLine($"jobLevel: {jobLevel}");
+            var jobExp = charData.ReadUInt32();
+            Custom.WriteLine($"jobExp: {jobExp}");
+            //var jobContribution = charData.ReadUInt32();
+            //Custom.WriteLine($"jobContribution: {jobContribution}");
+            //var jobReward = charData.ReadUInt32();
+            //Custom.WriteLine($"jobReward: {jobReward}");
+            var unk5 = charData.ReadUInt8();
+            Custom.WriteLine($"Unknown5: {unk5}");
+            var TransportFlag = charData.ReadUInt8();
+            Custom.WriteLine($"TransportFlag: {TransportFlag}");
+            var InCombat = charData.ReadUInt8();
+            Custom.WriteLine($"InCombat: {InCombat}");
+            if(TransportFlag == 1)
+            {
+                var transportUniqueID = charData.ReadUInt32();
+                Custom.WriteLine($"transportUniqueID: {transportUniqueID}");
+            }
+
+            //var unk6 = packet.ReadUInt8(); // PVPFlag (should not exist on jSRO)
+            //Custom.WriteLine($"unk6: {unk6}");
+            //var unk7 = packet.ReadUInt64(); // GuideFlag
+            //Custom.WriteLine($"unk7: {unk7}");
+            //var jid = packet.ReadUInt32(); // JID
+            //Custom.WriteLine($"jid: {jid}");
+            //var gmFlag = packet.ReadUInt8(); // GMFlag
+            //Custom.WriteLine($"gmFlag: {gmFlag}");
+
+
+
+
+
+            return response;
+        }
+
+        private void HandleItems(CharacterInformation _char, Packet charData, bool vSRO)
+        {
+            _char.Inventory = new();
+
+            var Inventory = _char.Inventory;
+
+            Inventory.Size = charData.ReadUInt8();
+            Inventory.ItemCount = charData.ReadUInt8();
+
+            var Items = Main.Items;
+
+            if (Items.Count == 0)
+            {
+                Custom.WriteLine($"Please extract itemdata from Client and put it inside {Main.Settings.Data.Path}");
+                return;
+            }
+
+            if (Inventory.ItemCount > 0)
+                Inventory.Items = [];
+
+            for (var d = 0; d < Inventory.ItemCount; d++)
             {
                 Item _tempItem = new()
                 {
@@ -126,7 +245,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
 
                 _tempItem.Id = charData.ReadUInt32(); //4   uint    item.RefItemID
 
-                var itemFound = _allItems.TryGetValue((int)_tempItem.Id, out var _foundItem);
+                var itemFound = Items.TryGetValue((int)_tempItem.Id, out var _foundItem);
 
                 if (!itemFound)
                     continue;
@@ -262,35 +381,12 @@ namespace Module.PacketHandler.Agent.Server.Packets
                     }
                 }
 
-                _inv.Items.Add(_tempItem);
+                Inventory.Items.Add(_tempItem);
             }
+        }
 
-            if (vSRO)
-                return response;
-
-            var unk1 = charData.ReadUInt8(); //1 byte unkByte1 //not a counter
-
-            //Masteries
-            var nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
-            while (nextMastery == 1)
-            {
-                var masteryId = charData.ReadUInt32(); // 4   uint    mastery.ID
-                var masteryLevel = charData.ReadUInt8(); // 1   byte    mastery.Level   
-                nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
-            }
-
-            var unk2 = charData.ReadUInt8(); // 1   byte    unkByte2    //not a counter
-
-            //Skills
-            var nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
-            while (nextSkill == 1)
-            {
-                var skillId = charData.ReadUInt32(); // 4   uint    skill.ID
-                var skillEnabled = charData.ReadUInt8(); // 1   byte    skill.Enabled   
-
-                nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
-            }
-
+        private void HandleQuests(Packet charData)
+        {
             //Quests
             var completedQuestCount = charData.ReadUInt16(); // 2   ushort  CompletedQuestCount
             var completedQuests = charData.ReadUInt32Array(completedQuestCount); // *   uint[]  CompletedQuests
@@ -336,12 +432,10 @@ namespace Module.PacketHandler.Agent.Server.Packets
                         charData.ReadUInt32(); // 4   uint    RefObjID    //NPCs
                 }
             }
+        }
 
-            var unk3 = charData.ReadUInt8(); // 1   byte    unkByte3        //Structure changes!!!
-            Custom.WriteLine($"Unknown3 : {unk3}");
-
-            var UniqueCharID = charData.ReadUInt32(); // 4   uint    UniqueID
-
+        private void HandlePosition(Packet charData)
+        {
             //Position
             var LatestRegionId = charData.ReadUInt16(); // 2   ushort  Position.RegionID
             var PositionX = charData.ReadFloat(); // 4   float   Position.X
@@ -379,45 +473,6 @@ namespace Module.PacketHandler.Agent.Server.Packets
                 var movementAngle =
                     charData.ReadUInt16(); // 2   ushort  Movement.Angle      //Represents the new angle, character is looking at
             }
-
-            var lifeState = charData.ReadUInt8();
-            Custom.WriteLine($"lifeState: {lifeState}");
-
-            var unk4 = charData.ReadUInt8(); // 1   byte    State.unkByte0
-            Custom.WriteLine($"Unknown3 : {unk4}");
-
-            var motionState = charData.ReadUInt8();
-            Custom.WriteLine($"motionState: {motionState}");
-
-            var stateWalkSpeed = charData.ReadFloat(); // 4   float   State.WalkSpeed
-            var stateRunSpeed = charData.ReadFloat(); // 4   float   State.RunSpeed
-            var stateHwanSpeed = charData.ReadFloat(); // 4   float   State.HwanSpeed
-            var stateBuffCount = charData.ReadUInt8(); // 1   byte    State.BuffCount
-
-            //for (var i = 0; i < stateBuffCount; i++)
-            //{
-            //    var buffRefSkillId = charData.ReadUInt32(); // 4   uint    Buff.RefSkillID
-            //    var buffDuration = charData.ReadUInt32(); // 4   uint    Buff.Duration
-            //
-            //    var skillFound = _sharedObjects.RefSkill.TryGetValue((int)buffRefSkillId, out var skill);
-            //
-            //    if (!skillFound) continue;
-            //    if (skill.ParamsContains(1701213281))
-            //    {
-            //        //1701213281 -> atfe -> "auto transfer effect" like Recovery Division
-            //        var isCreator = _packet.ReadUInt8(); // 1   bool    IsCreator
-            //    }
-            //}
-
-
-            //var packetList = new List<PacketList>();
-
-            //foreach(var dd in _inv.Items)
-            //{
-            //    Custom.WriteLine($"{dd.ToString()}");
-            //}
-
-            return response;
         }
     }
 }

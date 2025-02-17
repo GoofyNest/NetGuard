@@ -16,6 +16,8 @@ namespace Module
         public static Dictionary<int, ItemData> Items { get; set; } = [];
         public static Dictionary<int, SkillData> Skills { get; set; } = [];
 
+        private static FileSystemWatcher? _settingsWatcher;
+
         static void ConsolePoolThread()
         {
             while (true)
@@ -33,8 +35,9 @@ namespace Module
 
         private static void LoadSettings(bool isMainFunction)
         {
-            if (!isMainFunction)
+            if (isMainFunction == false)
             {
+                Custom.WriteLine("changes detected", ConsoleColor.Yellow);
                 if (File.Exists(Config.SettingsPath))
                 {
                     try
@@ -84,9 +87,9 @@ namespace Module
                 {
                     using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                     using var reader = new StreamReader(stream);
-                    var bindingsContent = reader.ReadToEnd();
+                    var settingsContent = reader.ReadToEnd();
 
-                    var tempSettings = JsonConvert.DeserializeObject<AppSettings>(bindingsContent);
+                    var tempSettings = JsonConvert.DeserializeObject<AppSettings>(settingsContent);
 
                     if (tempSettings != null)
                     {
@@ -108,7 +111,9 @@ namespace Module
 
         private static void WatchSettingsFile()
         {
-            FileSystemWatcher watcher = new()
+            Custom.WriteLine("Starting WatchSettingsFile", ConsoleColor.Yellow);
+
+            _settingsWatcher = new()
             {
                 Path = Path.GetDirectoryName(Config.SettingsPath)!,
                 Filter = Path.GetFileName(Config.SettingsPath),
@@ -116,9 +121,14 @@ namespace Module
                 EnableRaisingEvents = true
             };
 
-            watcher.Changed += (sender, e) =>
+            _settingsWatcher.Changed += (sender, e) =>
             {
                 LoadSettings(false);
+            };
+
+            _settingsWatcher.Error += (sender, e) =>
+            {
+                Custom.WriteLine($"FileSystemWatcher error: {e.GetException()?.Message}", ConsoleColor.Red);
             };
         }
 
