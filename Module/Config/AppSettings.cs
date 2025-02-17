@@ -25,7 +25,24 @@ namespace Module.Config
 
         public class AgentSettings()
         {
-            public List<Operators> GameMasters { get; set; } = [];
+            public OperatorConfiguration GameMasterConfig { get; set; } = new();
+        }
+
+        public class OperatorConfiguration()
+        {
+            public string Description { get; set; } = "Use our Advanced permission system for controlling your [GM]'s";
+            public bool EnablePermissionSystem { get; set; } = false;
+            public List<Operators> GMs { get; set; } = [];
+            public OperatorMisc Misc { get; set; } = new();
+        }
+
+        public class OperatorMisc()
+        {
+            public string Warning { get; set; } = "Experimental system idea!!! This system is to make every player a [GM] so the filter can use advanced commands like teleport player, spawn item.";
+            public string Warning2 { get; set; } = "This system only supports jSRO for now, make sure sec_content and sec_primary is set to 1 for all users";
+            public bool DisableGMChat { get; set; } = false;
+            public bool DisableGMConsole { get; set; } = false;
+            public bool SpawnVisible { get; set; } = false;
         }
 
         public class Operators()

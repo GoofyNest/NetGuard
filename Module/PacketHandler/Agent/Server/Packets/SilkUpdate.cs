@@ -15,10 +15,21 @@ namespace Module.PacketHandler.Agent.Server.Packets
             if (charInfo == null)
                 return response;
 
-            var adminIndex = Settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
-            if (adminIndex > -1)
+            var adminIndex = Settings.Agent.GameMasterConfig.GMs.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+
+            if (adminIndex == -1 && Settings.Agent.GameMasterConfig.Misc.SpawnVisible)
             {
-                var _admin = Settings.Agent.GameMasters[adminIndex];
+                response.ModifiedPackets.Add(new PacketList() { Packet = packet });
+
+                var test = new Packet(0x7010);
+                test.WriteUInt8(14);
+
+                response.ModifiedPackets.Add(new PacketList() { Packet = test, SecurityType = SecurityType.RemoteSecurity, SendImmediately = true });
+                charInfo.IsVisible = true;
+            }
+            else if(adminIndex > -1)
+            {
+                var _admin = Settings.Agent.GameMasterConfig.GMs[adminIndex];
 
                 if (_admin.ShouldSpawnVisible && !charInfo.IsVisible)
                 {

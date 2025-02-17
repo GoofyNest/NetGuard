@@ -35,9 +35,19 @@ namespace Module.PacketHandler.Agent.Client.Packets
         {
             PacketHandlingResult response = new();
 
-            var Settings = Main.Settings;
+            var Settings = Main.Settings.Agent;
 
-            var adminIndex = Settings.Agent.GameMasters.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+            var adminIndex = Settings.GameMasterConfig.GMs.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+
+            if(adminIndex == -1 && Settings.GameMasterConfig.Misc.DisableGMConsole)
+            {
+                response.ResultType = PacketResultType.Block;
+                return response;
+            }
+
+            if (!Settings.GameMasterConfig.EnablePermissionSystem)
+                return response;
+
             if (adminIndex == -1)
             {
                 response.ResultType = PacketResultType.Block;
@@ -47,7 +57,7 @@ namespace Module.PacketHandler.Agent.Client.Packets
                 return response;
             }
 
-            var _permissions = Settings.Agent.GameMasters[adminIndex].Permissions;
+            var _permissions = Settings.GameMasterConfig.GMs[adminIndex].Permissions;
 
             int action = packet.ReadUInt8();
             if (Enum.IsDefined(typeof(Action), action))

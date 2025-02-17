@@ -1,4 +1,5 @@
 ﻿using Module.Networking;
+using Module.Services;
 using SilkroadSecurityAPI;
 
 namespace Module.PacketHandler.Agent.Server.Packets
@@ -18,10 +19,61 @@ namespace Module.PacketHandler.Agent.Server.Packets
             PacketHandlingResult response = new();
 
             if (client.Agent.CharData == null)
-                client.Agent.CharData = new(0x0000);
+                client.Agent.CharData = new(0x3013);
 
-            for (var d = 0; d < packet.GetBytes().Length; d++)
-                client.Agent.CharData.WriteUInt8(packet.ReadUInt8());
+            var Settings = Main.Settings.Agent;
+
+            var adminIndex = Settings.GameMasterConfig.GMs.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+
+            int count1 = 0, count2 = 0;
+
+            List<byte> packet_test = new();
+
+            for (var i = 0; i < packet.GetBytes().Length; i++)
+            {
+                var result = packet.ReadUInt8();
+
+                if (result == 255)
+                    count1++;
+
+                packet_test.Add(result);
+            }
+
+            for (var i = 0; i < packet_test.Count; i++)
+            {
+                var result = packet_test[i];
+
+                client.Agent.CharData.WriteUInt8(result);
+
+                if (Settings.GameMasterConfig.Misc.DisableGMConsole)
+                {
+                    if (result == 255)
+                    {
+                        count2++;
+
+                        // Ensure only the last 255 byte
+                        if(count1 == count2 && adminIndex == -1)
+                        {
+                            // Write the next 8 bytes after 255
+                            for (int j = 1; j < 9; j++)
+                            {
+                                client.Agent.CharData.WriteUInt8(packet_test[i + j]);
+                            }
+
+                            // disable gm console
+                            client.Agent.CharData.WriteUInt8(0);
+
+                            // Skip 9 bytes ahead
+                            i += 9;
+
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            response.ModifiedPackets.Add(new PacketList() { Packet = client.Agent.CharData });
+
 
             return response;
         }

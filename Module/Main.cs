@@ -152,7 +152,7 @@ namespace Module
                 Reader.Init();
                 PacketType.Init();
 
-                if (Settings.Agent.GameMasters.Count == 0)
+                if (Settings.Agent.GameMasterConfig.GMs.Count == 0)
                 {
                     var example = new AppSettings.Operators
                     {
@@ -162,7 +162,7 @@ namespace Module
                     };
                     example.Permissions = example.DefaultPermissions;
 
-                    Settings.Agent.GameMasters.Add(example);
+                    Settings.Agent.GameMasterConfig.GMs.Add(example);
 
                     File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
                 }

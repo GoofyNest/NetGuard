@@ -94,6 +94,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
             while (nextSkill == 1)
             {
                 var skillId = charData.ReadUInt32(); // 4   uint    skill.ID
+
                 var skillEnabled = charData.ReadUInt8(); // 1   byte    skill.Enabled   
 
                 nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
@@ -119,15 +120,19 @@ namespace Module.PacketHandler.Agent.Server.Packets
             Custom.WriteLine($"motionState: {motionState}");
 
             var stateWalkSpeed = charData.ReadFloat(); // 4   float   State.WalkSpeed
+            Custom.WriteLine($"stateWalkSpeed: {stateWalkSpeed}");
             var stateRunSpeed = charData.ReadFloat(); // 4   float   State.RunSpeed
+            Custom.WriteLine($"stateRunSpeed: {stateRunSpeed}");
             var stateHwanSpeed = charData.ReadFloat(); // 4   float   State.HwanSpeed
+            Custom.WriteLine($"stateHwanSpeed: {stateHwanSpeed}");
             var stateBuffCount = charData.ReadUInt8(); // 1   byte    State.BuffCount
+            Custom.WriteLine($"stateBuffCount: {stateBuffCount}");
 
             for (var i = 0; i < stateBuffCount; i++)
             {
                 var buffRefSkillId = charData.ReadUInt32(); // 4   uint    Buff.RefSkillID
                 var buffDuration = charData.ReadUInt32(); // 4   uint    Buff.Duration
-            
+
                 var skillFound = Skills.TryGetValue((int)buffRefSkillId, out var skill);
             
                 if (!skillFound) continue;
@@ -152,34 +157,21 @@ namespace Module.PacketHandler.Agent.Server.Packets
             Custom.WriteLine($"jobLevel: {jobLevel}");
             var jobExp = charData.ReadUInt32();
             Custom.WriteLine($"jobExp: {jobExp}");
-            //var jobContribution = charData.ReadUInt32();
-            //Custom.WriteLine($"jobContribution: {jobContribution}");
-            //var jobReward = charData.ReadUInt32();
-            //Custom.WriteLine($"jobReward: {jobReward}");
-            var unk5 = charData.ReadUInt8();
-            Custom.WriteLine($"Unknown5: {unk5}");
-            var TransportFlag = charData.ReadUInt8();
-            Custom.WriteLine($"TransportFlag: {TransportFlag}");
-            var InCombat = charData.ReadUInt8();
-            Custom.WriteLine($"InCombat: {InCombat}");
-            if(TransportFlag == 1)
-            {
-                var transportUniqueID = charData.ReadUInt32();
-                Custom.WriteLine($"transportUniqueID: {transportUniqueID}");
-            }
+            charData.ReadUInt32(); // Either JobReward or JobContribution
+            charData.ReadUInt32(); // Either JobReward or JobContribution
 
-            //var unk6 = packet.ReadUInt8(); // PVPFlag (should not exist on jSRO)
-            //Custom.WriteLine($"unk6: {unk6}");
-            //var unk7 = packet.ReadUInt64(); // GuideFlag
-            //Custom.WriteLine($"unk7: {unk7}");
-            //var jid = packet.ReadUInt32(); // JID
-            //Custom.WriteLine($"jid: {jid}");
-            //var gmFlag = packet.ReadUInt8(); // GMFlag
-            //Custom.WriteLine($"gmFlag: {gmFlag}");
+            var pvpState = charData.ReadUInt8(); // 0 = White, 1 = Purple, 2 = Red
+
+            Custom.WriteLine($"on transport? {charData.ReadUInt8()}");
+
+            Custom.WriteLine($"in combat? {charData.ReadUInt8()}");
+
+            var pvpFlag = charData.ReadUInt8();
+
+            var guideFlag = charData.ReadUInt64();
 
 
-
-
+            Custom.WriteLine($"isGM: "+charData.ReadUInt8());
 
             return response;
         }
@@ -278,6 +270,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
                         {
                             var bindingOptionType = charData.ReadUInt8(); // 1   byte    bindingOptionType   //1 = Socket
                             var bindingOptionCount = charData.ReadUInt8(); // 1   byte    bindingOptionCount
+
                             for (var bindingOptionIndex = 0; bindingOptionIndex < bindingOptionCount; bindingOptionIndex++)
                             {
                                 var bindingOptionSlot = charData.ReadUInt8(); // 1   byte bindingOption.Slot
@@ -288,6 +281,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
                             var bindingOptionType2 =
                                 charData.ReadUInt8(); // 1   byte    bindingOptionType   //2 = Advanced elixir
                             var bindingOptionCount2 = charData.ReadUInt8(); // 1   byte    bindingOptionCount2
+
                             for (var bindingOptionIndex = 0; bindingOptionIndex < bindingOptionCount2; bindingOptionIndex++)
                             {
                                 var bindingOptionSlot = charData.ReadUInt8(); // 1   byte bindingOption.Slot
@@ -383,6 +377,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
 
                 Inventory.Items.Add(_tempItem);
             }
+
         }
 
         private void HandleQuests(Packet charData)
@@ -400,6 +395,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
                 var questAchievementCount = charData.ReadUInt8(); // 1   byte    quest.AchievementCount
                 var questRequiresAutoShareParty = charData.ReadUInt8(); // 1   byte    quest.RequiresAutoShareParty
                 var questType = charData.ReadUInt8(); // 1   byte    quest.Type
+
                 if (questType == 28)
                 {
                     var questRemainingTime = charData.ReadUInt32(); // 4   uint    remainingTime
@@ -418,6 +414,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
                         var questObjectiveName =
                             charData.ReadAscii(); // 2   ushort  objective.Name.Length // *   string  objective.Name
                         var objectiveTaskCount = charData.ReadUInt8(); // 1   byte    objective.TaskCount
+
                         for (var taskIndex = 0; taskIndex < objectiveTaskCount; taskIndex++)
                         {
                             var questTaskValue = charData.ReadUInt32(); // 4   uint    task.Value
@@ -429,7 +426,9 @@ namespace Module.PacketHandler.Agent.Server.Packets
                 {
                     var refObjCount = charData.ReadUInt8(); // 1   byte    RefObjCount
                     for (var refObjIndex = 0; refObjIndex < refObjCount; refObjIndex++)
+                    {
                         charData.ReadUInt32(); // 4   uint    RefObjID    //NPCs
+                    }
                 }
             }
         }
@@ -447,32 +446,45 @@ namespace Module.PacketHandler.Agent.Server.Packets
 
             //Movement
             var movementHasDestination = charData.ReadUInt8(); // 1   byte    Movement.HasDestination
+            Custom.WriteLine($"movementHasDestination: {movementHasDestination}");
             var movementType = charData.ReadUInt8(); // 1   byte    Movement.Type
+            Custom.WriteLine($"movementType: {movementType}");
+
             if (movementHasDestination == 1)
             {
                 var movementDestionationRegion = charData.ReadUInt16(); // 2   ushort  Movement.DestinationRegion        
+                Custom.WriteLine($"movementDestionationRegion: {movementDestionationRegion}");
                 if (LatestRegionId < short.MaxValue)
                 {
                     //World
                     var movementDestinationOffsetX = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetX
+                    Custom.WriteLine($"movementDestinationOffsetX: {movementDestinationOffsetX}");
                     var movementDestinationOffsetY = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetY
+                    Custom.WriteLine($"movementDestinationOffsetY: {movementDestinationOffsetY}");
                     var movementDestinationOffsetZ = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetZ
+                    Custom.WriteLine($"movementDestinationOffsetZ: {movementDestinationOffsetZ}");
                 }
                 else
                 {
                     //Dungeon
                     var movementDestinationOffsetX = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetX
+                    Custom.WriteLine($"movementDestinationOffsetX: {movementDestinationOffsetX}");
                     var movementDestinationOffsetY = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetY
+                    Custom.WriteLine($"movementDestinationOffsetY: {movementDestinationOffsetY}");
                     var movementDestinationOffsetZ = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetZ
+                    Custom.WriteLine($"movementDestinationOffsetZ: {movementDestinationOffsetZ}");
                 }
             }
             else
             {
                 var movementSource =
                     charData.ReadUInt8(); // 1   byte    Movement.Source     //0 = Spinning, 1 = Sky-/Key-walking
+                Custom.WriteLine($"movementSource: {movementSource}");
                 var movementAngle =
                     charData.ReadUInt16(); // 2   ushort  Movement.Angle      //Represents the new angle, character is looking at
+                Custom.WriteLine($"movementAngle: {movementAngle}");
             }
         }
+
     }
 }
