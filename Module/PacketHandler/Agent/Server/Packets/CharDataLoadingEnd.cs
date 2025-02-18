@@ -17,10 +17,13 @@ namespace Module.PacketHandler.Agent.Server.Packets
             */
             PacketHandlingResult response = new();
 
+
             client.Agent.InCharSelectionScreen = false;
             client.Agent.IsIngame = true;
 
             client.Agent.SentJoinRequest = false;
+
+            return response;
 
             Packet charData = client.Agent.CharData;
 
