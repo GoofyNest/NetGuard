@@ -46,7 +46,8 @@ namespace Module.PacketHandler.Agent.Client.Packets
                     return response;
                 }
 
-                message = ";" + message;
+                if(chatType == 3)
+                    message = ";" + message;
             }
             else if (Settings.GameMasterConfig.EnablePermissionSystem)
             {
@@ -71,9 +72,7 @@ namespace Module.PacketHandler.Agent.Client.Packets
                 }
 
                 if (_admin.NoPinkChat && chatType == 3)
-                {
                     message = ";" + message;
-                }
             }
 
             modified.WriteAscii(message);
