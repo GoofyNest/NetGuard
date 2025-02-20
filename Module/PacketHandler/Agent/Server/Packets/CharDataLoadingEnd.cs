@@ -23,7 +23,7 @@ namespace Module.PacketHandler.Agent.Server.Packets
 
             client.Agent.SentJoinRequest = false;
 
-            return response;
+            //return response;
 
             Packet charData = client.Agent.CharData;
 
@@ -301,11 +301,16 @@ namespace Module.PacketHandler.Agent.Server.Packets
                         {
                             Custom.WriteLine("//ITEM_COS_P called");
                             var cosState = charData.ReadUInt8(); //1   byte    State
+                            Custom.WriteLine($"cosState : {cosState}");
                             if (cosState == 2 || cosState == 3 || cosState == 4)
                             {
                                 Custom.WriteLine("cosState == 2 || cosState == 3 || cosState == 4");
                                 var cosRefObjId = charData.ReadUInt32(); // 4 uint RefObjID
+                                Custom.WriteLine($"cosRefObjId : {cosRefObjId}");
                                 var cosName = charData.ReadAscii(); // 2 ushort Name.Length //     * string Name
+                                Custom.WriteLine($"cosName : {cosName}"); // Null if dont exist
+
+                                Custom.WriteLine($"TypeID4 : {_foundItem.TypeID4}");
 
                                 if (_foundItem.TypeID4 == 2)
                                 {
@@ -313,22 +318,24 @@ namespace Module.PacketHandler.Agent.Server.Packets
                                     var cosSecondsToRentEndTime = charData.ReadUInt32(); // 4 uint SecondsToRentEndTime
                                 }
 
-                                // Maybe?!
-                                // might be service thing
-                                var hasInventoryTime = charData.ReadUInt8(); // 1 byte unkByte0
-
-                                if (hasInventoryTime == 0x1)
+                                if(vSRO)
                                 {
-                                    // Perhaps inventory span
-                                    var unk1222 = charData.ReadUInt8(); // NANI
-                                    var unk1223 = charData.ReadUInt32(); // THE
-                                    var unk1224 = charData.ReadUInt32(); // FUCK
-                                    if (unk1224 == 5)
+                                    var hasInventoryTime = charData.ReadUInt8(); // 1 byte unkByte0
+                                    Custom.WriteLine($"hasInventoryTime : {hasInventoryTime}");
+
+                                    if (hasInventoryTime == 0x1)
                                     {
-                                        // Special Thanks to BimBum1337
-                                        // https://i.rapture.pw/BAKE5/ZEqISAFo33.png/raw
-                                        var unk1225 = charData.ReadUInt32(); // ?!
-                                        var unk1226 = charData.ReadUInt8();
+                                        // Perhaps inventory span
+                                        var unk1222 = charData.ReadUInt8(); // NANI
+                                        var unk1223 = charData.ReadUInt32(); // THE
+                                        var unk1224 = charData.ReadUInt32(); // FUCK
+                                        if (unk1224 == 5)
+                                        {
+                                            // Special Thanks to BimBum1337
+                                            // https://i.rapture.pw/BAKE5/ZEqISAFo33.png/raw
+                                            var unk1225 = charData.ReadUInt32(); // ?!
+                                            var unk1226 = charData.ReadUInt8();
+                                        }
                                     }
                                 }
                             }
