@@ -382,6 +382,17 @@ namespace Module.Networking
             finally
             {
                 ModuleSocket = null!;
+                
+                if(_localBuffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(_localBuffer);
+                    _localBuffer = null;
+                }
+                if(_remoteBuffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(_remoteBuffer);
+                    _remoteBuffer = null;
+                }
             }
 
             // Notify other parts of the system, if delegate is set
