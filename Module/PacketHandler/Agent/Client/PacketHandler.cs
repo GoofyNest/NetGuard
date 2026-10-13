@@ -10,6 +10,8 @@ namespace Module.PacketHandler.Agent.Client
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
+            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
+
             /*
                 New way to block exploits
 
@@ -147,6 +149,9 @@ namespace Module.PacketHandler.Agent.Client
 
                 case (ushort)Config.Update:
                     return new ConfigUpdate();
+
+                case (ushort)Character.Action:
+                    return new CharAction();
 
                 default:
                     //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);

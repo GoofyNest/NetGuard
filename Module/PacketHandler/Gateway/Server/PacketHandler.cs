@@ -1,5 +1,6 @@
 ﻿using Module.Networking;
 using Module.PacketHandler.Gateway.Server.Packets;
+using Module.Services;
 using SilkroadSecurityAPI;
 using static Module.PacketHandler.Gateway.Opcodes.Client;
 using static Module.PacketHandler.Gateway.Opcodes.Server;
@@ -10,6 +11,8 @@ namespace Module.PacketHandler.Gateway.Server
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
+            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
+            
             if (client != null)
             {
 
