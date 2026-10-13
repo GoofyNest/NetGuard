@@ -14,7 +14,7 @@ namespace Module.Networking
 {
     sealed class Module
     {
-        public int ClientId { get; }  // Store client ID
+        public int ClientId { get; }
         private Socket _clientSocket;
         private readonly AsyncServer.DelClientDisconnect _clientDisconnectHandler;
 
@@ -35,6 +35,16 @@ namespace Module.Networking
 
         private readonly SessionData _client = new();
 
+        // Guard against re-entrant disconnection
+        private int _disconnecting = 0;
+
+        // Per-direction "a receive is pending" flags.
+        // [0] = client, [1] = server. 0 = idle (safe to arm), 1 = pending (don't double-arm).
+        private readonly int[] _receiving = new int[2];
+
+        private const int RecvClient = 0;
+        private const int RecvServer = 1;
+
         public Module(int clientId, Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
         {
             ClientId = clientId;
@@ -52,17 +62,13 @@ namespace Module.Networking
             switch (_serverType)
             {
                 case ModuleType.GatewayModule:
-                    {
-                        _client.Gateway = new();
-                    }
+                    _client.Gateway = new();
                     break;
 
                 case ModuleType.AgentModule:
-                    {
-                        _client.Agent = new();
-                    }
+                    _client.Agent = new();
                     break;
-            }    
+            }
 
             if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
             {
@@ -76,16 +82,14 @@ namespace Module.Networking
         {
             try
             {
-                // Generate security information
                 _localSecurity.GenerateSecurity(true, true, true);
 
-                // Connect to the remote host asynchronously
                 await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
 
-                // Begin receiving data
+                // Only arm client receive — the server side will be armed lazily
+                // by the handler flow (PacketResultType.DoReceive).
                 await DoReceive(true);
 
-                // Start sending data asynchronously
                 await Send(false);
             }
             catch (SocketException ex)
@@ -102,7 +106,9 @@ namespace Module.Networking
 
         async Task HandleReceivedData(int nReceived, bool isClient)
         {
-            // Receive data based on whether it's from the client or server
+            if (Volatile.Read(ref _disconnecting) == 1)
+                return;
+
             if (isClient)
             {
                 _localSecurity.Recv(_localBuffer, 0, nReceived);
@@ -112,7 +118,6 @@ namespace Module.Networking
                 _remoteSecurity.Recv(_remoteBuffer, 0, nReceived);
             }
 
-            // Transfer the incoming packets
             var receivedPackets = isClient ? _localSecurity.TransferIncoming() : _remoteSecurity.TransferIncoming();
 
             if (receivedPackets == null)
@@ -122,10 +127,10 @@ namespace Module.Networking
 
             for (int i = 0; i < count; i++)
             {
-                Packet packet = receivedPackets[i];
-                //var copyOfPacket = packet;
+                if (Volatile.Read(ref _disconnecting) == 1)
+                    return;
 
-                // Get the appropriate packet handler
+                Packet packet = receivedPackets[i];
 
                 IPacketHandler handler = null!;
 
@@ -133,7 +138,7 @@ namespace Module.Networking
                 {
                     handler = isClient ? GatewayClientHandler.GetHandler(packet, _client) : GatewayServerHandler.GetHandler(packet, _client);
                 }
-                else if(_handlerType == ModuleType.AgentModule)
+                else if (_handlerType == ModuleType.AgentModule)
                 {
                     handler = isClient ? AgentClientHandler.GetHandler(packet, _client) : AgentServerHandler.GetHandler(packet, _client);
                 }
@@ -146,21 +151,24 @@ namespace Module.Networking
                         case PacketResultType.Block:
                             Custom.WriteLine($"Prevented [0x{packet.Opcode:X4}] from being sent from {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Red);
                             continue;
-                
+
                         case PacketResultType.Disconnect:
-                            Custom.WriteLine($"Disconnected  {_client.PlayerInfo.IpInfo.Ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
+                            Custom.WriteLine($"Disconnected {_client.PlayerInfo.IpInfo.Ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
                             HandleDisconnection();
-                            continue;
-                
+                            return;
+
                         case PacketResultType.Ban:
                             Custom.WriteLine($"Not implemented", ConsoleColor.Red);
                             continue;
-                
+
                         case PacketResultType.SkipSending:
                             Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.Magenta);
                             await Send(result.SkipSending);
                             continue;
-                
+
+                        // Handler says: swallow this packet, don't forward it,
+                        // but make sure the server side is armed for the next read.
+                        // DoReceive is idempotent thanks to _receiving[].
                         case PacketResultType.DoReceive:
                             Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.Magenta);
                             await DoReceive(false);
@@ -168,7 +176,7 @@ namespace Module.Networking
                     }
 
                     var modifiedCount = result.ModifiedPackets.Count;
-                    if(modifiedCount > 0)
+                    if (modifiedCount > 0)
                     {
                         for (var d = 0; d < modifiedCount; d++)
                         {
@@ -177,32 +185,25 @@ namespace Module.Networking
                             switch (modifiedPacket.SecurityType)
                             {
                                 case SecurityType.RemoteSecurity:
-                                    {
-                                        _remoteSecurity.Send(modifiedPacket.Packet);
-                                        await Send(modifiedPacket.SendImmediately);
-                                    }
+                                    _remoteSecurity.Send(modifiedPacket.Packet);
+                                    await Send(modifiedPacket.SendImmediately);
                                     break;
 
                                 case SecurityType.LocalSecurity:
-                                    {
-                                        _localSecurity.Send(modifiedPacket.Packet);
-                                        await Send(modifiedPacket.SendImmediately);
-                                    }
+                                    _localSecurity.Send(modifiedPacket.Packet);
+                                    await Send(modifiedPacket.SendImmediately);
                                     break;
 
                                 case SecurityType.Default:
+                                    if (isClient)
                                     {
-                                        if (isClient)
-                                        {
-                                            //_lastPackets.Enqueue(copyOfPacket);
-                                            _remoteSecurity.Send(modifiedPacket.Packet);
-                                        }
-                                        else
-                                        {
-                                            _localSecurity.Send(modifiedPacket.Packet);
-                                        }
-                                        await Send(isClient);
+                                        _remoteSecurity.Send(modifiedPacket.Packet);
                                     }
+                                    else
+                                    {
+                                        _localSecurity.Send(modifiedPacket.Packet);
+                                    }
+                                    await Send(isClient);
                                     break;
                             }
                         }
@@ -210,10 +211,8 @@ namespace Module.Networking
                     }
                 }
 
-                // Enqueue and send the original packet
                 if (isClient)
                 {
-                    //_lastPackets.Enqueue(copyOfPacket);
                     _remoteSecurity.Send(packet);
                 }
                 else
@@ -221,27 +220,35 @@ namespace Module.Networking
                     _localSecurity.Send(packet);
                 }
 
-                await Send(isClient); // Use the isClient flag to determine the action
+                await Send(isClient);
             }
         }
 
         async Task DoReceive(bool isClient)
         {
+            int idx = isClient ? RecvClient : RecvServer;
+
             try
             {
+                if (Volatile.Read(ref _disconnecting) == 1)
+                    return;
+
+                // Idempotent arm. If a receive is already pending on this
+                // direction, do NOT arm another one.
+                if (Interlocked.Exchange(ref _receiving[idx], 1) == 1)
+                    return;
+
                 Socket socket = isClient ? _clientSocket : ModuleSocket;
                 byte[] buffer = isClient ? _localBuffer : _remoteBuffer;
 
                 if (socket == null || !socket.Connected)
                 {
                     Custom.WriteLine($"{(isClient ? "Client" : "Server")} socket is not connected or is null.", ConsoleColor.Yellow);
+                    Interlocked.Exchange(ref _receiving[idx], 0);
+                    HandleDisconnection();
                     return;
                 }
 
-                // Create state object and pass it in the BeginReceive
-                var state = new SocketState(socket, buffer);
-
-                // Initiate BeginReceive, this does not block, just sets up the receive operation
                 socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, OnReceive, new SocketState(socket, buffer));
 
                 await Task.CompletedTask;
@@ -249,16 +256,19 @@ namespace Module.Networking
             catch (SocketException ex)
             {
                 Custom.WriteLine($"Socket error: {ex.Message}", ConsoleColor.Red);
+                Interlocked.Exchange(ref _receiving[idx], 0);
                 HandleDisconnection();
             }
             catch (ObjectDisposedException)
             {
                 Custom.WriteLine("Attempted to use a disposed socket.", ConsoleColor.Gray);
+                Interlocked.Exchange(ref _receiving[idx], 0);
                 HandleDisconnection();
             }
             catch (Exception ex)
             {
                 Custom.WriteLine($"Unexpected error: {ex}", ConsoleColor.Red);
+                Interlocked.Exchange(ref _receiving[idx], 0);
                 HandleDisconnection();
             }
         }
@@ -267,7 +277,6 @@ namespace Module.Networking
         {
             try
             {
-                // Retrieve the state object from AsyncState
                 if (iar.AsyncState is not SocketState state || state.Socket == null)
                 {
                     Custom.WriteLine("Error: Socket or state is null.", ConsoleColor.Red);
@@ -276,28 +285,47 @@ namespace Module.Networking
 
                 Socket socket = state.Socket;
 
+                // Clear the "pending" flag for this direction — receive completed.
+                if (socket == _clientSocket)
+                    Interlocked.Exchange(ref _receiving[RecvClient], 0);
+                else if (socket == ModuleSocket)
+                    Interlocked.Exchange(ref _receiving[RecvServer], 0);
+
                 int bytesReceived = socket.EndReceive(iar);
 
-                // If no data received, handle disconnect logic
+                // 0 = remote sent FIN. Disconnect.
                 if (bytesReceived == 0)
                 {
+                    HandleDisconnection();
                     return;
                 }
 
-                // Handle the received data based on the socket type
+                if (Volatile.Read(ref _disconnecting) == 1)
+                    return;
+
                 if (socket == _clientSocket)
                 {
-                    // Client-specific data handling
                     await Task.Run(() => HandleReceivedData(bytesReceived, true));
-                    await DoReceive(true);  // Continue receiving from client
+
+                    if (Volatile.Read(ref _disconnecting) == 0)
+                        await DoReceive(true);
                 }
                 else if (socket == ModuleSocket)
                 {
-                    // Server-specific data handling
                     await Task.Run(() => HandleReceivedData(bytesReceived, false));
 
-                    await DoReceive(false);  // Continue receiving from server
+                    if (Volatile.Read(ref _disconnecting) == 0)
+                        await DoReceive(false);
                 }
+            }
+            catch (ObjectDisposedException)
+            {
+                HandleDisconnection();
+            }
+            catch (SocketException ex)
+            {
+                Custom.WriteLine($"SocketException in OnReceive: {ex.SocketErrorCode}", ConsoleColor.Yellow);
+                HandleDisconnection();
             }
             catch (Exception ex)
             {
@@ -308,19 +336,20 @@ namespace Module.Networking
 
         async Task Send(bool toHost)
         {
-            // Determine the security and socket to use based on 'toHost'
+            if (Volatile.Read(ref _disconnecting) == 1)
+                return;
+
             var security = toHost ? _remoteSecurity : _localSecurity;
             if (security == null)
-                return;  // Early return if security is null
+                return;
 
             var socket = toHost ? ModuleSocket : _clientSocket;
-            if (socket == null)
-                return;  // Early return if socket is null
+            if (socket == null || !socket.Connected)
+                return;
 
-            // Get outgoing packets
             var outgoing = security.TransferOutgoing();
             if (outgoing == null)
-                return;  // Early return if no outgoing packets
+                return;
 
             int count = outgoing.Count;
 
@@ -337,9 +366,22 @@ namespace Module.Networking
                         HandleClientFlooding();
                     }
                 }
+                catch (ObjectDisposedException)
+                {
+                    HandleDisconnection();
+                    return;
+                }
+                catch (SocketException ex)
+                {
+                    Custom.WriteLine($"SocketException in Send: {ex.SocketErrorCode}", ConsoleColor.Yellow);
+                    HandleDisconnection();
+                    return;
+                }
                 catch (Exception ex)
                 {
                     Custom.WriteLine($"Exception in Send: {ex}", ConsoleColor.Red);
+                    HandleDisconnection();
+                    return;
                 }
             }
         }
@@ -359,18 +401,25 @@ namespace Module.Networking
         private double GetBytesPerSecondFromClient()
         {
             var elapsedTime = DateTime.Now - _startTime;
-            return elapsedTime.TotalSeconds < 1.0 ? _bytesReceivedFromClient : Math.Round(_bytesReceivedFromClient / elapsedTime.TotalSeconds, 2);
+            return elapsedTime.TotalSeconds < 1.0
+                ? _bytesReceivedFromClient
+                : Math.Round(_bytesReceivedFromClient / elapsedTime.TotalSeconds, 2);
         }
 
         private void HandleDisconnection()
         {
+            if (Interlocked.Exchange(ref _disconnecting, 1) == 1)
+                return;
+
+            Custom.WriteLine($"Disconnecting client {ClientId} ({_client.PlayerInfo.IpInfo.Ip})", ConsoleColor.Yellow);
+
             try
             {
                 if (ModuleSocket != null)
                 {
                     if (ModuleSocket.Connected)
                     {
-                        ModuleSocket.Shutdown(SocketShutdown.Both);
+                        try { ModuleSocket.Shutdown(SocketShutdown.Both); } catch { }
                     }
                     ModuleSocket.Close();
                 }
@@ -384,8 +433,34 @@ namespace Module.Networking
                 ModuleSocket = null!;
             }
 
-            // Notify other parts of the system, if delegate is set
-            _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _handlerType);
+            try
+            {
+                if (_clientSocket != null)
+                {
+                    if (_clientSocket.Connected)
+                    {
+                        try { _clientSocket.Shutdown(SocketShutdown.Both); } catch { }
+                    }
+                    _clientSocket.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"HandleDisconnection()::Error closing client socket. Exception: {ex}", ConsoleColor.Red);
+            }
+            finally
+            {
+                _clientSocket = null!;
+            }
+
+            try
+            {
+                _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _handlerType);
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"HandleDisconnection()::Error in disconnect callback. Exception: {ex}", ConsoleColor.Red);
+            }
         }
     }
 }
