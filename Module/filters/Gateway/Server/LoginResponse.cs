@@ -30,7 +30,7 @@ namespace NetGuard.Filters.Gateway.Server
                 modified.WriteUInt8(res);
                 modified.WriteUInt32(id);
                 modified.WriteAscii(guardModule.GuardIP);
-                modified.WriteUInt16(guardModule.GuardPort);
+                modified.WriteUInt16((ushort)guardModule.GuardPort);
                 modified.WriteUInt32(0);
 
                 response.ModifiedPackets.Add(new PacketList { Packet = modified });

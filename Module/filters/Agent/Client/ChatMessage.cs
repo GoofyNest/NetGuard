@@ -9,10 +9,10 @@ namespace NetGuard.Filters.Agent.Client
             var Settings = Main.Settings.Agent;
             Packet modified = new(0x7025);
 
-            int chatType = packet.ReadUInt8();
+            byte chatType = packet.ReadUInt8();
             modified.WriteUInt8(chatType);
 
-            int chatIndex = packet.ReadUInt8();
+            byte chatIndex = packet.ReadUInt8();
             modified.WriteUInt8(chatIndex);
 
             if (chatType == 2)

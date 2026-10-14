@@ -40,63 +40,96 @@ namespace NetGuard.Filters.Agent.Client
             switch (CommandType)
             {
                 case ActionCommandType.Execute:
-                {
-                    ActionType ActionType = (ActionType)packet.ReadUInt8();
-
-                    switch (ActionType)
                     {
-                        case ActionType.Pickup:
+                        ActionType ActionType = (ActionType)packet.ReadUInt8();
+
+                        switch (ActionType)
                         {
-                            ActionTarget TargetType = (ActionTarget)packet.ReadUInt8();
-
-                            byte malformedByte = packet.ReadUInt8();
-
-                            if (malformedByte > 2)
-                            {
-                                try
+                            case ActionType.Attack:
                                 {
-                                    modified.WriteUInt8((byte)CommandType);
-                                    modified.WriteUInt8((byte)ActionType);
-                                    modified.WriteUInt8((byte)TargetType);
-                                    modified.WriteUInt8(0x01);
 
-                                    modified.WriteUInt8(malformedByte);
-                                    modified.WriteUInt8(packet.ReadUInt8());
-                                    modified.WriteUInt8(packet.ReadUInt8());
-                                    modified.WriteUInt8(packet.ReadUInt8());
+                                }
+                                break;
 
-                                    response.ModifiedPackets.Add(new PacketList
+                            case ActionType.Trace:
+                                {
+
+                                }
+                                break;
+
+                            case ActionType.Cast:
+                                {
+
+                                }
+                                break;
+
+                            case ActionType.Dispel:
+                                {
+
+                                }
+                                break;
+
+                            case ActionType.Pickup:
+                                {
+                                    ActionTarget TargetType = (ActionTarget)packet.ReadUInt8();
+
+                                    byte malformedByte = packet.ReadUInt8();
+
+                                    if (malformedByte != 0x01)
                                     {
-                                        Packet = modified,
-                                        SendImmediately = true,
-                                        SecurityType = SecurityType.RemoteSecurity
-                                    });
-                                    return response;
+                                        try
+                                        {
+                                            modified.WriteUInt8((byte)CommandType);
+                                            modified.WriteUInt8((byte)ActionType);
+                                            modified.WriteUInt8((byte)TargetType);
+                                            modified.WriteUInt8(0x01);
+
+                                            modified.WriteUInt8(malformedByte);
+                                            modified.WriteUInt8(packet.ReadUInt8());
+                                            modified.WriteUInt8(packet.ReadUInt8());
+                                            modified.WriteUInt8(packet.ReadUInt8());
+
+                                            response.ModifiedPackets.Add(new PacketList
+                                            {
+                                                Packet = modified,
+                                                SendImmediately = true,
+                                                SecurityType = SecurityType.RemoteSecurity
+                                            });
+
+                                            //Custom.WriteLine("Emulating bot malformed pickup packet");
+                                            return response;
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Custom.WriteLine($"Error emulating pickup {ex.ToString()}");
+                                            response.ResultType = PacketResultType.Block;
+                                            return response;
+                                        }
+                                    }
                                 }
-                                catch
-                                {
-                                    return response;
-                                }
-                            }
-                            break;
+                                break;
+
+                            default:
+                                response.ResultType = PacketResultType.Block;
+                                return response;
                         }
+                        break;
                     }
-                    break;
-                }
 
                 case ActionCommandType.Cancel:
-                {
-                    modified.WriteUInt8(0x02);
-                    response.ModifiedPackets.Add(new PacketList
                     {
-                        Packet = modified,
-                        SendImmediately = true,
-                        SecurityType = SecurityType.RemoteSecurity
-                    });
-                    return response;
-                }
+                        modified.WriteUInt8(0x02);
+                        response.ModifiedPackets.Add(new PacketList
+                        {
+                            Packet = modified,
+                            SendImmediately = true,
+                            SecurityType = SecurityType.RemoteSecurity
+                        });
+                        return response;
+                    }
 
                 default:
+                    response.ResultType = PacketResultType.Block;
                     return response;
             }
 

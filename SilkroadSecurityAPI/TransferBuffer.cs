@@ -1,71 +1,47 @@
-﻿namespace SilkroadSecurityAPI
+﻿namespace SilkroadSecurityAPI;
+
+/// <summary>
+/// Legacy slice descriptor retained for API compatibility.
+/// New code should prefer <see cref="Memory{T}"/> / <see cref="Span{T}"/>.
+/// </summary>
+public sealed class TransferBuffer
 {
-    public class TransferBuffer
+    public byte[] Buffer { get; set; }
+    public int Offset { get; set; }
+    public int Size { get; set; }
+
+    public TransferBuffer()
     {
-        byte[] m_buffer;
-        int m_offset;
-        int m_size;
-
-        public byte[] Buffer
-        {
-            get { return m_buffer; }
-            set { m_buffer = value; }
-        }
-
-        public int Offset
-        {
-            get { return m_offset; }
-            set { m_offset = value; }
-        }
-
-        public int Size
-        {
-            get { return m_size; }
-            set { m_size = value; }
-        }
-
-        public TransferBuffer(TransferBuffer rhs)
-        {
-            m_buffer = new byte[rhs.m_buffer.Length];
-            System.Buffer.BlockCopy(rhs.m_buffer, 0, m_buffer, 0, m_buffer.Length);
-            m_offset = rhs.m_offset;
-            m_size = rhs.m_size;
-        }
-
-        public TransferBuffer()
-        {
-            m_buffer = null!;
-            m_offset = 0;
-            m_size = 0;
-        }
-
-        public TransferBuffer(int length, int offset, int size)
-        {
-            m_buffer = new byte[length];
-            m_offset = offset;
-            m_size = size;
-        }
-
-        public TransferBuffer(int length)
-        {
-            m_buffer = new byte[length];
-            m_offset = 0;
-            m_size = 0;
-        }
-
-        public TransferBuffer(byte[] buffer, int offset, int size, bool assign)
-        {
-            if (assign)
-            {
-                m_buffer = buffer;
-            }
-            else
-            {
-                m_buffer = new byte[buffer.Length];
-                System.Buffer.BlockCopy(buffer, 0, m_buffer, 0, buffer.Length);
-            }
-            m_offset = offset;
-            m_size = size;
-        }
+        Buffer = [];
     }
+
+    public TransferBuffer(int length) : this(length, 0, 0) { }
+
+    public TransferBuffer(int length, int offset, int size)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+
+        Buffer = length == 0 ? [] : new byte[length];
+        Offset = offset;
+        Size = size;
+    }
+
+    public TransferBuffer(byte[] buffer, int offset, int size, bool assign)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        Buffer = assign ? buffer : [.. buffer];
+        Offset = offset;
+        Size = size;
+    }
+
+    public TransferBuffer(TransferBuffer rhs)
+    {
+        ArgumentNullException.ThrowIfNull(rhs);
+        Buffer = [.. rhs.Buffer];
+        Offset = rhs.Offset;
+        Size = rhs.Size;
+    }
+
+    public Span<byte> AsSpan() => Buffer.AsSpan(Offset, Size);
+    public ReadOnlySpan<byte> AsReadOnlySpan() => Buffer.AsSpan(Offset, Size);
 }

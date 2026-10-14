@@ -1,1202 +1,863 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
+﻿using System.Buffers;
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 
-namespace SilkroadSecurityAPI
+namespace SilkroadSecurityAPI;
+
+public sealed class Security
 {
-    public class Security
+    // ---------------------------------------------------------------------
+    // Security table (CRC-32 lookup used by the Silkroad handshake)
+    // ---------------------------------------------------------------------
+
+    private static readonly uint[] GlobalSecurityTable = GenerateSecurityTable();
+
+    private static uint[] GenerateSecurityTable()
     {
-        #region SecurityFlags
-        // Security flags container
-        [StructLayout(LayoutKind.Explicit, Size = 8, CharSet = CharSet.Ansi)]
-        private class SecurityFlags
+        ReadOnlySpan<byte> baseTable =
+        [
+            0xB1,0xD6,0x8B,0x96,0x96,0x30,0x07,0x77,0x2C,0x61,0x0E,0xEE,0xBA,0x51,0x09,0x99,
+            0x19,0xC4,0x6D,0x07,0x8F,0xF4,0x6A,0x70,0x35,0xA5,0x63,0xE9,0xA3,0x95,0x64,0x9E,
+            0x32,0x88,0xDB,0x0E,0xA4,0xB8,0xDC,0x79,0x1E,0xE9,0xD5,0xE0,0x88,0xD9,0xD2,0x97,
+            0x2B,0x4C,0xB6,0x09,0xBD,0x7C,0xB1,0x7E,0x07,0x2D,0xB8,0xE7,0x91,0x1D,0xBF,0x90,
+            0x64,0x10,0xB7,0x1D,0xF2,0x20,0xB0,0x6A,0x48,0x71,0xB1,0xF3,0xDE,0x41,0xBE,0x8C,
+            0x7D,0xD4,0xDA,0x1A,0xEB,0xE4,0xDD,0x6D,0x51,0xB5,0xD4,0xF4,0xC7,0x85,0xD3,0x83,
+            0x56,0x98,0x6C,0x13,0xC0,0xA8,0x6B,0x64,0x7A,0xF9,0x62,0xFD,0xEC,0xC9,0x65,0x8A,
+            0x4F,0x5C,0x01,0x14,0xD9,0x6C,0x06,0x63,0x63,0x3D,0x0F,0xFA,0xF5,0x0D,0x08,0x8D,
+            0xC8,0x20,0x6E,0x3B,0x5E,0x10,0x69,0x4C,0xE4,0x41,0x60,0xD5,0x72,0x71,0x67,0xA2,
+            0xD1,0xE4,0x03,0x3C,0x47,0xD4,0x04,0x4B,0xFD,0x85,0x0D,0xD2,0x6B,0xB5,0x0A,0xA5,
+            0xFA,0xA8,0xB5,0x35,0x6C,0x98,0xB2,0x42,0xD6,0xC9,0xBB,0xDB,0x40,0xF9,0xBC,0xAC,
+            0xE3,0x6C,0xD8,0x32,0x75,0x5C,0xDF,0x45,0xCF,0x0D,0xD6,0xDC,0x59,0x3D,0xD1,0xAB,
+            0xAC,0x30,0xD9,0x26,0x3A,0x00,0xDE,0x51,0x80,0x51,0xD7,0xC8,0x16,0x61,0xD0,0xBF,
+            0xB5,0xF4,0xB4,0x21,0x23,0xC4,0xB3,0x56,0x99,0x95,0xBA,0xCF,0x0F,0xA5,0xB7,0xB8,
+            0x9E,0xB8,0x02,0x28,0x08,0x88,0x05,0x5F,0xB2,0xD9,0xEC,0xC6,0x24,0xE9,0x0B,0xB1,
+            0x87,0x7C,0x6F,0x2F,0x11,0x4C,0x68,0x58,0xAB,0x1D,0x61,0xC1,0x3D,0x2D,0x66,0xB6,
+            0x90,0x41,0xDC,0x76,0x06,0x71,0xDB,0x01,0xBC,0x20,0xD2,0x98,0x2A,0x10,0xD5,0xEF,
+            0x89,0x85,0xB1,0x71,0x1F,0xB5,0xB6,0x06,0xA5,0xE4,0xBF,0x9F,0x33,0xD4,0xB8,0xE8,
+            0xA2,0xC9,0x07,0x78,0x34,0xF9,0xA0,0x0F,0x8E,0xA8,0x09,0x96,0x18,0x98,0x0E,0xE1,
+            0xBB,0x0D,0x6A,0x7F,0x2D,0x3D,0x6D,0x08,0x97,0x6C,0x64,0x91,0x01,0x5C,0x63,0xE6,
+            0xF4,0x51,0x6B,0x6B,0x62,0x61,0x6C,0x1C,0xD8,0x30,0x65,0x85,0x4E,0x00,0x62,0xF2,
+            0xED,0x95,0x06,0x6C,0x7B,0xA5,0x01,0x1B,0xC1,0xF4,0x08,0x82,0x57,0xC4,0x0F,0xF5,
+            0xC6,0xD9,0xB0,0x63,0x50,0xE9,0xB7,0x12,0xEA,0xB8,0xBE,0x8B,0x7C,0x88,0xB9,0xFC,
+            0xDF,0x1D,0xDD,0x62,0x49,0x2D,0xDA,0x15,0xF3,0x7C,0xD3,0x8C,0x65,0x4C,0xD4,0xFB,
+            0x58,0x61,0xB2,0x4D,0xCE,0x51,0xB5,0x3A,0x74,0x00,0xBC,0xA3,0xE2,0x30,0xBB,0xD4,
+            0x41,0xA5,0xDF,0x4A,0xD7,0x95,0xD8,0x3D,0x6D,0xC4,0xD1,0xA4,0xFB,0xF4,0xD6,0xD3,
+            0x6A,0xE9,0x69,0x43,0xFC,0xD9,0x6E,0x34,0x46,0x88,0x67,0xAD,0xD0,0xB8,0x60,0xDA,
+            0x73,0x2D,0x04,0x44,0xE5,0x1D,0x03,0x33,0x5F,0x4C,0x0A,0xAA,0xC9,0x7C,0x0D,0xDD,
+            0x3C,0x71,0x05,0x50,0xAA,0x41,0x02,0x27,0x10,0x10,0x0B,0xBE,0x86,0x20,0x0C,0xC9,
+            0x25,0xB5,0x68,0x57,0xB3,0x85,0x6F,0x20,0x09,0xD4,0x66,0xB9,0x9F,0xE4,0x61,0xCE,
+            0x0E,0xF9,0xDE,0x5E,0x08,0xC9,0xD9,0x29,0x22,0x98,0xD0,0xB0,0xB4,0xA8,0x57,0xC7,
+            0x17,0x3D,0xB3,0x59,0x81,0x0D,0xB4,0x3E,0x3B,0x5C,0xBD,0xB7,0xAD,0x6C,0xBA,0xC0,
+            0x20,0x83,0xB8,0xED,0xB6,0xB3,0xBF,0x9A,0x0C,0xE2,0xB6,0x03,0x9A,0xD2,0xB1,0x74,
+            0x39,0x47,0xD5,0xEA,0xAF,0x77,0xD2,0x9D,0x15,0x26,0xDB,0x04,0x83,0x16,0xDC,0x73,
+            0x12,0x0B,0x63,0xE3,0x84,0x3B,0x64,0x94,0x3E,0x6A,0x6D,0x0D,0xA8,0x5A,0x6A,0x7A,
+            0x0B,0xCF,0x0E,0xE4,0x9D,0xFF,0x09,0x93,0x27,0xAE,0x00,0x0A,0xB1,0x9E,0x07,0x7D,
+            0x44,0x93,0x0F,0xF0,0xD2,0xA2,0x08,0x87,0x68,0xF2,0x01,0x1E,0xFE,0xC2,0x06,0x69,
+            0x5D,0x57,0x62,0xF7,0xCB,0x67,0x65,0x80,0x71,0x36,0x6C,0x19,0xE7,0x06,0x6B,0x6E,
+            0x76,0x1B,0xD4,0xFE,0xE0,0x2B,0xD3,0x89,0x5A,0x7A,0xDA,0x10,0xCC,0x4A,0xDD,0x67,
+            0x6F,0xDF,0xB9,0xF9,0xF9,0xEF,0xBE,0x8E,0x43,0xBE,0xB7,0x17,0xD5,0x8E,0xB0,0x60,
+            0xE8,0xA3,0xD6,0xD6,0x7E,0x93,0xD1,0xA1,0xC4,0xC2,0xD8,0x38,0x52,0xF2,0xDF,0x4F,
+            0xF1,0x67,0xBB,0xD1,0x67,0x57,0xBC,0xA6,0xDD,0x06,0xB5,0x3F,0x4B,0x36,0xB2,0x48,
+            0xDA,0x2B,0x0D,0xD8,0x4C,0x1B,0x0A,0xAF,0xF6,0x4A,0x03,0x36,0x60,0x7A,0x04,0x41,
+            0xC3,0xEF,0x60,0xDF,0x55,0xDF,0x67,0xA8,0xEF,0x8E,0x6E,0x31,0x79,0x0E,0x69,0x46,
+            0x8C,0xB3,0x51,0xCB,0x1A,0x83,0x63,0xBC,0xA0,0xD2,0x6F,0x25,0x36,0xE2,0x68,0x52,
+            0x95,0x77,0x0C,0xCC,0x03,0x47,0x0B,0xBB,0xB9,0x14,0x02,0x22,0x2F,0x26,0x05,0x55,
+            0xBE,0x3B,0xB6,0xC5,0x28,0x0B,0xBD,0xB2,0x92,0x5A,0xB4,0x2B,0x04,0x6A,0xB3,0x5C,
+            0xA7,0xFF,0xD7,0xC2,0x31,0xCF,0xD0,0xB5,0x8B,0x9E,0xD9,0x2C,0x1D,0xAE,0xDE,0x5B,
+            0xB0,0x72,0x64,0x9B,0x26,0xF2,0xE3,0xEC,0x9C,0xA3,0x6A,0x75,0x0A,0x93,0x6D,0x02,
+            0xA9,0x06,0x09,0x9C,0x3F,0x36,0x0E,0xEB,0x85,0x68,0x07,0x72,0x13,0x07,0x00,0x05,
+            0x82,0x48,0xBF,0x95,0x14,0x7A,0xB8,0xE2,0xAE,0x2B,0xB1,0x7B,0x38,0x1B,0xB6,0x0C,
+            0x9B,0x8E,0xD2,0x92,0x0D,0xBE,0xD5,0xE5,0xB7,0xEF,0xDC,0x7C,0x21,0xDF,0xDB,0x0B,
+            0x94,0xD2,0xD3,0x86,0x42,0xE2,0xD4,0xF1,0xF8,0xB3,0xDD,0x68,0x6E,0x83,0xDA,0x1F,
+            0xCD,0x16,0xBE,0x81,0x5B,0x26,0xB9,0xF6,0xE1,0x77,0xB0,0x6F,0x77,0x47,0xB7,0x18,
+            0xE0,0x5A,0x08,0x88,0x70,0x6A,0x0F,0xF1,0xCA,0x3B,0x06,0x66,0x5C,0x0B,0x01,0x11,
+            0xFF,0x9E,0x65,0x8F,0x69,0xAE,0x62,0xF8,0xD3,0xFF,0x6B,0x61,0x45,0xCF,0x6C,0x16,
+            0x78,0xE2,0x0A,0xA0,0xEE,0xD2,0x0D,0xD7,0x54,0x83,0x04,0x4E,0xC2,0xB3,0x03,0x39,
+            0x61,0x26,0x67,0xA7,0xF7,0x16,0x60,0xD0,0x4D,0x47,0x69,0x49,0xDB,0x77,0x6E,0x3E,
+            0x4A,0x6A,0xD1,0xAE,0xDC,0x5A,0xD6,0xD9,0x66,0x0B,0xDF,0x40,0xF0,0x3B,0xD8,0x37,
+            0x53,0xAE,0xBC,0xA9,0xC5,0x9E,0xBB,0xDE,0x7F,0xCF,0xB2,0x47,0xE9,0xFF,0xB5,0x30,
+            0x1C,0xF9,0xBD,0xBD,0x8A,0xCD,0xBA,0xCA,0x30,0x9E,0xB3,0x53,0xA6,0xA3,0xBC,0x24,
+            0x05,0x3B,0xD0,0xBA,0xA3,0x06,0xD7,0xCD,0xE9,0x57,0xDE,0x54,0xBF,0x67,0xD9,0x23,
+            0x2E,0x72,0x66,0xB3,0xB8,0x4A,0x61,0xC4,0x02,0x1B,0x38,0x5D,0x94,0x2B,0x6F,0x2B,
+            0x37,0xBE,0xCB,0xB4,0xA1,0x8E,0xCC,0xC3,0x1B,0xDF,0x0D,0x5A,0x8D,0xED,0x02,0x2D,
+        ];
+
+        var table = new uint[0x10000];
+        int index = 0;
+        for (int edi = 0; edi < 1024; edi += 4)
         {
-            [FieldOffset(5)] public byte _6;
-
-            [FieldOffset(6)] public byte _7;
-
-            [FieldOffset(7)] public byte _8;
-
-            [FieldOffset(1)] public byte blowfish;
-
-            [FieldOffset(3)] public byte handshake;
-
-            [FieldOffset(4)] public byte handshake_response;
-
-            [FieldOffset(0)] public byte none;
-
-            [FieldOffset(2)] public byte security_bytes;
-        }
-
-        // Returns a byte from a SecurityFlags object.
-        private static byte FromSecurityFlags(SecurityFlags flags)
-        {
-            return (byte)(flags.none | flags.blowfish << 1 | flags.security_bytes << 2 | flags.handshake << 3 |
-                           flags.handshake_response << 4 | flags._6 << 5 | flags._7 << 6 | flags._8 << 7);
-        }
-
-        // Returns a SecurityFlags object from a byte.
-        private static SecurityFlags ToSecurityFlags(byte value)
-        {
-            SecurityFlags flags = new()
+            uint edx = BinaryPrimitives.ReadUInt32LittleEndian(baseTable[edi..]);
+            for (uint ecx = 0; ecx < 256; ecx++)
             {
-                none = (byte)(value & 1),
-                blowfish = (byte)((value >> 1) & 1),
-                security_bytes = (byte)((value >> 2) & 1),
-                handshake = (byte)((value >> 3) & 1),
-                handshake_response = (byte)((value >> 4) & 1),
-                _6 = (byte)((value >> 5) & 1),
-                _7 = (byte)((value >> 6) & 1),
-                _8 = (byte)((value >> 7) & 1)
-            };
-            return flags;
-        }
-        #endregion
-
-        #region SecurityTable
-        // Generates the crc bytes lookup table
-        static uint[] GenerateSecurityTable()
-        {
-            uint[] security_table = new uint[0x10000];
-            byte[] base_security_table =
-            [
-                0xB1, 0xD6, 0x8B, 0x96, 0x96, 0x30, 0x07, 0x77, 0x2C, 0x61, 0x0E, 0xEE, 0xBA, 0x51, 0x09, 0x99,
-                0x19, 0xC4, 0x6D, 0x07, 0x8F, 0xF4, 0x6A, 0x70, 0x35, 0xA5, 0x63, 0xE9, 0xA3, 0x95, 0x64, 0x9E,
-                0x32, 0x88, 0xDB, 0x0E, 0xA4, 0xB8, 0xDC, 0x79, 0x1E, 0xE9, 0xD5, 0xE0, 0x88, 0xD9, 0xD2, 0x97,
-                0x2B, 0x4C, 0xB6, 0x09, 0xBD, 0x7C, 0xB1, 0x7E, 0x07, 0x2D, 0xB8, 0xE7, 0x91, 0x1D, 0xBF, 0x90,
-                0x64, 0x10, 0xB7, 0x1D, 0xF2, 0x20, 0xB0, 0x6A, 0x48, 0x71, 0xB1, 0xF3, 0xDE, 0x41, 0xBE, 0x8C,
-                0x7D, 0xD4, 0xDA, 0x1A, 0xEB, 0xE4, 0xDD, 0x6D, 0x51, 0xB5, 0xD4, 0xF4, 0xC7, 0x85, 0xD3, 0x83,
-                0x56, 0x98, 0x6C, 0x13, 0xC0, 0xA8, 0x6B, 0x64, 0x7A, 0xF9, 0x62, 0xFD, 0xEC, 0xC9, 0x65, 0x8A,
-                0x4F, 0x5C, 0x01, 0x14, 0xD9, 0x6C, 0x06, 0x63, 0x63, 0x3D, 0x0F, 0xFA, 0xF5, 0x0D, 0x08, 0x8D,
-                0xC8, 0x20, 0x6E, 0x3B, 0x5E, 0x10, 0x69, 0x4C, 0xE4, 0x41, 0x60, 0xD5, 0x72, 0x71, 0x67, 0xA2,
-                0xD1, 0xE4, 0x03, 0x3C, 0x47, 0xD4, 0x04, 0x4B, 0xFD, 0x85, 0x0D, 0xD2, 0x6B, 0xB5, 0x0A, 0xA5,
-                0xFA, 0xA8, 0xB5, 0x35, 0x6C, 0x98, 0xB2, 0x42, 0xD6, 0xC9, 0xBB, 0xDB, 0x40, 0xF9, 0xBC, 0xAC,
-                0xE3, 0x6C, 0xD8, 0x32, 0x75, 0x5C, 0xDF, 0x45, 0xCF, 0x0D, 0xD6, 0xDC, 0x59, 0x3D, 0xD1, 0xAB,
-                0xAC, 0x30, 0xD9, 0x26, 0x3A, 0x00, 0xDE, 0x51, 0x80, 0x51, 0xD7, 0xC8, 0x16, 0x61, 0xD0, 0xBF,
-                0xB5, 0xF4, 0xB4, 0x21, 0x23, 0xC4, 0xB3, 0x56, 0x99, 0x95, 0xBA, 0xCF, 0x0F, 0xA5, 0xB7, 0xB8,
-                0x9E, 0xB8, 0x02, 0x28, 0x08, 0x88, 0x05, 0x5F, 0xB2, 0xD9, 0xEC, 0xC6, 0x24, 0xE9, 0x0B, 0xB1,
-                0x87, 0x7C, 0x6F, 0x2F, 0x11, 0x4C, 0x68, 0x58, 0xAB, 0x1D, 0x61, 0xC1, 0x3D, 0x2D, 0x66, 0xB6,
-                0x90, 0x41, 0xDC, 0x76, 0x06, 0x71, 0xDB, 0x01, 0xBC, 0x20, 0xD2, 0x98, 0x2A, 0x10, 0xD5, 0xEF,
-                0x89, 0x85, 0xB1, 0x71, 0x1F, 0xB5, 0xB6, 0x06, 0xA5, 0xE4, 0xBF, 0x9F, 0x33, 0xD4, 0xB8, 0xE8,
-                0xA2, 0xC9, 0x07, 0x78, 0x34, 0xF9, 0xA0, 0x0F, 0x8E, 0xA8, 0x09, 0x96, 0x18, 0x98, 0x0E, 0xE1,
-                0xBB, 0x0D, 0x6A, 0x7F, 0x2D, 0x3D, 0x6D, 0x08, 0x97, 0x6C, 0x64, 0x91, 0x01, 0x5C, 0x63, 0xE6,
-                0xF4, 0x51, 0x6B, 0x6B, 0x62, 0x61, 0x6C, 0x1C, 0xD8, 0x30, 0x65, 0x85, 0x4E, 0x00, 0x62, 0xF2,
-                0xED, 0x95, 0x06, 0x6C, 0x7B, 0xA5, 0x01, 0x1B, 0xC1, 0xF4, 0x08, 0x82, 0x57, 0xC4, 0x0F, 0xF5,
-                0xC6, 0xD9, 0xB0, 0x63, 0x50, 0xE9, 0xB7, 0x12, 0xEA, 0xB8, 0xBE, 0x8B, 0x7C, 0x88, 0xB9, 0xFC,
-                0xDF, 0x1D, 0xDD, 0x62, 0x49, 0x2D, 0xDA, 0x15, 0xF3, 0x7C, 0xD3, 0x8C, 0x65, 0x4C, 0xD4, 0xFB,
-                0x58, 0x61, 0xB2, 0x4D, 0xCE, 0x51, 0xB5, 0x3A, 0x74, 0x00, 0xBC, 0xA3, 0xE2, 0x30, 0xBB, 0xD4,
-                0x41, 0xA5, 0xDF, 0x4A, 0xD7, 0x95, 0xD8, 0x3D, 0x6D, 0xC4, 0xD1, 0xA4, 0xFB, 0xF4, 0xD6, 0xD3,
-                0x6A, 0xE9, 0x69, 0x43, 0xFC, 0xD9, 0x6E, 0x34, 0x46, 0x88, 0x67, 0xAD, 0xD0, 0xB8, 0x60, 0xDA,
-                0x73, 0x2D, 0x04, 0x44, 0xE5, 0x1D, 0x03, 0x33, 0x5F, 0x4C, 0x0A, 0xAA, 0xC9, 0x7C, 0x0D, 0xDD,
-                0x3C, 0x71, 0x05, 0x50, 0xAA, 0x41, 0x02, 0x27, 0x10, 0x10, 0x0B, 0xBE, 0x86, 0x20, 0x0C, 0xC9,
-                0x25, 0xB5, 0x68, 0x57, 0xB3, 0x85, 0x6F, 0x20, 0x09, 0xD4, 0x66, 0xB9, 0x9F, 0xE4, 0x61, 0xCE,
-                0x0E, 0xF9, 0xDE, 0x5E, 0x08, 0xC9, 0xD9, 0x29, 0x22, 0x98, 0xD0, 0xB0, 0xB4, 0xA8, 0x57, 0xC7,
-                0x17, 0x3D, 0xB3, 0x59, 0x81, 0x0D, 0xB4, 0x3E, 0x3B, 0x5C, 0xBD, 0xB7, 0xAD, 0x6C, 0xBA, 0xC0,
-                0x20, 0x83, 0xB8, 0xED, 0xB6, 0xB3, 0xBF, 0x9A, 0x0C, 0xE2, 0xB6, 0x03, 0x9A, 0xD2, 0xB1, 0x74,
-                0x39, 0x47, 0xD5, 0xEA, 0xAF, 0x77, 0xD2, 0x9D, 0x15, 0x26, 0xDB, 0x04, 0x83, 0x16, 0xDC, 0x73,
-                0x12, 0x0B, 0x63, 0xE3, 0x84, 0x3B, 0x64, 0x94, 0x3E, 0x6A, 0x6D, 0x0D, 0xA8, 0x5A, 0x6A, 0x7A,
-                0x0B, 0xCF, 0x0E, 0xE4, 0x9D, 0xFF, 0x09, 0x93, 0x27, 0xAE, 0x00, 0x0A, 0xB1, 0x9E, 0x07, 0x7D,
-                0x44, 0x93, 0x0F, 0xF0, 0xD2, 0xA2, 0x08, 0x87, 0x68, 0xF2, 0x01, 0x1E, 0xFE, 0xC2, 0x06, 0x69,
-                0x5D, 0x57, 0x62, 0xF7, 0xCB, 0x67, 0x65, 0x80, 0x71, 0x36, 0x6C, 0x19, 0xE7, 0x06, 0x6B, 0x6E,
-                0x76, 0x1B, 0xD4, 0xFE, 0xE0, 0x2B, 0xD3, 0x89, 0x5A, 0x7A, 0xDA, 0x10, 0xCC, 0x4A, 0xDD, 0x67,
-                0x6F, 0xDF, 0xB9, 0xF9, 0xF9, 0xEF, 0xBE, 0x8E, 0x43, 0xBE, 0xB7, 0x17, 0xD5, 0x8E, 0xB0, 0x60,
-                0xE8, 0xA3, 0xD6, 0xD6, 0x7E, 0x93, 0xD1, 0xA1, 0xC4, 0xC2, 0xD8, 0x38, 0x52, 0xF2, 0xDF, 0x4F,
-                0xF1, 0x67, 0xBB, 0xD1, 0x67, 0x57, 0xBC, 0xA6, 0xDD, 0x06, 0xB5, 0x3F, 0x4B, 0x36, 0xB2, 0x48,
-                0xDA, 0x2B, 0x0D, 0xD8, 0x4C, 0x1B, 0x0A, 0xAF, 0xF6, 0x4A, 0x03, 0x36, 0x60, 0x7A, 0x04, 0x41,
-                0xC3, 0xEF, 0x60, 0xDF, 0x55, 0xDF, 0x67, 0xA8, 0xEF, 0x8E, 0x6E, 0x31, 0x79, 0x0E, 0x69, 0x46,
-                0x8C, 0xB3, 0x51, 0xCB, 0x1A, 0x83, 0x63, 0xBC, 0xA0, 0xD2, 0x6F, 0x25, 0x36, 0xE2, 0x68, 0x52,
-                0x95, 0x77, 0x0C, 0xCC, 0x03, 0x47, 0x0B, 0xBB, 0xB9, 0x14, 0x02, 0x22, 0x2F, 0x26, 0x05, 0x55,
-                0xBE, 0x3B, 0xB6, 0xC5, 0x28, 0x0B, 0xBD, 0xB2, 0x92, 0x5A, 0xB4, 0x2B, 0x04, 0x6A, 0xB3, 0x5C,
-                0xA7, 0xFF, 0xD7, 0xC2, 0x31, 0xCF, 0xD0, 0xB5, 0x8B, 0x9E, 0xD9, 0x2C, 0x1D, 0xAE, 0xDE, 0x5B,
-                0xB0, 0x72, 0x64, 0x9B, 0x26, 0xF2, 0xE3, 0xEC, 0x9C, 0xA3, 0x6A, 0x75, 0x0A, 0x93, 0x6D, 0x02,
-                0xA9, 0x06, 0x09, 0x9C, 0x3F, 0x36, 0x0E, 0xEB, 0x85, 0x68, 0x07, 0x72, 0x13, 0x07, 0x00, 0x05,
-                0x82, 0x48, 0xBF, 0x95, 0x14, 0x7A, 0xB8, 0xE2, 0xAE, 0x2B, 0xB1, 0x7B, 0x38, 0x1B, 0xB6, 0x0C,
-                0x9B, 0x8E, 0xD2, 0x92, 0x0D, 0xBE, 0xD5, 0xE5, 0xB7, 0xEF, 0xDC, 0x7C, 0x21, 0xDF, 0xDB, 0x0B,
-                0x94, 0xD2, 0xD3, 0x86, 0x42, 0xE2, 0xD4, 0xF1, 0xF8, 0xB3, 0xDD, 0x68, 0x6E, 0x83, 0xDA, 0x1F,
-                0xCD, 0x16, 0xBE, 0x81, 0x5B, 0x26, 0xB9, 0xF6, 0xE1, 0x77, 0xB0, 0x6F, 0x77, 0x47, 0xB7, 0x18,
-                0xE0, 0x5A, 0x08, 0x88, 0x70, 0x6A, 0x0F, 0xF1, 0xCA, 0x3B, 0x06, 0x66, 0x5C, 0x0B, 0x01, 0x11,
-                0xFF, 0x9E, 0x65, 0x8F, 0x69, 0xAE, 0x62, 0xF8, 0xD3, 0xFF, 0x6B, 0x61, 0x45, 0xCF, 0x6C, 0x16,
-                0x78, 0xE2, 0x0A, 0xA0, 0xEE, 0xD2, 0x0D, 0xD7, 0x54, 0x83, 0x04, 0x4E, 0xC2, 0xB3, 0x03, 0x39,
-                0x61, 0x26, 0x67, 0xA7, 0xF7, 0x16, 0x60, 0xD0, 0x4D, 0x47, 0x69, 0x49, 0xDB, 0x77, 0x6E, 0x3E,
-                0x4A, 0x6A, 0xD1, 0xAE, 0xDC, 0x5A, 0xD6, 0xD9, 0x66, 0x0B, 0xDF, 0x40, 0xF0, 0x3B, 0xD8, 0x37,
-                0x53, 0xAE, 0xBC, 0xA9, 0xC5, 0x9E, 0xBB, 0xDE, 0x7F, 0xCF, 0xB2, 0x47, 0xE9, 0xFF, 0xB5, 0x30,
-                0x1C, 0xF9, 0xBD, 0xBD, 0x8A, 0xCD, 0xBA, 0xCA, 0x30, 0x9E, 0xB3, 0x53, 0xA6, 0xA3, 0xBC, 0x24,
-                0x05, 0x3B, 0xD0, 0xBA, 0xA3, 0x06, 0xD7, 0xCD, 0xE9, 0x57, 0xDE, 0x54, 0xBF, 0x67, 0xD9, 0x23,
-                0x2E, 0x72, 0x66, 0xB3, 0xB8, 0x4A, 0x61, 0xC4, 0x02, 0x1B, 0x38, 0x5D, 0x94, 0x2B, 0x6F, 0x2B,
-                0x37, 0xBE, 0xCB, 0xB4, 0xA1, 0x8E, 0xCC, 0xC3, 0x1B, 0xDF, 0x0D, 0x5A, 0x8D, 0xED, 0x02, 0x2D,
-            ];
-
-            using (MemoryStream in_memory_stream = new(base_security_table, false))
-            {
-                using BinaryReader reader = new(in_memory_stream);
-                int index = 0;
-                for (int edi = 0; edi < 1024; edi += 4)
-                {
-                    uint edx = reader.ReadUInt32();
-                    for (uint ecx = 0; ecx < 256; ++ecx)
-                    {
-                        uint eax = ecx >> 1;
-                        if ((ecx & 1) != 0)
-                        {
-                            eax ^= edx;
-                        }
-                        for (int bit = 0; bit < 7; ++bit)
-                        {
-                            if ((eax & 1) != 0)
-                            {
-                                eax >>= 1;
-                                eax ^= edx;
-                            }
-                            else
-                            {
-                                eax >>= 1;
-                            }
-                        }
-                        security_table[index++] = eax;
-                    }
-                }
-            }
-
-            return security_table;
-        }
-
-        // Use one security table for all objects.
-        private static readonly uint[] global_security_table = GenerateSecurityTable();
-        #endregion
-
-        #region WIN32_Helper_Functions
-        static ulong MAKELONGLONG_(uint a, uint b)
-        {
-            ulong a_ = a;
-            ulong b_ = b;
-            return (ulong)((b_ << 32) | a_);
-        }
-        static ushort LOWORD_(uint a)
-        {
-            return (ushort)(a & 0xFFFF);
-        }
-
-        static ushort HIWORD_(uint a)
-        {
-            return (ushort)((a >> 16) & 0xFFFF);
-        }
-
-        static byte LOBYTE_(ushort a)
-        {
-            return (byte)(a & 0xFF);
-        }
-
-        static byte HIBYTE_(ushort a)
-        {
-            return (byte)((a >> 8) & 0xFF);
-        }
-        #endregion
-
-        #region Random
-        private static readonly Random random = new();
-
-        static UInt64 NextUInt64()
-        {
-            var buffer = new byte[sizeof(UInt64)];
-            random.NextBytes(buffer);
-            return BitConverter.ToUInt64(buffer, 0);
-        }
-
-        static UInt32 NextUInt32()
-        {
-            var buffer = new byte[sizeof(UInt32)];
-            random.NextBytes(buffer);
-            return BitConverter.ToUInt32(buffer, 0);
-        }
-
-        static UInt16 NextUInt16()
-        {
-            var buffer = new byte[sizeof(UInt16)];
-            random.NextBytes(buffer);
-            return BitConverter.ToUInt16(buffer, 0);
-        }
-
-        static byte NextUInt8()
-        {
-            return (byte)(NextUInt16() & 0xFF);
-        }
-        #endregion
-
-        private uint m_value_x;
-        private uint m_value_g;
-        private uint m_value_p;
-        private uint m_value_A;
-        private uint m_value_B;
-        private uint m_value_K;
-        private uint m_seed_count;
-        private uint m_crc_seed;
-        private ulong m_initial_blowfish_key;
-        private ulong m_handshake_blowfish_key;
-        private readonly byte[] m_count_byte_seeds;
-        private ulong m_client_key;
-        private ulong m_challenge_key;
-
-        private bool m_client_security;
-        private byte m_security_flag;
-        private SecurityFlags m_security_flags;
-        private bool m_accepted_handshake;
-        private bool m_started_handshake;
-        private byte m_identity_flag;
-        private string m_identity_name;
-
-        private List<Packet> MIncomingPackets { get; set; } = [];
-        private List<Packet> MOutgoingPackets { get; set; } = [];
-
-        private List<ushort> Enc_opcodes { get; set; } = [];
-
-        private readonly Blowfish m_blowfish;
-
-        private TransferBuffer Recv_buffer { get; set; }
-        private TransferBuffer Current_buffer { get; set; }
-
-        private ushort Massive_count;
-        private Packet Massive_packet;
-
-        #region CoreSecurityFunction
-        // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
-        private uint GenerateValue(ref uint val)
-        {
-            _ = this;
-            for (int i = 0; i < 32; ++i)
-            {
-                val = (((((((((((val >> 2) ^ val) >> 2) ^ val) >> 1) ^ val) >> 1) ^ val) >> 1) ^ val) & 1) | ((((val & 1) << 31) | (val >> 1)) & 0xFFFFFFFE);
-            }
-            return val;
-        }
-
-        // Sets up the count bytes
-        // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
-        void SetupCountByte(uint seed)
-        {
-            if (seed == 0) seed = 0x9ABFB3B6;
-            uint mut = seed;
-            uint mut1 = GenerateValue(ref mut);
-            uint mut2 = GenerateValue(ref mut);
-            uint mut3 = GenerateValue(ref mut);
-            GenerateValue(ref mut);
-            byte byte1 = (byte)((mut & 0xFF) ^ (mut3 & 0xFF));
-            byte byte2 = (byte)((mut1 & 0xFF) ^ (mut2 & 0xFF));
-            if (byte1 == 0) byte1 = 1;
-            if (byte2 == 0) byte2 = 1;
-            m_count_byte_seeds[0] = (byte)(byte1 ^ byte2);
-            m_count_byte_seeds[1] = byte2;
-            m_count_byte_seeds[2] = byte1;
-        }
-
-        // Helper function used in the handshake, X may be a or b, this clean version of the function is from jMerlin (Func_X_4)
-        private uint G_pow_X_mod_P(uint P, uint X, uint G)
-        {
-            _ = this;
-            long result = 1;
-            long mult = G;
-            if (X == 0)
-            {
-                return 1;
-            }
-
-            while (X != 0)
-            {
-                if ((X & 1) > 0)
-                {
-                    result = (mult * result) % P;
-                }
-
-                X >>= 1;
-                mult = (mult * mult) % P;
-            }
-
-            return (uint)result;
-        }
-
-        // Helper function used in the handshake (Func_X_2)
-        private void KeyTransformValue(ref ulong val, uint key, byte key_byte)
-        {
-            _ = this;
-
-            byte[] stream = BitConverter.GetBytes(val);
-            stream[0] ^= (byte)(stream[0] + LOBYTE_(LOWORD_(key)) + key_byte);
-            stream[1] ^= (byte)(stream[1] + HIBYTE_(LOWORD_(key)) + key_byte);
-            stream[2] ^= (byte)(stream[2] + LOBYTE_(HIWORD_(key)) + key_byte);
-            stream[3] ^= (byte)(stream[3] + HIBYTE_(HIWORD_(key)) + key_byte);
-            stream[4] ^= (byte)(stream[4] + LOBYTE_(LOWORD_(key)) + key_byte);
-            stream[5] ^= (byte)(stream[5] + HIBYTE_(LOWORD_(key)) + key_byte);
-            stream[6] ^= (byte)(stream[6] + LOBYTE_(HIWORD_(key)) + key_byte);
-            stream[7] ^= (byte)(stream[7] + HIBYTE_(HIWORD_(key)) + key_byte);
-            val = BitConverter.ToUInt64(stream, 0);
-        }
-
-        // Function called to generate a count byte
-        // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
-        private byte GenerateCountByte(bool update)
-        {
-            byte result = (byte)(m_count_byte_seeds[2] * (~m_count_byte_seeds[0] + m_count_byte_seeds[1]));
-            result = (byte)(result ^ (result >> 4));
-            if (update)
-            {
-                m_count_byte_seeds[0] = result;
-            }
-            return result;
-        }
-
-        // Function called to generate the crc byte
-        // This function's logic was written by jMerlin as part of the article "How to generate the security bytes for SRO"
-        private byte GenerateCheckByte(byte[] stream, int offset, int length)
-        {
-            uint checksum = 0xFFFFFFFF;
-            uint moddedseed = m_crc_seed << 8;
-            for (int x = offset; x < offset + length; ++x)
-            {
-                checksum = (checksum >> 8) ^ global_security_table[moddedseed + (((uint)stream[x] ^ checksum) & 0xFF)];
-            }
-            return (byte)(((checksum >> 24) & 0xFF) + ((checksum >> 8) & 0xFF) + ((checksum >> 16) & 0xFF) + (checksum & 0xFF));
-        }
-
-        private byte GenerateCheckByte(byte[] stream)
-        {
-            return GenerateCheckByte(stream, 0, stream.Length);
-        }
-        #endregion
-
-        #region ExtendedSecurityFunctions
-        private void GenerateSecurity(SecurityFlags flags)
-        {
-            m_security_flag = FromSecurityFlags(flags);
-            m_security_flags = flags;
-            m_client_security = true;
-
-            Packet response = new(0x5000);
-
-            response.WriteUInt8(m_security_flag);
-
-            if (m_security_flags.blowfish == 1)
-            {
-                m_initial_blowfish_key = NextUInt64();
-
-                m_blowfish.Initialize(BitConverter.GetBytes(m_initial_blowfish_key));
-
-                response.WriteUInt64(m_initial_blowfish_key);
-            }
-            if (m_security_flags.security_bytes == 1)
-            {
-                m_seed_count = NextUInt8();
-                SetupCountByte(m_seed_count);
-                m_crc_seed = NextUInt8();
-
-                response.WriteUInt32(m_seed_count);
-                response.WriteUInt32(m_crc_seed);
-            }
-            if (m_security_flags.handshake == 1)
-            {
-                m_handshake_blowfish_key = NextUInt64();
-                m_value_x = NextUInt32() & 0x7FFFFFFF;
-                m_value_g = NextUInt32() & 0x7FFFFFFF;
-                m_value_p = NextUInt32() & 0x7FFFFFFF;
-                m_value_A = G_pow_X_mod_P(m_value_p, m_value_x, m_value_g);
-
-                response.WriteUInt64(m_handshake_blowfish_key);
-                response.WriteUInt32(m_value_g);
-                response.WriteUInt32(m_value_p);
-                response.WriteUInt32(m_value_A);
-            }
-
-            MOutgoingPackets.Add(response);
-        }
-
-        void Handshake(ushort packet_opcode, PacketReader packet_data, bool packet_encrypted)
-        {
-            if (packet_encrypted)
-            {
-                throw (new Exception("[SecurityAPI::Handshake] Received an illogical (encrypted) handshake packet."));
-            }
-            if (m_client_security)
-            {
-                // If this object does not need a handshake
-                if (m_security_flags.handshake == 0)
-                {
-                    // Client should only accept it then
-                    if (packet_opcode == 0x9000)
-                    {
-                        if (m_accepted_handshake)
-                        {
-                            throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (duplicate 0x9000)."));
-                        }
-                        m_accepted_handshake = true; // Otherwise, all good here
-                        return;
-                    }
-                    // Client should not send any 0x5000s!
-                    else if (packet_opcode == 0x5000)
-                    {
-                        throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (0x5000 with no handshake)."));
-                    }
-                    // Programmer made a mistake in calling this function
-                    else
-                    {
-                        throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (programmer error)."));
-                    }
-                }
-                else
-                {
-                    // Client accepts the handshake
-                    if (packet_opcode == 0x9000)
-                    {
-                        // Can't accept it before it's started!
-                        if (!m_started_handshake)
-                        {
-                            throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (out of order 0x9000)."));
-                        }
-                        if (m_accepted_handshake) // Client error
-                        {
-                            throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (duplicate 0x9000)."));
-                        }
-                        // Otherwise, all good here
-                        m_accepted_handshake = true;
-                        return;
-                    }
-                    // Client sends a handshake response
-                    else if (packet_opcode == 0x5000)
-                    {
-                        if (m_started_handshake) // Client error
-                        {
-                            throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (duplicate 0x5000)."));
-                        }
-                        m_started_handshake = true;
-                    }
-                    // Programmer made a mistake in calling this function
-                    else
-                    {
-                        throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (programmer error)."));
-                    }
-                }
-
-                byte[] tmp_bytes;
-
-                m_value_B = packet_data.ReadUInt32();
-                m_client_key = packet_data.ReadUInt64();
-
-                m_value_K = G_pow_X_mod_P(m_value_p, m_value_x, m_value_B);
-
-                ulong key_array = MAKELONGLONG_(m_value_A, m_value_B);
-                KeyTransformValue(ref key_array, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_K)) & 0x03));
-                m_blowfish.Initialize(BitConverter.GetBytes(key_array));
-
-                tmp_bytes = m_blowfish.Decode(BitConverter.GetBytes(m_client_key));
-                m_client_key = BitConverter.ToUInt64(tmp_bytes, 0);
-
-                key_array = MAKELONGLONG_(m_value_B, m_value_A);
-                KeyTransformValue(ref key_array, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_B)) & 0x07));
-                if (m_client_key != key_array)
-                {
-                    throw (new Exception("[SecurityAPI::Handshake] Client signature error."));
-                }
-
-                key_array = MAKELONGLONG_(m_value_A, m_value_B);
-                KeyTransformValue(ref key_array, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_K)) & 0x03));
-                m_blowfish.Initialize(BitConverter.GetBytes(key_array));
-
-                m_challenge_key = MAKELONGLONG_(m_value_A, m_value_B);
-                KeyTransformValue(ref m_challenge_key, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_A)) & 0x07));
-                tmp_bytes = m_blowfish.Encode(BitConverter.GetBytes(m_challenge_key));
-                m_challenge_key = BitConverter.ToUInt64(tmp_bytes, 0);
-
-                KeyTransformValue(ref m_handshake_blowfish_key, m_value_K, 0x3);
-                m_blowfish.Initialize(BitConverter.GetBytes(m_handshake_blowfish_key));
-
-                SecurityFlags tmp_flags = new()
-                {
-                    handshake_response = 1
-                };
-                byte tmp_flag = FromSecurityFlags(tmp_flags);
-
-                Packet response = new(0x5000);
-                response.WriteUInt8(tmp_flag);
-                response.WriteUInt64(m_challenge_key);
-                MOutgoingPackets.Add(response);
-            }
-            else
-            {
-                if (packet_opcode != 0x5000)
-                {
-                    throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (programmer error)."));
-                }
-
-                byte flag = packet_data.ReadByte();
-
-                SecurityFlags flags = ToSecurityFlags(flag);
-
-                if (m_security_flag == 0)
-                {
-                    m_security_flag = flag;
-                    m_security_flags = flags;
-                }
-
-                if (flags.blowfish == 1)
-                {
-                    m_initial_blowfish_key = packet_data.ReadUInt64();
-                    m_blowfish.Initialize(BitConverter.GetBytes(m_initial_blowfish_key));
-                }
-
-                if (flags.security_bytes == 1)
-                {
-                    m_seed_count = packet_data.ReadUInt32();
-                    m_crc_seed = packet_data.ReadUInt32();
-                    SetupCountByte(m_seed_count);
-                }
-
-                if (flags.handshake == 1)
-                {
-                    m_handshake_blowfish_key = packet_data.ReadUInt64();
-                    m_value_g = packet_data.ReadUInt32();
-                    m_value_p = packet_data.ReadUInt32();
-                    m_value_A = packet_data.ReadUInt32();
-
-                    m_value_x = NextUInt32() & 0x7FFFFFFF;
-
-                    m_value_B = G_pow_X_mod_P(m_value_p, m_value_x, m_value_g);
-                    m_value_K = G_pow_X_mod_P(m_value_p, m_value_x, m_value_A);
-
-                    ulong key_array = MAKELONGLONG_(m_value_A, m_value_B);
-                    KeyTransformValue(ref key_array, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_K)) & 0x03));
-                    m_blowfish.Initialize(BitConverter.GetBytes(key_array));
-
-                    m_client_key = MAKELONGLONG_(m_value_B, m_value_A);
-                    KeyTransformValue(ref m_client_key, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_B)) & 0x07));
-                    byte[] tmp_bytes = m_blowfish.Encode(BitConverter.GetBytes(m_client_key));
-                    m_client_key = BitConverter.ToUInt64(tmp_bytes, 0);
-                }
-
-                if (flags.handshake_response == 1)
-                {
-                    m_challenge_key = packet_data.ReadUInt64();
-
-                    ulong expected_challenge_key = MAKELONGLONG_(m_value_A, m_value_B);
-                    KeyTransformValue(ref expected_challenge_key, m_value_K, (byte)(LOBYTE_(LOWORD_(m_value_A)) & 0x07));
-                    byte[] tmp_bytes = m_blowfish.Encode(BitConverter.GetBytes(expected_challenge_key));
-                    expected_challenge_key = BitConverter.ToUInt64(tmp_bytes, 0);
-
-                    if (m_challenge_key != expected_challenge_key)
-                    {
-                        throw (new Exception("[SecurityAPI::Handshake] Server signature error."));
-                    }
-
-                    KeyTransformValue(ref m_handshake_blowfish_key, m_value_K, 0x3);
-                    m_blowfish.Initialize(BitConverter.GetBytes(m_handshake_blowfish_key));
-                }
-
-                // Generate the outgoing packet now
-                if (flags.handshake == 1 && flags.handshake_response == 0)
-                {
-                    // Check to see if we already started a handshake
-                    if (m_started_handshake || m_accepted_handshake)
-                    {
-                        throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (duplicate 0x5000)."));
-                    }
-
-                    // Handshake challenge
-                    Packet response = new(0x5000);
-                    response.WriteUInt32(m_value_B);
-                    response.WriteUInt64(m_client_key);
-                    MOutgoingPackets.Insert(0, response);
-
-                    // The handshake has started
-                    m_started_handshake = true;
-                }
-                else
-                {
-                    // Check to see if we already accepted a handshake
-                    if (m_accepted_handshake)
-                    {
-                        throw (new Exception("[SecurityAPI::Handshake] Received an illogical handshake packet (duplicate 0x5000)."));
-                    }
-
-                    // Handshake accepted
-                    Packet response1 = new(0x9000);
-
-                    // Identify
-                    Packet response2 = new(0x2001, true, false);
-                    response2.WriteAscii(m_identity_name);
-                    response2.WriteUInt8(m_identity_flag);
-
-                    // Insert at the front, we want 0x9000 first, then 0x2001
-                    MOutgoingPackets.Insert(0, response2);
-                    MOutgoingPackets.Insert(0, response1);
-
-                    // Mark the handshake as accepted now
-                    m_started_handshake = true;
-                    m_accepted_handshake = true;
-                }
+                uint eax = ecx >> 1;
+                if ((ecx & 1) != 0) eax ^= edx;
+                for (int bit = 0; bit < 7; bit++)
+                    eax = (eax & 1) != 0 ? (eax >> 1) ^ edx : eax >> 1;
+                table[index++] = eax;
             }
         }
+        return table;
+    }
 
-        byte[] FormatPacket(ushort opcode, byte[] data, bool encrypted)
+    // ---------------------------------------------------------------------
+    // State
+    // ---------------------------------------------------------------------
+
+    private uint _valueX, _valueG, _valueP, _valueA, _valueB, _valueK;
+    private uint _seedCount, _crcSeed;
+    private ulong _initialBlowfishKey, _handshakeBlowfishKey;
+    private readonly byte[] _countByteSeeds = new byte[3];
+    private ulong _clientKey, _challengeKey;
+
+    private bool _clientSecurity;
+    private byte _securityFlagByte;
+    private SecurityFlag _securityFlags;
+    private bool _acceptedHandshake;
+    private bool _startedHandshake;
+    private byte _identityFlag;
+    private string _identityName;
+
+    private List<Packet> _incomingPackets = [];
+    private readonly List<Packet> _outgoingPackets = [];
+
+    private readonly List<ushort> _encryptedOpcodes;
+    private readonly Blowfish _blowfish = new();
+
+    private readonly TransferBuffer _recvBuffer;
+    private TransferBuffer? _currentBuffer;
+
+    private ushort _massiveCount;
+    private Packet? _massivePacket;
+
+    // ---------------------------------------------------------------------
+    // Construction
+    // ---------------------------------------------------------------------
+
+    public Security()
+    {
+        _countByteSeeds[0] = 0;
+        _countByteSeeds[1] = 0;
+        _countByteSeeds[2] = 0;
+        _identityName = "SR_Client";
+
+        _encryptedOpcodes =
+        [
+            0x2001,
+            0x6100,
+            0x6101,
+            0x6102,
+            0x6103,
+            0x6107,
+        ];
+
+        _recvBuffer = new TransferBuffer(8192);
+    }
+
+    public void ChangeIdentity(string name, byte flag)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        _identityName = name;
+        _identityFlag = flag;
+    }
+
+    public void AddEncryptedOpcode(ushort opcode)
+    {
+        if (!_encryptedOpcodes.Contains(opcode))
+            _encryptedOpcodes.Add(opcode);
+    }
+
+    // ---------------------------------------------------------------------
+    // Crypto primitives (must match the wire protocol exactly)
+    // ---------------------------------------------------------------------
+
+    private static uint GenerateValue(ref uint val)
+    {
+        for (int i = 0; i < 32; i++)
         {
-            // Sanity check
-            if (data.Length >= 0x8000)
-            {
-                throw (new Exception("[SecurityAPI::FormatPacket] Payload is too large!"));
-            }
+            val = (((((((((((val >> 2) ^ val) >> 2) ^ val) >> 1) ^ val) >> 1) ^ val) >> 1) ^ val) & 1)
+                | ((((val & 1) << 31) | (val >> 1)) & 0xFFFFFFFE);
+        }
+        return val;
+    }
 
-            ushort data_length = (ushort)data.Length;
+    private void SetupCountByte(uint seed)
+    {
+        if (seed == 0) seed = 0x9ABFB3B6;
+        uint mut = seed;
+        uint mut1 = GenerateValue(ref mut);
+        uint mut2 = GenerateValue(ref mut);
+        uint mut3 = GenerateValue(ref mut);
+        GenerateValue(ref mut);
 
-            // Add the packet header to the start of the data
-            PacketWriter writer = new();
-            writer.Write(data_length); // packet size
-            writer.Write(opcode); // packet opcode
-            writer.Write((ushort)0); // packet security bytes
-            writer.Write(data);
-            writer.Flush();
+        byte b1 = (byte)((mut & 0xFF) ^ (mut3 & 0xFF));
+        byte b2 = (byte)((mut1 & 0xFF) ^ (mut2 & 0xFF));
+        if (b1 == 0) b1 = 1;
+        if (b2 == 0) b2 = 1;
 
-            // Determine if we need to mark the packet size as encrypted
-            if (encrypted && (m_security_flags.blowfish == 1 || (m_security_flags.security_bytes == 1 && m_security_flags.blowfish == 0)))
-            {
-                long seek_index = writer.BaseStream.Seek(0, SeekOrigin.Current);
+        _countByteSeeds[0] = (byte)(b1 ^ b2);
+        _countByteSeeds[1] = b2;
+        _countByteSeeds[2] = b1;
+    }
 
-                ushort packet_size = (ushort)(data_length | 0x8000);
+    private static uint GPowXModP(uint p, uint x, uint g)
+    {
+        long result = 1;
+        long mult = g;
+        if (x == 0) return 1;
+        while (x != 0)
+        {
+            if ((x & 1) > 0) result = (mult * result) % p;
+            x >>= 1;
+            mult = (mult * mult) % p;
+        }
+        return (uint)result;
+    }
 
-                writer.BaseStream.Seek(0, SeekOrigin.Begin);
-                writer.Write((ushort)packet_size);
-                writer.Flush();
+    private static void KeyTransformValue(ref ulong val, uint key, byte keyByte)
+    {
+        Span<byte> stream = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64LittleEndian(stream, val);
 
-                writer.BaseStream.Seek(seek_index, SeekOrigin.Begin);
-            }
+        stream[0] ^= (byte)(stream[0] + (byte)(key & 0xFF) + keyByte);
+        stream[1] ^= (byte)(stream[1] + (byte)((key >> 8) & 0xFF) + keyByte);
+        stream[2] ^= (byte)(stream[2] + (byte)((key >> 16) & 0xFF) + keyByte);
+        stream[3] ^= (byte)(stream[3] + (byte)((key >> 24) & 0xFF) + keyByte);
+        stream[4] ^= (byte)(stream[4] + (byte)(key & 0xFF) + keyByte);
+        stream[5] ^= (byte)(stream[5] + (byte)((key >> 8) & 0xFF) + keyByte);
+        stream[6] ^= (byte)(stream[6] + (byte)((key >> 16) & 0xFF) + keyByte);
+        stream[7] ^= (byte)(stream[7] + (byte)((key >> 24) & 0xFF) + keyByte);
 
-            // Only need to stamp bytes if this is a clientless object
-            if (m_client_security == false && m_security_flags.security_bytes == 1)
-            {
-                long seek_index = writer.BaseStream.Seek(0, SeekOrigin.Current);
+        val = BinaryPrimitives.ReadUInt64LittleEndian(stream);
+    }
 
-                byte sb1 = GenerateCountByte(true);
-                writer.BaseStream.Seek(4, SeekOrigin.Begin);
-                writer.Write(sb1);
-                writer.Flush();
+    private byte GenerateCountByte(bool update)
+    {
+        byte result = (byte)(_countByteSeeds[2] * (~_countByteSeeds[0] + _countByteSeeds[1]));
+        result = (byte)(result ^ (result >> 4));
+        if (update) _countByteSeeds[0] = result;
+        return result;
+    }
 
-                byte sb2 = GenerateCheckByte(writer.GetBytes());
-                writer.BaseStream.Seek(5, SeekOrigin.Begin);
-                writer.Write(sb2);
-                writer.Flush();
+    private byte GenerateCheckByte(ReadOnlySpan<byte> stream)
+    {
+        uint checksum = 0xFFFFFFFF;
+        uint moddedSeed = _crcSeed << 8;
+        for (int x = 0; x < stream.Length; x++)
+        {
+            checksum = (checksum >> 8) ^ GlobalSecurityTable[moddedSeed + ((stream[x] ^ checksum) & 0xFF)];
+        }
+        return (byte)(((checksum >> 24) & 0xFF) + ((checksum >> 8) & 0xFF)
+                    + ((checksum >> 16) & 0xFF) + (checksum & 0xFF));
+    }
 
-                writer.BaseStream.Seek(seek_index, SeekOrigin.Begin);
-            }
+    // Crypto-grade RNG — replaces the old System.Random.
+    private static ulong NextUInt64()
+    {
+        Span<byte> b = stackalloc byte[8];
+        RandomNumberGenerator.Fill(b);
+        return BinaryPrimitives.ReadUInt64LittleEndian(b);
+    }
 
-            // If the packet should be physically encrypted, return an encrypted version of it
-            if (encrypted && m_security_flags.blowfish == 1)
-            {
-                byte[] raw_data = writer.GetBytes();
-                byte[] encrypted_data = m_blowfish.Encode(raw_data, 2, raw_data.Length - 2);
+    private static uint NextUInt32() => (uint)(NextUInt64() & 0xFFFFFFFF);
 
-                writer.BaseStream.Seek(2, SeekOrigin.Begin);
+    private static byte NextUInt8() => (byte)(NextUInt64() & 0xFF);
 
-                writer.Write(encrypted_data);
-                writer.Flush();
-            }
-            else
-            {
-                // Determine if we need to unmark the packet size from being encrypted but not physically encrypted
-                if (encrypted && (m_security_flags.security_bytes == 1 && m_security_flags.blowfish == 0))
-                {
-                    long seek_index = writer.BaseStream.Seek(0, SeekOrigin.Current);
+    // ---------------------------------------------------------------------
+    // Security negotiation
+    // ---------------------------------------------------------------------
 
-                    writer.BaseStream.Seek(0, SeekOrigin.Begin);
-                    writer.Write((ushort)data_length);
-                    writer.Flush();
+    public void GenerateSecurity(bool blowfish, bool securityBytes, bool handshake)
+    {
+        SecurityFlag flags = SecurityFlag.None;
+        if (blowfish) flags |= SecurityFlag.Blowfish;
+        if (securityBytes) flags |= SecurityFlag.SecurityBytes;
+        if (handshake) flags |= SecurityFlag.Handshake;
+        if (!blowfish && !securityBytes && !handshake) flags = SecurityFlag.None;
+        GenerateSecurity(flags);
+    }
 
-                    writer.BaseStream.Seek(seek_index, SeekOrigin.Begin);
-                }
-            }
+    private void GenerateSecurity(SecurityFlag flags)
+    {
+        _securityFlagByte = (byte)flags;
+        _securityFlags = flags;
+        _clientSecurity = true;
 
-            // Return the final data
-            return writer.GetBytes();
+        using var response = new PacketWriter();
+        response.WriteByte(_securityFlagByte);
+
+        if (flags.HasFlag(SecurityFlag.Blowfish))
+        {
+            _initialBlowfishKey = NextUInt64();
+            Span<byte> keyBytes = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64LittleEndian(keyBytes, _initialBlowfishKey);
+            _blowfish.Initialize(keyBytes);
+            response.WriteUInt64(_initialBlowfishKey);
+        }
+        if (flags.HasFlag(SecurityFlag.SecurityBytes))
+        {
+            _seedCount = NextUInt8();
+            SetupCountByte(_seedCount);
+            _crcSeed = NextUInt8();
+            response.WriteUInt32(_seedCount);
+            response.WriteUInt32(_crcSeed);
+        }
+        if (flags.HasFlag(SecurityFlag.Handshake))
+        {
+            _handshakeBlowfishKey = NextUInt64();
+            _valueX = NextUInt32() & 0x7FFFFFFF;
+            _valueG = NextUInt32() & 0x7FFFFFFF;
+            _valueP = NextUInt32() & 0x7FFFFFFF;
+            _valueA = GPowXModP(_valueP, _valueX, _valueG);
+
+            response.WriteUInt64(_handshakeBlowfishKey);
+            response.WriteUInt32(_valueG);
+            response.WriteUInt32(_valueP);
+            response.WriteUInt32(_valueA);
         }
 
-        bool HasPacketToSend()
+        _outgoingPackets.Add(new Packet(0x5000, false, false, response.Span));
+    }
+
+    private void Handshake(ushort opcode, ref PacketReader reader, bool encrypted)
+    {
+        if (encrypted)
+            throw new SecurityException("[Security::Handshake] Received an encrypted handshake packet.");
+
+        if (_clientSecurity)
+            ClientHandshake(opcode, ref reader);
+        else
+            ServerHandshake(opcode, ref reader);
+    }
+
+    private void ClientHandshake(ushort opcode, ref PacketReader reader)
+    {
+        if (!_securityFlags.HasFlag(SecurityFlag.Handshake))
         {
-            // No packets, easy case
-            if (MOutgoingPackets.Count == 0)
+            if (opcode == 0x9000)
             {
-                return false;
+                if (_acceptedHandshake)
+                    throw new SecurityException("[Security::Handshake] Duplicate 0x9000.");
+                _acceptedHandshake = true;
+                return;
             }
-
-            // If we have packets and have accepted the handshake, we can send whenever,
-            // so return true.
-            if (m_accepted_handshake)
-            {
-                return true;
-            }
-
-            // Otherwise, check to see if we have pending handshake packets to send
-            Packet packet = MOutgoingPackets[0];
-            if (packet.Opcode == 0x5000 || packet.Opcode == 0x9000)
-            {
-                return true;
-            }
-
-            // If we get here, we have out of order packets that cannot be sent yet.
-            return false;
+            if (opcode == 0x5000)
+                throw new SecurityException("[Security::Handshake] Unexpected 0x5000 (no handshake).");
+            throw new SecurityException("[Security::Handshake] Unexpected handshake opcode.");
         }
 
-        KeyValuePair<TransferBuffer, Packet> GetPacketToSend()
+        if (opcode == 0x9000)
         {
-            if (MOutgoingPackets.Count == 0)
-            {
-                throw (new Exception("[SecurityAPI::GetPacketToSend] No packets are avaliable to send."));
-            }
-
-            Packet packet = MOutgoingPackets[0];
-            MOutgoingPackets.RemoveAt(0);
-
-            if (packet.Massive)
-            {
-                ushort parts = 0;
-
-                PacketWriter final = new();
-                PacketWriter final_data = new();
-
-                byte[] input_data = packet.GetBytes();
-                TransferBuffer workspace = new(4089, 0, (int)input_data.Length);
-
-                while (workspace.Size > 0)
-                {
-                    PacketWriter part_data = new();
-
-                    int cur_size = workspace.Size > 4089 ? 4089 : workspace.Size; // Max buffer size is 4kb for the client
-
-                    part_data.Write((byte)0); // Data flag
-
-                    part_data.Write(input_data, workspace.Offset, cur_size);
-
-                    workspace.Offset += cur_size;
-                    workspace.Size -= cur_size; // Update the size
-
-                    final_data.Write(FormatPacket(0x600D, part_data.GetBytes(), false));
-
-                    ++parts; // Track how many parts there are
-                }
-
-                // Write the final header packet to the front of the packet
-                PacketWriter final_header = new();
-                final_header.Write((byte)1); // Header flag
-                final_header.Write((short)parts);
-                final_header.Write(packet.Opcode);
-                final.Write(FormatPacket(0x600D, final_header.GetBytes(), false));
-
-                // Finish the large packet of all the data
-                final.Write(final_data.GetBytes());
-
-                // Return the collated data
-                byte[] raw_bytes = final.GetBytes();
-                packet.Lock();
-                return new KeyValuePair<TransferBuffer, Packet>(new TransferBuffer(raw_bytes, 0, raw_bytes.Length, true), packet);
-            }
-            else
-            {
-                bool encrypted = packet.Encrypted;
-                if (!m_client_security)
-                {
-                    if (Enc_opcodes.Contains(packet.Opcode))
-                    {
-                        encrypted = true;
-                    }
-                }
-                byte[] raw_bytes = FormatPacket(packet.Opcode, packet.GetBytes(), encrypted);
-                packet.Lock();
-                return new KeyValuePair<TransferBuffer, Packet>(new TransferBuffer(raw_bytes, 0, raw_bytes.Length, true), packet);
-            }
-        }
-        #endregion
-
-        // Default constructor
-        public Security()
-        {
-            m_value_x = 0;
-            m_value_g = 0;
-            m_value_p = 0;
-            m_value_A = 0;
-            m_value_B = 0;
-            m_value_K = 0;
-            m_seed_count = 0;
-            m_crc_seed = 0;
-            m_initial_blowfish_key = 0;
-            m_handshake_blowfish_key = 0;
-            m_count_byte_seeds = new byte[3];
-            m_count_byte_seeds[0] = 0;
-            m_count_byte_seeds[1] = 0;
-            m_count_byte_seeds[2] = 0;
-            m_client_key = 0;
-            m_challenge_key = 0;
-
-            m_client_security = false;
-            m_security_flag = 0;
-            m_security_flags = new SecurityFlags();
-            m_accepted_handshake = false;
-            m_started_handshake = false;
-            m_identity_flag = 0;
-            m_identity_name = "SR_Client";
-
-            MOutgoingPackets = [];
-            MIncomingPackets = [];
-
-            Enc_opcodes =
-            [
-                0x2001,
-                0x6100,
-                0x6101,
-                0x6102,
-                0x6103,
-                0x6107,
-            ];
-
-            m_blowfish = new Blowfish();
-
-            Recv_buffer = new TransferBuffer(8192); // must be at minimal 2 bytes!
-            Current_buffer = null!;
-
-            Massive_count = 0;
-            Massive_packet = null!;
+            if (!_startedHandshake)
+                throw new SecurityException("[Security::Handshake] Out-of-order 0x9000.");
+            if (_acceptedHandshake)
+                throw new SecurityException("[Security::Handshake] Duplicate 0x9000.");
+            _acceptedHandshake = true;
+            return;
         }
 
-        // Changes the 0x2001 identify packet data that will be sent out by
-        // this security object.
-        public void ChangeIdentity(string name, byte flag)
+        if (opcode != 0x5000)
+            throw new SecurityException("[Security::Handshake] Unexpected handshake opcode.");
+
+        if (_startedHandshake)
+            throw new SecurityException("[Security::Handshake] Duplicate 0x5000.");
+
+        _startedHandshake = true;
+
+        _valueB = reader.ReadUInt32();
+        _clientKey = reader.ReadUInt64();
+
+        _valueK = GPowXModP(_valueP, _valueX, _valueB);
+
+        // Verify client signature
+        ulong keyArray = MakeLongLong(_valueA, _valueB);
+        KeyTransformValue(ref keyArray, _valueK, (byte)((_valueK & 0xFF) & 0x03));
+        Span<byte> keyBytes = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64LittleEndian(keyBytes, keyArray);
+        _blowfish.Initialize(keyBytes);
+
+        Span<byte> tmp = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64LittleEndian(tmp, _clientKey);
+        _blowfish.DecodeInPlace(tmp);
+        _clientKey = BinaryPrimitives.ReadUInt64LittleEndian(tmp);
+
+        ulong expected = MakeLongLong(_valueB, _valueA);
+        KeyTransformValue(ref expected, _valueK, (byte)((_valueB & 0xFF) & 0x07));
+        if (_clientKey != expected)
+            throw new SecurityException("[Security::Handshake] Client signature error.");
+
+        // Build challenge response
+        keyArray = MakeLongLong(_valueA, _valueB);
+        KeyTransformValue(ref keyArray, _valueK, (byte)((_valueK & 0xFF) & 0x03));
+        BinaryPrimitives.WriteUInt64LittleEndian(keyBytes, keyArray);
+        _blowfish.Initialize(keyBytes);
+
+        _challengeKey = MakeLongLong(_valueA, _valueB);
+        KeyTransformValue(ref _challengeKey, _valueK, (byte)((_valueA & 0xFF) & 0x07));
+        BinaryPrimitives.WriteUInt64LittleEndian(tmp, _challengeKey);
+        _blowfish.EncodeInPlace(tmp);
+        _challengeKey = BinaryPrimitives.ReadUInt64LittleEndian(tmp);
+
+        KeyTransformValue(ref _handshakeBlowfishKey, _valueK, 0x3);
+        BinaryPrimitives.WriteUInt64LittleEndian(keyBytes, _handshakeBlowfishKey);
+        _blowfish.Initialize(keyBytes);
+
+        using var response = new PacketWriter();
+        response.WriteByte((byte)SecurityFlag.HandshakeResponse);
+        response.WriteUInt64(_challengeKey);
+
+        _outgoingPackets.Add(new Packet(0x5000, false, false, response.Span));
+    }
+
+    private void ServerHandshake(ushort opcode, ref PacketReader reader)
+    {
+        if (opcode != 0x5000)
+            throw new SecurityException("[Security::Handshake] Expected 0x5000 from client.");
+
+        byte flag = reader.ReadByte();
+        SecurityFlag flags = (SecurityFlag)flag;
+
+        if (_securityFlagByte == 0)
         {
-            m_identity_name = name;
-            m_identity_flag = flag;
+            _securityFlagByte = flag;
+            _securityFlags = flags;
         }
 
-        // Generates the security settings. This should only be called if the security object
-        // is being used to process an incoming connection's data (server).
-        public void GenerateSecurity(bool blowfish, bool security_bytes, bool handshake)
+        if (flags.HasFlag(SecurityFlag.Blowfish))
         {
-            SecurityFlags flags = new();
-            if (blowfish)
-            {
-                flags.none = 0;
-                flags.blowfish = 1;
-            }
-            if (security_bytes)
-            {
-                flags.none = 0;
-                flags.security_bytes = 1;
-            }
-            if (handshake)
-            {
-                flags.none = 0;
-                flags.handshake = 1;
-            }
-            if (!blowfish && !security_bytes && !handshake)
-            {
-                flags.none = 1;
-            }
-            GenerateSecurity(flags);
+            _initialBlowfishKey = reader.ReadUInt64();
+            Span<byte> kb = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64LittleEndian(kb, _initialBlowfishKey);
+            _blowfish.Initialize(kb);
         }
 
-        // Adds an encrypted opcode to the API. Any opcodes registered here will automatically
-        // be encrypted as needed. Users should add the current Item Use opcode if they will be
-        // mixing security modes.
-        public void AddEncryptedOpcode(ushort opcode)
+        if (flags.HasFlag(SecurityFlag.SecurityBytes))
         {
-            if (Enc_opcodes.Contains(opcode) == false)
-            {
-                Enc_opcodes.Add(opcode);
-            }
+            _seedCount = reader.ReadUInt32();
+            _crcSeed = reader.ReadUInt32();
+            SetupCountByte(_seedCount);
         }
 
-        // Queues a packet for processing to be sent. The data is simply formatted and processed during
-        // the next call to TransferOutgoing.
-        public void Send(Packet packet)
+        if (flags.HasFlag(SecurityFlag.Handshake))
         {
-            if (packet.Opcode == 0x5000 || packet.Opcode == 0x9000)
-            {
-                throw (new Exception("[SecurityAPI::Send] Handshake packets cannot be sent through this function."));
-            }
+            _handshakeBlowfishKey = reader.ReadUInt64();
+            _valueG = reader.ReadUInt32();
+            _valueP = reader.ReadUInt32();
+            _valueA = reader.ReadUInt32();
 
-            MOutgoingPackets.Add(packet);
+            _valueX = NextUInt32() & 0x7FFFFFFF;
+            _valueB = GPowXModP(_valueP, _valueX, _valueG);
+            _valueK = GPowXModP(_valueP, _valueX, _valueA);
+
+            Span<byte> kb = stackalloc byte[8];
+            Span<byte> tmp = stackalloc byte[8];
+
+            ulong keyArray = MakeLongLong(_valueA, _valueB);
+            KeyTransformValue(ref keyArray, _valueK, (byte)((_valueK & 0xFF) & 0x03));
+            BinaryPrimitives.WriteUInt64LittleEndian(kb, keyArray);
+            _blowfish.Initialize(kb);
+
+            _clientKey = MakeLongLong(_valueB, _valueA);
+            KeyTransformValue(ref _clientKey, _valueK, (byte)((_valueB & 0xFF) & 0x07));
+            BinaryPrimitives.WriteUInt64LittleEndian(tmp, _clientKey);
+            _blowfish.EncodeInPlace(tmp);
+            _clientKey = BinaryPrimitives.ReadUInt64LittleEndian(tmp);
         }
 
-        // Transfers raw incoming data into the security object. Call TransferIncoming to
-        // obtain a list of ready to process packets.
-        public void Recv(byte[] buffer, int offset, int length)
+        if (flags.HasFlag(SecurityFlag.HandshakeResponse))
         {
-            Recv(new TransferBuffer(buffer, offset, length, true));
+            _challengeKey = reader.ReadUInt64();
+
+            ulong expected = MakeLongLong(_valueA, _valueB);
+            KeyTransformValue(ref expected, _valueK, (byte)((_valueA & 0xFF) & 0x07));
+            Span<byte> tmp = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64LittleEndian(tmp, expected);
+            _blowfish.EncodeInPlace(tmp);
+            expected = BinaryPrimitives.ReadUInt64LittleEndian(tmp);
+
+            if (_challengeKey != expected)
+                throw new SecurityException("[Security::Handshake] Server signature error.");
+
+            KeyTransformValue(ref _handshakeBlowfishKey, _valueK, 0x3);
+            Span<byte> kb = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64LittleEndian(kb, _handshakeBlowfishKey);
+            _blowfish.Initialize(kb);
         }
 
-        // Transfers raw incoming data into the security object. Call TransferIncoming to
-        // obtain a list of ready to process packets.
-        public void Recv(TransferBuffer raw_buffer)
+        if (flags.HasFlag(SecurityFlag.Handshake) && !flags.HasFlag(SecurityFlag.HandshakeResponse))
         {
-            List<TransferBuffer> incoming_buffers_tmp = [];
-            int length = raw_buffer.Size - raw_buffer.Offset;
-            int index = 0;
-            while (length > 0)
-            {
-                int max_length = length;
-                int calc_length = Recv_buffer.Buffer.Length - Recv_buffer.Size;
+            if (_startedHandshake || _acceptedHandshake)
+                throw new SecurityException("[Security::Handshake] Duplicate 0x5000.");
 
-                if (max_length > calc_length)
-                {
-                    max_length = calc_length;
-                }
-                length -= max_length;
+            using var response = new PacketWriter();
+            response.WriteUInt32(_valueB);
+            response.WriteUInt64(_clientKey);
 
-                Buffer.BlockCopy(raw_buffer.Buffer, raw_buffer.Offset + index, Recv_buffer.Buffer, Recv_buffer.Size, max_length);
-
-                Recv_buffer.Size += max_length;
-                index += max_length;
-
-                // Loop while we have data to process
-                while (Recv_buffer.Size > 0)
-                {
-                    // If we do not have a current packet object, try to allocate one.
-                    if (Current_buffer == null)
-                    {
-                        // We need at least two bytes to allocate a packet.
-                        if (Recv_buffer.Size < 2)
-                        {
-                            break;
-                        }
-
-                        // Calculate the packet size.
-                        int packet_size = Recv_buffer.Buffer[1] << 8 | Recv_buffer.Buffer[0];
-
-                        // Check to see if this packet is encrypted.
-                        if ((packet_size & 0x8000) > 0)
-                        {
-                            // If so, calculate the total payload size.
-                            packet_size &= 0x7FFF; // Mask off the encryption.
-                            if (m_security_flags.blowfish == 1)
-                            {
-                                packet_size = 2 + m_blowfish.GetOutputLength(packet_size + 4);
-                            }
-                            else
-                            {
-                                packet_size += 6;
-                            }
-                        }
-                        else
-                        {
-                            // The packet is unencrypted. The final size is simply
-                            // header size + payload size.
-                            packet_size += 6;
-                        }
-
-                        // Allocate the final buffer the packet will be written to
-                        Current_buffer = new TransferBuffer(packet_size, 0, packet_size);
-                    }
-
-                    // Calculate how many bytes are left to receive in the packet.
-                    int max_copy_count = Current_buffer.Size - Current_buffer.Offset;
-
-                    // If we need more bytes than we currently have, update the size.
-                    if (max_copy_count > Recv_buffer.Size)
-                    {
-                        max_copy_count = Recv_buffer.Size;
-                    }
-
-                    // Copy the buffer data to the packet buffer
-                    Buffer.BlockCopy(Recv_buffer.Buffer, 0, Current_buffer.Buffer, Current_buffer.Offset, max_copy_count);
-
-                    // Update how many bytes we now have
-                    Current_buffer.Offset += max_copy_count;
-                    Recv_buffer.Size -= max_copy_count;
-
-                    // If there is data remaining in the buffer, copy it over the data
-                    // we just removed (sliding buffer).
-                    if (Recv_buffer.Size > 0)
-                    {
-                        Buffer.BlockCopy(Recv_buffer.Buffer, max_copy_count, Recv_buffer.Buffer, 0, Recv_buffer.Size);
-                    }
-
-                    // Check to see if the current packet is now complete.
-                    if (Current_buffer.Size == Current_buffer.Offset)
-                    {
-                        // If so, dispatch it to the manager class for processing by the system.
-                        Current_buffer.Offset = 0;
-                        incoming_buffers_tmp.Add(Current_buffer);
-
-                        // Set the current packet to null so we can process the next packet
-                        // in the stream.
-                        Current_buffer = null!;
-                    }
-                    else
-                    {
-                        // Otherwise, we are done with this loop, since we need more
-                        // data for the current packet.
-                        break;
-                    }
-                }
-            }
-
-            int bufferCount = incoming_buffers_tmp.Count;
-
-            for (var i = 0; i < bufferCount; i++)
-            {
-                var buffer = incoming_buffers_tmp[i];
-
-                bool packet_encrypted = false;
-
-                int packet_size = buffer.Buffer[1] << 8 | buffer.Buffer[0];
-                if ((packet_size & 0x8000) > 0)
-                {
-                    if (m_security_flags.blowfish == 1)
-                    {
-                        packet_size &= 0x7FFF;
-                        packet_encrypted = true;
-                    }
-                    else
-                    {
-                        packet_size &= 0x7FFF;
-                    }
-                }
-
-                if (packet_encrypted)
-                {
-                    byte[] decrypted = m_blowfish.Decode(buffer.Buffer, 2, buffer.Size - 2);
-                    byte[] new_buffer = new byte[6 + packet_size];
-                    Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, new_buffer, 0, 2);
-                    Buffer.BlockCopy(decrypted, 0, new_buffer, 2, 4 + packet_size);
-                    buffer.Buffer = null!;
-                    buffer.Buffer = new_buffer;
-                }
-
-                PacketReader packet_data = new(buffer.Buffer);
-                packet_size = packet_data.ReadUInt16();
-                ushort packet_opcode = packet_data.ReadUInt16();
-                byte packet_security_count = packet_data.ReadByte();
-                byte packet_security_crc = packet_data.ReadByte();
-
-                // Client object whose bytes the server might need to verify
-                if (m_client_security && m_security_flags.security_bytes == 1)
-                {
-                    byte expected_count = GenerateCountByte(true);
-                    if (packet_security_count != expected_count)
-                    {
-                        throw (new Exception("[SecurityAPI::Recv] Count byte mismatch."));
-                    }
-
-                    if (packet_encrypted || m_security_flags.blowfish == 0)
-                    {
-                        if (packet_encrypted || Enc_opcodes.Contains(packet_opcode))
-                        {
-                            packet_size |= 0x8000;
-                            Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
-                        }
-                    }
-
-                    buffer.Buffer[5] = 0;
-
-                    byte expected_crc = GenerateCheckByte(buffer.Buffer);
-                    if (packet_security_crc != expected_crc)
-                    {
-                        throw (new Exception("[SecurityAPI::Recv] CRC byte mismatch."));
-                    }
-
-                    buffer.Buffer[4] = 0;
-
-                    if (packet_encrypted || m_security_flags.blowfish == 0)
-                    {
-                        if (packet_encrypted || Enc_opcodes.Contains(packet_opcode))
-                        {
-                            packet_size &= 0x7FFF;
-                            Buffer.BlockCopy(BitConverter.GetBytes((ushort)packet_size), 0, buffer.Buffer, 0, 2);
-                        }
-                    }
-                }
-
-                Packet packet;
-
-                if (packet_opcode == 0x5000 || packet_opcode == 0x9000) // New logic processing!
-                {
-                    Handshake(packet_opcode, packet_data, packet_encrypted);
-
-                    // Pass the handshake packets to the user so they can at least see them.
-                    // They do not need to actually do anything with them. This was added to
-                    // help debugging and make output logs complete.
-
-                    packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
-                    packet.Lock();
-                    MIncomingPackets.Add(packet);
-
-                    continue;
-                }
-
-                if (m_client_security)
-                {
-                    // Make sure the client accepted the security system first
-                    if (!m_accepted_handshake)
-                    {
-                        throw (new Exception("[SecurityAPI::Recv] The client has not accepted the handshake."));
-                    }
-                }
-
-                if (packet_opcode == 0x600D) // Auto process massive messages for the user
-                {
-                    byte mode = packet_data.ReadByte();
-                    if (mode == 1)
-                    {
-                        Massive_count = packet_data.ReadUInt16();
-                        ushort contained_packet_opcode = packet_data.ReadUInt16();
-                        Massive_packet = new Packet(contained_packet_opcode, packet_encrypted, true);
-                    }
-                    else
-                    {
-                        if (Massive_packet == null)
-                        {
-                            throw (new Exception("[SecurityAPI::Recv] A malformed 0x600D packet was received."));
-                        }
-                        Massive_packet.WriteUInt8Array(packet_data.ReadBytes(packet_size - 1));
-                        Massive_count--;
-                        if (Massive_count == 0)
-                        {
-                            Massive_packet.Lock();
-                            MIncomingPackets.Add(Massive_packet);
-                            Massive_packet = null!;
-                        }
-                    }
-
-                    continue;
-                }
-
-                packet = new Packet(packet_opcode, packet_encrypted, false, buffer.Buffer, 6, packet_size);
-                packet.Lock();
-                MIncomingPackets.Add(packet);
-            }
+            _outgoingPackets.Insert(0, new Packet(0x5000, false, false, response.Span));
+            _startedHandshake = true;
         }
-
-        // Returns a list of buffers that is ready to be sent. These buffers must be sent in order.
-        // If no buffers are available for sending, null is returned.
-        public List<KeyValuePair<TransferBuffer, Packet>> TransferOutgoing()
+        else
         {
-            List<KeyValuePair<TransferBuffer, Packet>> buffers = [];
+            if (_acceptedHandshake)
+                throw new SecurityException("[Security::Handshake] Duplicate handshake acceptance.");
 
-            if (HasPacketToSend())
-            {
-                buffers = [];
-                while (HasPacketToSend())
-                {
-                    buffers.Add(GetPacketToSend());
-                }
-            }
+            var response1 = new Packet(0x9000);
 
-            return buffers;
-        }
+            var response2 = new Packet(0x2001, true, false);
+            response2.WriteAscii(_identityName);
+            response2.WriteUInt8(_identityFlag);
 
-        // Returns a list of all packets that are ready for processing. If no packets are available,
-        // null is returned.
-        public List<Packet> TransferIncoming()
-        {
-            List<Packet> packets = [];
+            _outgoingPackets.Insert(0, response2);
+            _outgoingPackets.Insert(0, response1);
 
-            if (MIncomingPackets.Count > 0)
-            {
-                packets = MIncomingPackets;
-                MIncomingPackets = [];
-            }
-
-            return packets;
+            _startedHandshake = true;
+            _acceptedHandshake = true;
         }
     }
+
+    // ---------------------------------------------------------------------
+    // Packet formatting
+    // ---------------------------------------------------------------------
+
+    private byte[] FormatPacket(ushort opcode, ReadOnlySpan<byte> data, bool encrypted)
+    {
+        if (data.Length >= 0x8000)
+            throw new SecurityException("[Security::FormatPacket] Payload too large.");
+
+        ushort dataLength = (ushort)data.Length;
+
+        using var writer = new PacketWriter(data.Length + 6);
+        writer.WriteUInt16(dataLength);
+        writer.WriteUInt16(opcode);
+        writer.WriteUInt16(0);
+        writer.Write(data);
+
+        bool markEncrypted = encrypted &&
+            (_securityFlags.HasFlag(SecurityFlag.Blowfish) ||
+             (_securityFlags.HasFlag(SecurityFlag.SecurityBytes) &&
+              !_securityFlags.HasFlag(SecurityFlag.Blowfish)));
+
+        if (markEncrypted)
+            writer.PatchUInt16(0, (ushort)(dataLength | 0x8000));
+
+        if (!_clientSecurity && _securityFlags.HasFlag(SecurityFlag.SecurityBytes))
+        {
+            byte sb1 = GenerateCountByte(true);
+            writer.PatchByte(4, sb1);
+
+            byte sb2 = GenerateCheckByte(writer.Span);
+            writer.PatchByte(5, sb2);
+        }
+
+        if (encrypted && _securityFlags.HasFlag(SecurityFlag.Blowfish))
+        {
+            writer.PadSoSliceIsAligned(sliceStart: 2, alignment: 8);
+            _blowfish.EncodeInPlace(writer.WritableSpan[2..]);
+            return writer.ToArray();
+        }
+
+        if (encrypted &&
+            _securityFlags.HasFlag(SecurityFlag.SecurityBytes) &&
+            !_securityFlags.HasFlag(SecurityFlag.Blowfish))
+        {
+            writer.PatchUInt16(0, dataLength);
+        }
+
+        return writer.ToArray();
+    }
+
+    private bool HasPacketToSend()
+    {
+        if (_outgoingPackets.Count == 0) return false;
+        if (_acceptedHandshake) return true;
+
+        var first = _outgoingPackets[0];
+        return first.Opcode is 0x5000 or 0x9000;
+    }
+
+    private KeyValuePair<TransferBuffer, Packet> GetPacketToSend()
+    {
+        if (_outgoingPackets.Count == 0)
+            throw new SecurityException("[Security::GetPacketToSend] No packets available.");
+
+        var packet = _outgoingPackets[0];
+        _outgoingPackets.RemoveAt(0);
+
+        if (packet.Massive)
+            return BuildMassivePacket(packet);
+
+        bool encrypted = packet.Encrypted;
+        if (!_clientSecurity && _encryptedOpcodes.Contains(packet.Opcode))
+            encrypted = true;
+
+        byte[] raw = FormatPacket(packet.Opcode, packet.PayloadSpan, encrypted);
+        packet.Lock();
+        return new KeyValuePair<TransferBuffer, Packet>(
+            new TransferBuffer(raw, 0, raw.Length, assign: true), packet);
+    }
+
+    private KeyValuePair<TransferBuffer, Packet> BuildMassivePacket(Packet packet)
+    {
+        const int MaxChunk = 4089;
+
+        byte[] input = packet.GetBytes();
+        ushort parts = 0;
+
+        using var finalData = new PacketWriter(input.Length + 16);
+        int offset = 0;
+        while (offset < input.Length)
+        {
+            int cur = Math.Min(MaxChunk, input.Length - offset);
+
+            using var part = new PacketWriter(cur + 1);
+            part.WriteByte(0); // data flag
+            part.Write(input.AsSpan(offset, cur));
+
+            byte[] formatted = FormatPacket(0x600D, part.Span, encrypted: false);
+            finalData.Write(formatted);
+
+            offset += cur;
+            parts++;
+        }
+
+        using var header = new PacketWriter(5);
+        header.WriteByte(1);
+        header.WriteUInt16(parts);
+        header.WriteUInt16(packet.Opcode);
+
+        using var final = new PacketWriter(input.Length + 32);
+        final.Write(FormatPacket(0x600D, header.Span, encrypted: false));
+        final.Write(finalData.Span);
+
+        byte[] raw = final.ToArray();
+        packet.Lock();
+        return new KeyValuePair<TransferBuffer, Packet>(
+            new TransferBuffer(raw, 0, raw.Length, assign: true), packet);
+    }
+
+    // ---------------------------------------------------------------------
+    // Public API
+    // ---------------------------------------------------------------------
+
+    public void Send(Packet packet)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
+        if (packet.Opcode is 0x5000 or 0x9000)
+            throw new SecurityException("[Security::Send] Handshake packets cannot be sent here.");
+        _outgoingPackets.Add(packet);
+    }
+
+    public void Recv(byte[] buffer, int offset, int length)
+        => Recv(new TransferBuffer(buffer, offset, length, assign: true));
+
+    public void Recv(TransferBuffer rawBuffer)
+    {
+        ArgumentNullException.ThrowIfNull(rawBuffer);
+
+        int available = rawBuffer.Size - rawBuffer.Offset;
+        int srcIndex = rawBuffer.Offset;
+
+        while (available > 0)
+        {
+            // --- Fill the 2-byte length prefix --------------------------------
+            if (_recvBuffer.Size < 2)
+            {
+                int need = 2 - _recvBuffer.Size;
+                int take = Math.Min(need, available);
+                Buffer.BlockCopy(rawBuffer.Buffer, srcIndex,
+                                 _recvBuffer.Buffer, _recvBuffer.Size, take);
+                _recvBuffer.Size += take;
+                srcIndex += take;
+                available -= take;
+                if (_recvBuffer.Size < 2) break;
+            }
+
+            // --- Once we have the length, allocate _currentBuffer if needed ---
+            if (_currentBuffer is null)
+            {
+                int payload = _recvBuffer.Buffer[1] << 8 | _recvBuffer.Buffer[0];
+                int wireSize;
+
+                if ((payload & 0x8000) > 0)
+                {
+                    payload &= 0x7FFF;
+                    wireSize = _securityFlags.HasFlag(SecurityFlag.Blowfish)
+                        ? 2 + Blowfish.GetOutputLength(payload + 4)
+                        : payload + 6;
+                }
+                else
+                {
+                    wireSize = payload + 6;
+                }
+
+                _currentBuffer = new TransferBuffer(wireSize, 0, wireSize);
+
+                // Drain whatever is already in _recvBuffer into _currentBuffer.
+                int move = Math.Min(_recvBuffer.Size, _currentBuffer.Size);
+                Buffer.BlockCopy(_recvBuffer.Buffer, 0,
+                                 _currentBuffer.Buffer, 0, move);
+                _currentBuffer.Offset = move;
+                _recvBuffer.Size = 0;
+            }
+
+            // --- Top up _currentBuffer from the incoming raw buffer -----------
+            int needMore = _currentBuffer.Size - _currentBuffer.Offset;
+            if (needMore > 0)
+            {
+                int take = Math.Min(needMore, available);
+                Buffer.BlockCopy(rawBuffer.Buffer, srcIndex,
+                                 _currentBuffer.Buffer, _currentBuffer.Offset, take);
+                _currentBuffer.Offset += take;
+                srcIndex += take;
+                available -= take;
+            }
+
+            if (_currentBuffer.Size == _currentBuffer.Offset)
+            {
+                var done = _currentBuffer;
+                done.Offset = 0;
+                _currentBuffer = null;
+                ProcessIncomingBuffer(done);
+            }
+            else
+            {
+                // Need more data from the network.
+                break;
+            }
+        }
+    }
+
+    private void ProcessIncomingBuffer(TransferBuffer buffer)
+    {
+        if (buffer.Size < 6 || buffer.Size > buffer.Buffer.Length)
+            throw new SecurityException(
+                $"[Security::Recv] Invalid buffer state: Size={buffer.Size}, Len={buffer.Buffer.Length}.");
+
+        Span<byte> span = buffer.Buffer.AsSpan(0, buffer.Size);
+
+        bool packetEncrypted = false;
+        int packetSize = BinaryPrimitives.ReadUInt16LittleEndian(span);
+
+        if ((packetSize & 0x8000) > 0)
+        {
+            packetSize &= 0x7FFF;
+            if (_securityFlags.HasFlag(SecurityFlag.Blowfish))
+                packetEncrypted = true;
+        }
+
+        if (packetEncrypted)
+        {
+            Span<byte> cipher = buffer.Buffer.AsSpan(2, buffer.Size - 2);
+            if ((cipher.Length & 7) != 0)
+                throw new SecurityException(
+                    $"[Security::Recv] Encrypted payload length {cipher.Length} is not a multiple of 8.");
+
+            _blowfish.DecodeInPlace(cipher);
+
+            BinaryPrimitives.WriteUInt16LittleEndian(buffer.Buffer, (ushort)packetSize);
+            span = buffer.Buffer.AsSpan(0, 6 + packetSize);
+        }
+
+        var reader = new PacketReader(buffer.Buffer.AsMemory(0, buffer.Size));
+        _ = reader.ReadUInt16(); // size (already parsed)
+        ushort opcode = reader.ReadUInt16();
+        byte securityCount = reader.ReadByte();
+        byte securityCrc = reader.ReadByte();
+
+        if (_clientSecurity && _securityFlags.HasFlag(SecurityFlag.SecurityBytes))
+        {
+            byte expectedCount = GenerateCountByte(true);
+            if (securityCount != expectedCount)
+                throw new SecurityException("[Security::Recv] Count byte mismatch.");
+
+            if (packetEncrypted || !_securityFlags.HasFlag(SecurityFlag.Blowfish))
+            {
+                if (packetEncrypted || _encryptedOpcodes.Contains(opcode))
+                {
+                    ushort marked = (ushort)(packetSize | 0x8000);
+                    BinaryPrimitives.WriteUInt16LittleEndian(span, marked);
+                }
+            }
+
+            // Zero out the CRC byte before recomputing.
+            span[5] = 0;
+            byte expectedCrc = GenerateCheckByte(span);
+            if (securityCrc != expectedCrc)
+                throw new SecurityException("[Security::Recv] CRC byte mismatch.");
+            span[4] = 0;
+
+            if (packetEncrypted || !_securityFlags.HasFlag(SecurityFlag.Blowfish))
+            {
+                if (packetEncrypted || _encryptedOpcodes.Contains(opcode))
+                {
+                    BinaryPrimitives.WriteUInt16LittleEndian(span, (ushort)packetSize);
+                }
+            }
+        }
+
+        if (opcode is 0x5000 or 0x9000)
+        {
+            Handshake(opcode, ref reader, packetEncrypted);
+            var hsPacket = new Packet(opcode, packetEncrypted, false,
+                                      buffer.Buffer, 6, packetSize);
+            hsPacket.Lock();
+            _incomingPackets.Add(hsPacket);
+            return;
+        }
+
+        if (_clientSecurity && !_acceptedHandshake)
+            throw new SecurityException("[Security::Recv] Client has not accepted the handshake.");
+
+        if (opcode == 0x600D)
+        {
+            byte mode = reader.ReadByte();
+            if (mode == 1)
+            {
+                _massiveCount = reader.ReadUInt16();
+                ushort contained = reader.ReadUInt16();
+                _massivePacket = new Packet(contained, packetEncrypted, true);
+            }
+            else
+            {
+                if (_massivePacket is null)
+                    throw new SecurityException("[Security::Recv] Malformed 0x600D packet.");
+
+                _massivePacket.WriteUInt8Array(reader.ReadBytes(packetSize - 1));
+                _massiveCount--;
+                if (_massiveCount == 0)
+                {
+                    _massivePacket.Lock();
+                    _incomingPackets.Add(_massivePacket);
+                    _massivePacket = null;
+                }
+            }
+            return;
+        }
+
+        var pkt = new Packet(opcode, packetEncrypted, false, buffer.Buffer, 6, packetSize);
+        pkt.Lock();
+        _incomingPackets.Add(pkt);
+    }
+
+    public List<KeyValuePair<TransferBuffer, Packet>> TransferOutgoing()
+    {
+        var buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
+        while (HasPacketToSend())
+            buffers.Add(GetPacketToSend());
+        return buffers;
+    }
+
+    public IReadOnlyList<Packet> TransferIncoming()
+    {
+        if (_incomingPackets.Count == 0) return [];
+        var packets = _incomingPackets;
+        _incomingPackets = [];
+        return packets;
+    }
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+
+    private static ulong MakeLongLong(uint a, uint b)
+        => ((ulong)b << 32) | a;
 }
