@@ -47,12 +47,12 @@ namespace NetGuardLoader
 
                 for (var i = 0; i < 3; i++)
                 {
-                    Config.ModuleBinding.Add(new ModuleSettings() 
-                    { 
-                        Name = "Example #" + (i + 1), 
-                        GuardPort = 15884 + i, 
-                        ModulePort = 5884 + i, 
-                        ModuleType = ModuleType.AgentModule 
+                    Config.ModuleBinding.Add(new ModuleSettings()
+                    {
+                        Name = "Example #" + (i + 1),
+                        GuardPort = 15884 + i,
+                        ModulePort = 5884 + i,
+                        ModuleType = ModuleType.AgentModule
                     });
                 }
 
@@ -76,62 +76,86 @@ namespace NetGuardLoader
 
                 if (!File.Exists("example_agent.bat"))
                     File.WriteAllText("example_agent.bat", "@echo on\ncmd /k \"NetGuardLoader.exe 1\"\npause");
+
+                return;
             }
-            else
+
+            module = args[0];
+
+            if (!int.TryParse(args[0], out moduleIndex))
             {
-                module = args[0];
-                moduleIndex = 0;
+                Custom.WriteLine($"Invalid module index: {args[0]}", ConsoleColor.Red);
+                return;
+            }
 
-                try
+            if (moduleIndex < 0 || moduleIndex >= Config.ModuleBinding.Count)
+            {
+                Custom.WriteLine($"Module index {moduleIndex} out of range (0..{Config.ModuleBinding.Count - 1})", ConsoleColor.Red);
+                return;
+            }
+
+            var moduleSettings = Config.ModuleBinding[moduleIndex];
+
+            try
+            {
+                Custom.WriteLine($"Loading dll {Config.DllPath} (index {moduleIndex}, module {moduleSettings.ModuleType})", ConsoleColor.Magenta);
+
+                var dllPath = Path.GetFullPath(Config.DllPath);
+                var dllDir = Path.GetDirectoryName(dllPath) ?? AppContext.BaseDirectory;
+
+                var alc = new AssemblyLoadContext("NetGuard.Module", isCollectible: false);
+
+                // Resolve any dependency the module needs, looking next to Module.dll,
+                // then next to the loader exe, then reusing an already-loaded assembly.
+                alc.Resolving += (context, name) =>
                 {
-                    bool v = int.TryParse(args[0], out moduleIndex);
-                }
-                catch (Exception ex)
-                {
-                    Custom.WriteLine(ex.ToString(), ConsoleColor.Red);
-                }
+                    var fileName = name.Name + ".dll";
 
-                try
-                {
-                    var Module = Config.ModuleBinding[moduleIndex];
-
-                    byte[] dllBytes = File.ReadAllBytes(Config.DllPath);
-                    var _response = Convert.ToBase64String(dllBytes);
-
-                    Custom.WriteLine($"Loading dll {Config.DllPath}", ConsoleColor.Magenta);
-
-                    // Load DLL from byte array
-                    using var stream = new MemoryStream(dllBytes);
-                    var assemblyLoadContext = new AssemblyLoadContext("TestModuleContext", isCollectible: true);
-                    var loadedAssembly = assemblyLoadContext.LoadFromStream(stream);
-
-                    // Set arguments for the loaded module
-                    object[] sharedArgs = [moduleIndex];
-
-                    // Get type and method from the loaded assembly
-                    var targetType = loadedAssembly.GetType("Module.Main");
-                    var method = targetType?.GetMethod("StartProgram");
-
-                    if (targetType != null && method != null)
+                    // 1. Next to Module.dll
+                    var candidate = Path.Combine(dllDir, fileName);
+                    if (File.Exists(candidate))
                     {
-                        // Create an instance of Module.Main
-                        var instance = Activator.CreateInstance(targetType);
-
-                        // Invoke StartProgram on the instance
-                        method.Invoke(instance, sharedArgs);
-                    }
-                    else
-                    {
-                        Custom.WriteLine("Main class or StartProgram method not found.", ConsoleColor.Red);
+                        try { return context.LoadFromAssemblyPath(candidate); }
+                        catch { /* fall through */ }
                     }
 
-                    assemblyLoadContext.Unload();
-                }
-                catch (Exception ex)
+                    // 2. Next to the loader exe
+                    candidate = Path.Combine(AppContext.BaseDirectory, fileName);
+                    if (File.Exists(candidate))
+                    {
+                        try { return context.LoadFromAssemblyPath(candidate); }
+                        catch { /* fall through */ }
+                    }
+
+                    // 3. Already loaded in the default context? Reuse it.
+                    var alreadyLoaded = AppDomain.CurrentDomain.GetAssemblies()
+                        .FirstOrDefault(a => a.GetName().Name == name.Name);
+
+                    return alreadyLoaded;
+                };
+
+                var loadedAssembly = alc.LoadFromAssemblyPath(dllPath);
+
+                var targetType = loadedAssembly.GetType("Module.Main");
+                var method = targetType?.GetMethod("StartProgram");
+
+                if (targetType == null || method == null)
                 {
-                    Custom.WriteLine($"Could not load the agentModule", ConsoleColor.Red);
-                    Custom.WriteLine(ex.ToString(), ConsoleColor.Red);
+                    Custom.WriteLine("Main class or StartProgram method not found.", ConsoleColor.Red);
+                    return;
                 }
+
+                var instance = Activator.CreateInstance(targetType);
+                method.Invoke(instance, new object[] { moduleIndex });
+
+                // Do NOT call alc.Unload() — the module runs background threads and
+                // keeps running after StartProgram returns. Keeping the ALC alive for
+                // the process lifetime is correct here.
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"Could not load the {moduleSettings.ModuleType}", ConsoleColor.Red);
+                Custom.WriteLine(ex.ToString(), ConsoleColor.Red);
             }
         }
 

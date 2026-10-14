@@ -1,0 +1,75 @@
+Folder PATH listing for volume Local Disk
+Volume serial number is 5402-1346
+C:.
+|   IPacketHandler.cs
+|   structure.txt
+|   
++---Agent
+|   +---Client
+|   |   |   PacketHandler.cs
+|   |   |   PacketType.cs
+|   |   |   
+|   |   \---Packets
+|   |           AuthRequest.cs
+|   |           CharAction.cs
+|   |           ChatMessage.cs
+|   |           ConfigUpdate.cs
+|   |           DefaultBlock.cs
+|   |           FortressSiegeAction.cs
+|   |           Global_Identification.cs
+|   |           GMCommand.cs
+|   |           GuildUpdateNotice.cs
+|   |           Handshake.cs
+|   |           LogoutRequest.cs
+|   |           MagicOptionGrant.cs
+|   |           PlayerBerserk.cs
+|   |           SkillMasteryLearn.cs
+|   |           SpoofLocaleVersion.cs
+|   |           _ExampleHandler.cs
+|   |           
+|   \---Server
+|       |   PacketHandler.cs
+|       |   PacketType.cs
+|       |   
+|       \---Packets
+|               AuthResponse.cs
+|               CharacterJoin.cs
+|               CharacterSelectionResponse.cs
+|               CharData.cs
+|               CharDataLoadingEnd.cs
+|               CharDataLoadingStart.cs
+|               EnviromentCelestialPosition.cs
+|               Handshake.cs
+|               SilkUpdate.cs
+|               _ExampleHandler.cs
+|               
+\---Gateway
+    |   PacketType.cs
+    |   
+    +---Client
+    |   |   PacketHandler.cs
+    |   |   
+    |   \---Packets
+    |           Default.cs
+    |           GlobalPing.cs
+    |           Global_Identification.cs
+    |           Handshake.cs
+    |           LoginIBUVAnswer.cs
+    |           LoginRequest.cs
+    |           NoticeRequest.cs
+    |           PatchRequest.cs
+    |           ShardListPingRequest.cs
+    |           ShardListRequest.cs
+    |           _ExampleHandler.cs
+    |           
+    \---Server
+        |   PacketHandler.cs
+        |   
+        \---Packets
+                Handshake.cs
+                LoginIBUVChallange.cs
+                LoginResponse.cs
+                PatchResponse.cs
+                ShardListResponse.cs
+                _ExampleHandler.cs
+                

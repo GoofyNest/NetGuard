@@ -12,6 +12,7 @@
         public List<ModuleSettings> ModuleBinding = [];
         public string DllPath { get; set; } = "Module.dll";
         public string LogFolder = "log";
+        public string FiltersPath { get; set; } = "filters";
         public string BindingsPath { get; set; } = "config\\NetworkConfig.json";
         public string SettingsPath { get; set; } = "config\\AppSettings.json";
         public string LogFile { get; set; } = string.Empty;

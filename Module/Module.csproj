@@ -8,6 +8,7 @@
     <BaseOutputPath>$(MSBuildThisFileDirectory)..\build\</BaseOutputPath>
     <OutputPath>$(BaseOutputPath)$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,5 +27,19 @@
       <HintPath>..\lib\SilkroadSecurityAPI.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <!--
+    Copy the repo-root filters/ folder into the build output.
+    - First build: everything is copied.
+    - Later builds: files that already exist in the destination are NOT overwritten,
+      so user edits in build/Debug/filters/ survive.
+    - New files added in source are copied (destination doesn't exist yet).
+  -->
+  <Target Name="CopyFiltersToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <FilterSourceFiles Include="$(MSBuildThisFileDirectory)..\filters\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FilterSourceFiles)" DestinationFiles="@(FilterSourceFiles->'$(OutDir)filters\%(RecursiveDir)%(Filename)%(Extension)')" Condition="!Exists('$(OutDir)filters\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

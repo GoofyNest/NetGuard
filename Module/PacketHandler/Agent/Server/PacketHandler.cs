@@ -1,5 +1,5 @@
 ﻿using Module.Networking;
-using Module.PacketHandler.Agent.Server.Packets;
+using Module.PacketHandler.Filtering;
 using SilkroadSecurityAPI;
 
 namespace Module.PacketHandler.Agent.Server
@@ -8,24 +8,12 @@ namespace Module.PacketHandler.Agent.Server
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
-            if (client != null)
-            {
-                // You can add any logic for handling the client here
-            }
+            // Dynamic filters first
+            var dynamicFilter = FilterRegistry.Resolve(FilterContext.AgentServer, packet.Opcode);
+            if (dynamicFilter != null)
+                return new DynamicFilterAdapter(dynamicFilter);
 
-            return packet.Opcode switch
-            {
-                (ushort)Global.Ping or (ushort)Global.HandShake => new Handshake(),
-                (ushort)Agent.CharacterDataBegin => new CharDataLoadingStart(),
-                (ushort)Agent.CharacterData => new CharData(),
-                (ushort)Agent.CharacterDataEnd => new CharDataLoadingEnd(),
-                (ushort)Agent.CharacterJoin => new CharacterJoin(),
-                (ushort)Agent.EnvironmentCelestialPosition => new EnviromentCelestialPosition(),
-                (ushort)Login.CharacterSelectionResponse => new CharacterSelectionResponse(),
-                (ushort)Login.AuthResponse => new AuthResponse(),
-                (ushort)Agent.SilkUpdate => new SilkUpdate(),
-                _ => new LogAndReturnNull(), // Default case
-            };
+            return null!;
         }
     }
 
