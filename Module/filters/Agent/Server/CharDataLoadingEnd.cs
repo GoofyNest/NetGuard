@@ -14,6 +14,7 @@ namespace NetGuard.Filters.Agent.Server
                 <3
             */
             PacketHandlingResult response = new();
+            
 
 
             client.Agent.InCharSelectionScreen = false;
@@ -21,7 +22,7 @@ namespace NetGuard.Filters.Agent.Server
 
             client.Agent.SentJoinRequest = false;
 
-            //return response;
+            return response;
 
             Packet charData = client.Agent.CharData;
 

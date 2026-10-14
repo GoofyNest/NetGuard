@@ -1,4 +1,5 @@
 ﻿using Module.Networking;
+using Module.PacketHandler.Filtering;
 using SilkroadSecurityAPI;
 
 namespace Module.PacketHandler.Gateway.Client.Packets
@@ -7,10 +8,10 @@ namespace Module.PacketHandler.Gateway.Client.Packets
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
+            Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
+
             PacketHandlingResult response = new()
             {
-                //Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
-
                 ResultType = PacketResultType.Block
             };
 

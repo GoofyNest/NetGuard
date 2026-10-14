@@ -17,7 +17,8 @@ namespace NetGuard.Filters.Gateway.Client
             accInfo.Password = packet.ReadAscii();
             client.Gateway.ServerID = packet.ReadUInt16();
 
-            if (!client.Gateway.SentPatchResponse || !client.Gateway.SentShardListResponse)
+            //if (!client.Gateway.SentPatchResponse || !client.Gateway.SentShardListResponse)
+            if (!client.Gateway.SentPatchResponse)
             {
                 Custom.WriteLine($"sentPatchResponse: {client.Gateway.SentPatchResponse}", ConsoleColor.Magenta);
                 Custom.WriteLine($"sentShardListResponse: {client.Gateway.SentShardListResponse}", ConsoleColor.Magenta);
