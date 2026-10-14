@@ -1,15 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <NoWarn>$(NoWarn);SYSLIB00</NoWarn>
-    <BaseOutputPath>$(MSBuildThisFileDirectory)..\build\</BaseOutputPath>
-    <OutputPath>$(BaseOutputPath)$(Configuration)\</OutputPath>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-  </PropertyGroup>
+<PropertyGroup>
+  <TargetFramework>net8.0</TargetFramework>
+  <ImplicitUsings>enable</ImplicitUsings>
+  <Nullable>enable</Nullable>
+  <NoWarn>$(NoWarn);SYSLIB00</NoWarn>
+  <BaseOutputPath>$(MSBuildThisFileDirectory)..\build\</BaseOutputPath>
+  <OutputPath>$(BaseOutputPath)$(Configuration)\</OutputPath>
+  <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+</PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="bin\**" />
@@ -37,7 +38,7 @@
   -->
   <Target Name="CopyFiltersToOutput" AfterTargets="Build">
     <ItemGroup>
-      <FilterSourceFiles Include="$(MSBuildThisFileDirectory)..\filters\**\*" />
+      <FilterSourceFiles Include="$(MSBuildThisFileDirectory)filters\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(FilterSourceFiles)" DestinationFiles="@(FilterSourceFiles->'$(OutDir)filters\%(RecursiveDir)%(Filename)%(Extension)')" Condition="!Exists('$(OutDir)filters\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
