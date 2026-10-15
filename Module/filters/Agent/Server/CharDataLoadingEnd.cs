@@ -5,493 +5,454 @@ namespace NetGuard.Filters.Agent.Server
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            /*
-                The CharData packet I am using is from DuckSoup's project
-                https://github.com/ducksoup-sro/ducksoup
-
-                I fixed the CharData parsing for JSRO files since most of the stuff is missing in older files.
-
-                <3
-            */
             PacketHandlingResult response = new();
-            
 
-
+            // Always flip these first. The player is entering the world regardless
+            // of whether we could fully parse the CharData blob.
             client.Agent.InCharSelectionScreen = false;
             client.Agent.IsIngame = true;
-
             client.Agent.SentJoinRequest = false;
 
-            return response;
-
-            Packet charData = client.Agent.CharData;
-
-            charData.Lock();
-
-            var Settings = Main.Settings;
-            var _files = Settings.ServerType.CurrentValue;
-
-            bool vSRO = _files == "vSRO";
-
-            var _playerInfo = client.PlayerInfo;
-
-            var charIndex = _playerInfo.CharInfo.FindIndex(m => m.Charname == _playerInfo.CurrentCharName);
-
-            CharacterInformation _char = _playerInfo.CharInfo[charIndex];
-
-            _char.ServerTime = charData.ReadUInt32();
-            _char.RefObjID = charData.ReadUInt32();
-            _char.Scale = charData.ReadUInt8();
-            _char.CurLevel = charData.ReadUInt8();
-            _char.MaxLevel = charData.ReadUInt8();
-            _char.ExpOffset = charData.ReadUInt64();
-            _char.SExpOffset = charData.ReadUInt32();
-            _char.RemainGold = charData.ReadUInt64();
-            _char.RemainSkillPoint = charData.ReadUInt32();
-            _char.RemainStatPoint = charData.ReadUInt16();
-            _char.RemainHwanCount = charData.ReadUInt8();
-
-            if (vSRO)
+            try
             {
-                _char.GatheredExpPoint = charData.ReadUInt32();
-            }
+                Packet charData = client.Agent.CharData;
+                charData.Lock();
 
-            _char.Hp = charData.ReadUInt32();
-            _char.Mp = charData.ReadUInt32();
-            _char.AutoInverstExp = charData.ReadUInt8();
-            _char.DailyPk = charData.ReadUInt8();
-            _char.TotalPk = charData.ReadUInt16();
-            _char.PkPenaltyPoint = charData.ReadUInt32();
+                Custom.WriteLine($"[0x34A6] Parsing CharData, {charData.RemainingRead()} bytes remaining.");
 
-            if (vSRO)
-            {
-                _char.HwanLevel = charData.ReadUInt8();
-                _char.PvpCape = charData.ReadUInt8();
-            }
+                var Settings = Main.Settings;
+                bool vSRO = Settings.ServerType.CurrentValue == "vSRO";
 
-            HandleItems(_char, charData, vSRO);
+                var _playerInfo = client.PlayerInfo;
+                var charIndex = _playerInfo.CharInfo.FindIndex(m => m.Charname == _playerInfo.CurrentCharName);
 
-            if (vSRO)
-                return response;
-
-            var Skills = Main.Skills;
-
-            var unk1 = charData.ReadUInt8(); //1 byte unkByte1 //not a counter
-            Custom.WriteLine($"Unknown1: {unk1}");
-
-            //Masteries
-            var nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
-            while (nextMastery == 1)
-            {
-                var masteryId = charData.ReadUInt32(); // 4   uint    mastery.ID
-                var masteryLevel = charData.ReadUInt8(); // 1   byte    mastery.Level   
-                nextMastery = charData.ReadUInt8(); // 1   byte    nextMastery
-            }
-
-            var unk2 = charData.ReadUInt8(); // 1   byte    unkByte2    //not a counter
-            Custom.WriteLine($"Unknown2: {unk2}");
-
-            //Skills
-            var nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
-            while (nextSkill == 1)
-            {
-                var skillId = charData.ReadUInt32(); // 4   uint    skill.ID
-
-                var skillEnabled = charData.ReadUInt8(); // 1   byte    skill.Enabled   
-
-                nextSkill = charData.ReadUInt8(); // 1   byte    nextSkill
-            }
-
-            HandleQuests(charData);
-
-            var unk3 = charData.ReadUInt8(); // 1   byte    unkByte3        //Structure changes!!!
-            Custom.WriteLine($"Unknown3: {unk3}");
-
-            var UniqueCharID = charData.ReadUInt32(); // 4   uint    UniqueID
-            Custom.WriteLine($"UniqueCharID: {UniqueCharID}");
-
-            HandlePosition(charData);
-
-            var lifeState = charData.ReadUInt8();
-            Custom.WriteLine($"lifeState: {lifeState}");
-
-            var unk4 = charData.ReadUInt8(); // 1   byte    State.unkByte0
-            Custom.WriteLine($"Unknown4: {unk4}");
-
-            var motionState = charData.ReadUInt8();
-            Custom.WriteLine($"motionState: {motionState}");
-
-            var stateWalkSpeed = charData.ReadFloat(); // 4   float   State.WalkSpeed
-            Custom.WriteLine($"stateWalkSpeed: {stateWalkSpeed}");
-            var stateRunSpeed = charData.ReadFloat(); // 4   float   State.RunSpeed
-            Custom.WriteLine($"stateRunSpeed: {stateRunSpeed}");
-            var stateHwanSpeed = charData.ReadFloat(); // 4   float   State.HwanSpeed
-            Custom.WriteLine($"stateHwanSpeed: {stateHwanSpeed}");
-            var stateBuffCount = charData.ReadUInt8(); // 1   byte    State.BuffCount
-            Custom.WriteLine($"stateBuffCount: {stateBuffCount}");
-
-            for (var i = 0; i < stateBuffCount; i++)
-            {
-                var buffRefSkillId = charData.ReadUInt32(); // 4   uint    Buff.RefSkillID
-                var buffDuration = charData.ReadUInt32(); // 4   uint    Buff.Duration
-
-                var skillFound = Skills.TryGetValue((int)buffRefSkillId, out var skill);
-            
-                if (!skillFound) continue;
-
-                if (skill == null)
-                    continue;
-
-                if (skill.ParamsContains(1701213281))
+                if (charIndex < 0)
                 {
-                    //1701213281 -> atfe -> "auto transfer effect" like Recovery Division
-                    var isCreator = charData.ReadUInt8(); // 1   bool    IsCreator
+                    Custom.WriteLine(
+                        $"[0x34A6] Character '{_playerInfo.CurrentCharName}' not found in CharInfo list. " +
+                        $"CharData parse skipped, but session state transitioned to in-game.");
+                    return response;
                 }
+
+                CharacterInformation _char = _playerInfo.CharInfo[charIndex];
+
+                // --- Header block (unconditional) ---
+                //_char.ServerTime       = charData.ReadUInt32();
+                _char.RefObjID = charData.ReadUInt32();
+                _char.Scale = charData.ReadUInt8();
+                _char.CurLevel = charData.ReadUInt8();
+                Custom.WriteLine($"Char level = {_char.CurLevel}");
+                _char.MaxLevel = charData.ReadUInt8();
+                _char.ExpOffset = charData.ReadUInt64();
+                _char.SExpOffset = charData.ReadUInt32();
+                _char.RemainGold = charData.ReadUInt64();
+                _char.RemainSkillPoint = charData.ReadUInt32();
+                _char.RemainStatPoint = charData.ReadUInt16();
+                _char.RemainHwanCount = charData.ReadUInt8();
+
+                _char.GatheredExpPoint = charData.ReadUInt32();
+
+                _char.Hp = charData.ReadUInt32();
+                _char.Mp = charData.ReadUInt32();
+                _char.AutoInverstExp = charData.ReadUInt8();
+                _char.DailyPk = charData.ReadUInt8();
+                _char.TotalPk = charData.ReadUInt16();
+                _char.PkPenaltyPoint = charData.ReadUInt32();
+
+                if (vSRO)
+                {
+                    _char.HwanLevel = charData.ReadUInt8();
+                    _char.PvpCape = charData.ReadUInt8();
+                }
+
+                Custom.WriteLine($"[0x34A6] Items started, {charData.RemainingRead()} bytes remaining.");
+
+                // --- Inventory ---
+                if (!HandleItems(_char, charData, vSRO, out var itemsError))
+                {
+                    Custom.WriteLine($"[0x34A6] {itemsError}");
+                    return response;
+                }
+
+                Custom.WriteLine($"[0x34A6] Items OK, {charData.RemainingRead()} bytes remaining.");
+
+                if (vSRO)
+                    return response;
+
+                // --- vSRO-incompatible tail (jSRO only) ---
+                var Skills = Main.Skills;
+
+                charData.ReadUInt8(); // unkByte1
+
+                var nextMastery = charData.ReadUInt8();
+                while (nextMastery == 1)
+                {
+                    charData.ReadUInt32(); // mastery.ID
+                    charData.ReadUInt8();  // mastery.Level
+                    nextMastery = charData.ReadUInt8();
+                }
+
+                charData.ReadUInt8(); // unkByte2
+
+                var nextSkill = charData.ReadUInt8();
+                while (nextSkill == 1)
+                {
+                    charData.ReadUInt32(); // skill.ID
+                    charData.ReadUInt8();  // skill.Enabled
+                    nextSkill = charData.ReadUInt8();
+                }
+
+                Custom.WriteLine($"[0x34A6] Quests started, {charData.RemainingRead()} bytes remaining.");
+
+                if (!HandleQuests(charData, out var questError))
+                {
+                    Custom.WriteLine($"[0x34A6] {questError}");
+                    return response;
+                }
+
+                Custom.WriteLine($"[0x34A6] Quest OK, {charData.RemainingRead()} bytes remaining.");
+
+                charData.ReadUInt8();  // unkByte3
+                charData.ReadUInt32(); // UniqueCharID
+
+                Custom.WriteLine($"[0x34A6] Position started, {charData.RemainingRead()} bytes remaining.");
+
+                if (!HandlePosition(charData, out var posError))
+                {
+                    Custom.WriteLine($"[0x34A6] {posError}");
+                    return response;
+                }
+
+                Custom.WriteLine($"[0x34A6] Position OK, {charData.RemainingRead()} bytes remaining.");
+
+                charData.ReadUInt8();  // lifeState
+                charData.ReadUInt8();  // State.unkByte0
+                charData.ReadUInt8();  // motionState
+                charData.ReadFloat();  // WalkSpeed
+                charData.ReadFloat();  // RunSpeed
+                charData.ReadFloat();  // HwanSpeed
+
+                var stateBuffCount = charData.ReadUInt8();
+                for (var i = 0; i < stateBuffCount; i++)
+                {
+                    var buffRefSkillId = charData.ReadUInt32();
+                    charData.ReadUInt32(); // Duration
+
+                    if (Skills.TryGetValue((int)buffRefSkillId, out var skill) &&
+                        skill != null &&
+                        skill.ParamsContains(1701213281))
+                    {
+                        charData.ReadUInt8(); // IsCreator
+                    }
+                }
+
+                charData.ReadAscii(); // name
+                charData.ReadAscii(); // jobName
+                charData.ReadUInt8();  // jobType
+                charData.ReadUInt8();  // jobLevel
+                charData.ReadUInt32(); // jobExp
+                charData.ReadUInt32(); // JobContribution
+                charData.ReadUInt32(); // JobReward
+                charData.ReadUInt8();  // pvpState
+                byte onTransport = charData.ReadUInt8();  // onTransport
+                charData.ReadUInt8();  // inCombat
+
+                if (onTransport == 0x01)
+                    charData.ReadUInt32();
+
+                charData.ReadUInt8();  // pvpFlag
+                charData.ReadUInt64(); // guideFlag
+                charData.ReadUInt8();  // isGM
+
+
             }
-
-            var name = charData.ReadAscii();
-            Custom.WriteLine($"name: {name}");
-            var jobName = charData.ReadAscii();
-            Custom.WriteLine($"jobName: {jobName}");
-            var jobType = charData.ReadUInt8();
-            Custom.WriteLine($"jobType: {jobType}");
-            var jobLevel = charData.ReadUInt8();
-            Custom.WriteLine($"jobLevel: {jobLevel}");
-            var jobExp = charData.ReadUInt32();
-            Custom.WriteLine($"jobExp: {jobExp}");
-            charData.ReadUInt32(); // Either JobReward or JobContribution
-            charData.ReadUInt32(); // Either JobReward or JobContribution
-
-            var pvpState = charData.ReadUInt8(); // 0 = White, 1 = Purple, 2 = Red
-
-            Custom.WriteLine($"on transport? {charData.ReadUInt8()}");
-
-            Custom.WriteLine($"in combat? {charData.ReadUInt8()}");
-
-            var pvpFlag = charData.ReadUInt8();
-
-            var guideFlag = charData.ReadUInt64();
-
-
-            Custom.WriteLine($"isGM: "+charData.ReadUInt8());
+            catch (SecurityException ex)
+            {
+                Custom.WriteLine($"[0x34A6] CharData parse failed: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"[0x34A6] Unexpected error: {ex}");
+            }
 
             return response;
         }
 
-        private void HandleItems(CharacterInformation _char, Packet charData, bool vSRO)
+        private bool HandleItems(CharacterInformation _char, Packet charData, bool vSRO, out string? error)
         {
+            error = null;
             _char.Inventory = new();
-
             var Inventory = _char.Inventory;
 
-            Inventory.Size = charData.ReadUInt8();
-            Inventory.ItemCount = charData.ReadUInt8();
-
-            var Items = Main.Items;
-
-            if (Items.Count == 0)
+            try
             {
-                Custom.WriteLine($"Please extract itemdata from Client and put it inside {Main.Settings.Data.Path}");
-                return;
-            }
+                Inventory.Size = charData.ReadUInt8();
+                Inventory.ItemCount = charData.ReadUInt8();
 
-            if (Inventory.ItemCount > 0)
-                Inventory.Items = [];
+                var Items = Main.Items;
 
-            for (var d = 0; d < Inventory.ItemCount; d++)
-            {
-                Item _tempItem = new()
+                if (Items.Count == 0)
                 {
-                    Slot = charData.ReadUInt8()
-                };
-
-                if (vSRO)
-                {
-                    var itemRentType = charData.ReadUInt32();
-
-                    if (itemRentType == 1)
-                    {
-                        var itemRentInfoCanDelete = charData.ReadUInt16(); //2   ushort  item.RentInfo.CanDelete
-                        var itemRentInfoPeriodBeginTime =
-                            charData.ReadUInt32(); //4   uint    item.RentInfo.PeriodBeginTime
-                        var itemRentInfoPeriodEndTime =
-                            charData.ReadUInt32(); //4   uint    item.RentInfo.PeriodEndTime        
-                    }
-                    else if (itemRentType == 2)
-                    {
-                        var itemRentInfoCanDelete = charData.ReadUInt16(); //2   ushort  item.RentInfo.CanDelete
-                        var itemRentInfoCanRecharge = charData.ReadUInt16(); //2   ushort  item.RentInfo.CanRecharge
-                        var itemRentInfoMeterRateTime =
-                            charData.ReadUInt32(); //4   uint    item.RentInfo.MeterRateTime        
-                    }
-                    else if (itemRentType == 3)
-                    {
-                        var itemRentInfoCanDelete = charData.ReadUInt16(); //2   ushort  item.RentInfo.CanDelete
-                        var itemRentInfoCanRecharge = charData.ReadUInt16(); //2   ushort  item.RentInfo.CanRecharge
-                        var itemRentInfoPeriodBeginTime =
-                            charData.ReadUInt32(); //4   uint    item.RentInfo.PeriodBeginTime
-                        var itemRentInfoPeriodEndTime =
-                            charData.ReadUInt32(); //4   uint    item.RentInfo.PeriodEndTime   
-                        var itemRentInfoPackingTime =
-                            charData.ReadUInt32(); //4   uint    item.RentInfo.PackingTime        
-                    }
+                    error = $"Item table is empty. Extract itemdata from client and place it in {Main.Settings.Data.Path}.";
+                    return false;
                 }
 
-                _tempItem.Id = charData.ReadUInt32(); //4   uint    item.RefItemID
+                if (Inventory.ItemCount > 0)
+                    Inventory.Items = [];
 
-                var itemFound = Items.TryGetValue((int)_tempItem.Id, out var _foundItem);
-
-                if (!itemFound)
-                    continue;
-
-                if (_foundItem == null)
-                    continue;
-
-                _tempItem.CodeName128 = _foundItem.CodeName128;
-
-                if (_foundItem.TypeID1 == 3)
+                for (var d = 0; d < Inventory.ItemCount; d++)
                 {
-                    //ITEM_
-                    if (_foundItem.TypeID2 == 1)
+                    Item _tempItem = new()
                     {
-                        //ITEM_CH
-                        //ITEM_EU
-                        //AVATAR_
-                        _tempItem.OptLevel = charData.ReadUInt8();
-                        _tempItem.Variance = charData.ReadUInt64();
-                        _tempItem.Durability = charData.ReadUInt32();
-                        _tempItem.MagParamNum = charData.ReadUInt8();
+                        Slot = charData.ReadUInt8()
+                    };
 
-                        for (var paramIndex = 0; paramIndex < _tempItem.MagParamNum; paramIndex++)
+                    if (vSRO)
+                    {
+                        var itemRentType = charData.ReadUInt32();
+
+                        switch (itemRentType)
                         {
-                            var magParamType = charData.ReadUInt32(); // 4   uint    magParam.Type
-                            var magParamValue = charData.ReadUInt32(); // 4   uint    magParam.Value                
+                            case 1:
+                                charData.ReadUInt16(); // CanDelete
+                                charData.ReadUInt32(); // PeriodBeginTime
+                                charData.ReadUInt32(); // PeriodEndTime
+                                break;
+                            case 2:
+                                charData.ReadUInt16(); // CanDelete
+                                charData.ReadUInt16(); // CanRecharge
+                                charData.ReadUInt32(); // MeterRateTime
+                                break;
+                            case 3:
+                                charData.ReadUInt16(); // CanDelete
+                                charData.ReadUInt16(); // CanRecharge
+                                charData.ReadUInt32(); // PeriodBeginTime
+                                charData.ReadUInt32(); // PeriodEndTime
+                                charData.ReadUInt32(); // PackingTime
+                                break;
+                                // 0 = no rent info
                         }
-
-                        if (vSRO)
-                        {
-                            var bindingOptionType = charData.ReadUInt8(); // 1   byte    bindingOptionType   //1 = Socket
-                            var bindingOptionCount = charData.ReadUInt8(); // 1   byte    bindingOptionCount
-
-                            for (var bindingOptionIndex = 0; bindingOptionIndex < bindingOptionCount; bindingOptionIndex++)
-                            {
-                                var bindingOptionSlot = charData.ReadUInt8(); // 1   byte bindingOption.Slot
-                                var bindingOptionId = charData.ReadUInt32(); // 4   uint bindingOption.ID
-                                var bindingOptionParam1 = charData.ReadUInt32(); // 4   uint bindingOption.nParam1
-                            }
-
-                            var bindingOptionType2 =
-                                charData.ReadUInt8(); // 1   byte    bindingOptionType   //2 = Advanced elixir
-                            var bindingOptionCount2 = charData.ReadUInt8(); // 1   byte    bindingOptionCount2
-
-                            for (var bindingOptionIndex = 0; bindingOptionIndex < bindingOptionCount2; bindingOptionIndex++)
-                            {
-                                var bindingOptionSlot = charData.ReadUInt8(); // 1   byte bindingOption.Slot
-                                var bindingOptionId = charData.ReadUInt32(); // 4   uint bindingOption.ID
-                                var bindingOptionOptValue = charData.ReadUInt32(); // 4   uint bindingOption.OptValue
-                            }
-                        }
-
-                        //Custom.WriteLine($"ITEM_ {_tempItem.Slot} {_tempItem.Id} {_tempItem.CodeName128}");
                     }
-                    else if (_foundItem.TypeID2 == 2)
+
+                    _tempItem.Id = charData.ReadUInt32();
+
+                    if (!Items.TryGetValue((int)_tempItem.Id, out var _foundItem) || _foundItem is null)
                     {
-                        if (_foundItem.TypeID3 == 1) //ITEM_COS_P
+                        error = $"Item {_tempItem.Id} (slot {_tempItem.Slot}, index {d}/{Inventory.ItemCount}) " +
+                                $"not found in item table. CharData parse cannot continue.";
+                        return false;
+                    }
+
+                    _tempItem.CodeName128 = _foundItem.CodeName128;
+
+                    if (_foundItem.TypeID1 == 3)
+                    {
+                        if (_foundItem.TypeID2 == 1)
                         {
-                            Custom.WriteLine("//ITEM_COS_P called");
-                            var cosState = charData.ReadUInt8(); //1   byte    State
-                            Custom.WriteLine($"cosState : {cosState}");
-                            if (cosState == 2 || cosState == 3 || cosState == 4)
+                            // ITEM_CH / ITEM_EU / AVATAR_
+                            _tempItem.OptLevel = charData.ReadUInt8();
+                            _tempItem.Variance = charData.ReadUInt64();
+                            _tempItem.Durability = charData.ReadUInt32();
+                            _tempItem.MagParamNum = charData.ReadUInt8();
+
+                            for (var paramIndex = 0; paramIndex < _tempItem.MagParamNum; paramIndex++)
                             {
-                                Custom.WriteLine("cosState == 2 || cosState == 3 || cosState == 4");
-                                var cosRefObjId = charData.ReadUInt32(); // 4 uint RefObjID
-                                Custom.WriteLine($"cosRefObjId : {cosRefObjId}");
-                                var cosName = charData.ReadAscii(); // 2 ushort Name.Length //     * string Name
-                                Custom.WriteLine($"cosName : {cosName}"); // Null if dont exist
+                                charData.ReadUInt32(); // magParam.Type
+                                charData.ReadUInt32(); // magParam.Value
+                            }
 
-                                Custom.WriteLine($"TypeID4 : {_foundItem.TypeID4}");
-
-                                if (_foundItem.TypeID4 == 2)
+                            if (vSRO)
+                            {
+                                var bindingOptionType = charData.ReadUInt8();
+                                var bindingOptionCount = charData.ReadUInt8();
+                                for (var i = 0; i < bindingOptionCount; i++)
                                 {
-                                    //ITEM_COS_P (Ability)
-                                    var cosSecondsToRentEndTime = charData.ReadUInt32(); // 4 uint SecondsToRentEndTime
+                                    charData.ReadUInt8();  // Slot
+                                    charData.ReadUInt32(); // ID
+                                    charData.ReadUInt32(); // nParam1
                                 }
 
-                                if(vSRO)
+                                var bindingOptionType2 = charData.ReadUInt8();
+                                var bindingOptionCount2 = charData.ReadUInt8();
+                                for (var i = 0; i < bindingOptionCount2; i++)
                                 {
-                                    var hasInventoryTime = charData.ReadUInt8(); // 1 byte unkByte0
-                                    Custom.WriteLine($"hasInventoryTime : {hasInventoryTime}");
+                                    charData.ReadUInt8();  // Slot
+                                    charData.ReadUInt32(); // ID
+                                    charData.ReadUInt32(); // OptValue
+                                }
+                            }
+                        }
+                        else if (_foundItem.TypeID2 == 2)
+                        {
+                            if (_foundItem.TypeID3 == 1) // ITEM_COS_P
+                            {
+                                var cosState = charData.ReadUInt8();
+                                if (cosState == 2 || cosState == 3 || cosState == 4)
+                                {
+                                    charData.ReadUInt32(); // RefCharID
+                                    charData.ReadAscii();  // Name
 
-                                    if (hasInventoryTime == 0x1)
+                                    if (_foundItem.TypeID4 == 2)
+                                        charData.ReadUInt32(); // SecondsToRentEndTime
+
+                                    if (vSRO)
                                     {
-                                        // Perhaps inventory span
-                                        var unk1222 = charData.ReadUInt8(); // NANI
-                                        var unk1223 = charData.ReadUInt32(); // THE
-                                        var unk1224 = charData.ReadUInt32(); // FUCK
-                                        if (unk1224 == 5)
+                                        var hasInventoryTime = charData.ReadUInt8();
+                                        if (hasInventoryTime == 0x1)
                                         {
-                                            // Special Thanks to BimBum1337
-                                            // https://i.rapture.pw/BAKE5/ZEqISAFo33.png/raw
-                                            var unk1225 = charData.ReadUInt32(); // ?!
-                                            var unk1226 = charData.ReadUInt8();
+                                            charData.ReadUInt8();  // unk
+                                            charData.ReadUInt32(); // unk
+                                            var unk1224 = charData.ReadUInt32();
+                                            if (unk1224 == 5)
+                                            {
+                                                charData.ReadUInt32();
+                                                charData.ReadUInt8();
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        else if (_foundItem.TypeID3 == 2)
-                        {
-                            //ITEM_ETC_TRANS_MONSTER
-                            var etcRefObjId = charData.ReadUInt32(); // 4   uint    RefObjID
-                            Custom.WriteLine("ITEM_ETC_TRANS_MONSTER");
-                        }
-                        else if (_foundItem.TypeID3 == 3)
-                        {
-                            Custom.WriteLine("MAGIC_CUBE");
-                            //MAGIC_CUBE
-                            var quantity =
-                                charData
-                                    .ReadUInt32(); // 4   uint    Quantity        //Do not confuse with StackCount, this indicates the amount of elixirs in the cube
-                        }
-                    }
-                    else if (_foundItem.TypeID2 == 3)
-                    {
-                        //ITEM_ETC
-                        var itemStackCount = charData.ReadUInt16(); // 2   ushort  item.StackCount
-
-                        //Custom.WriteLine($"ITEM_ETC: {_tempItem.Slot} {_tempItem.Id} {_tempItem.CodeName128}");
-
-                        if (_foundItem.TypeID3 == 11)
-                        {
-                            if (_foundItem.TypeID4 == 1 || _foundItem.TypeID4 == 2)
+                            else if (_foundItem.TypeID3 == 2) // ITEM_ETC_TRANS_MONSTER
                             {
-                                //MAGICSTONE, ATTRSTONE
-                                var attributeAssimilationProbability =
-                                    charData.ReadUInt8(); // 1   byte    AttributeAssimilationProbability
+                                charData.ReadUInt32(); // RefObjID
+                            }
+                            else if (_foundItem.TypeID3 == 3) // MAGIC_CUBE
+                            {
+                                charData.ReadUInt32(); // Quantity
                             }
                         }
-                        else if (_foundItem.TypeID3 == 14 && _foundItem.TypeID4 == 2)
+                        else if (_foundItem.TypeID2 == 3) // ITEM_ETC
                         {
-                            //ITEM_MALL_GACHA_CARD_WIN
-                            //ITEM_MALL_GACHA_CARD_LOSE
-                            var magParamNum = charData.ReadUInt8(); // 1   byte    item.MagParamCount
-                            for (var paramIndex = 0; paramIndex < magParamNum; paramIndex++)
+                            charData.ReadUInt16(); // StackCount
+
+                            if (_foundItem.TypeID3 == 11 &&
+                                (_foundItem.TypeID4 == 1 || _foundItem.TypeID4 == 2))
                             {
-                                var magParamType = charData.ReadUInt32(); //4   uint magParam.Type
-                                var magParamValue = charData.ReadUInt32(); //4   uint magParam.Value
+                                charData.ReadUInt8(); // AttributeAssimilationProbability
+                            }
+                            else if (_foundItem.TypeID3 == 14 && _foundItem.TypeID4 == 2)
+                            {
+                                var magParamNum = charData.ReadUInt8();
+                                for (var i = 0; i < magParamNum; i++)
+                                {
+                                    charData.ReadUInt32();
+                                    charData.ReadUInt32();
+                                }
                             }
                         }
                     }
+
+                    Inventory.Items.Add(_tempItem);
                 }
 
-                Inventory.Items.Add(_tempItem);
+                return true;
             }
-
+            catch (SecurityException ex)
+            {
+                error = $"HandleItems failed at slot index {_char.Inventory.Items?.Count ?? 0}: {ex.Message}";
+                return false;
+            }
         }
 
-        private void HandleQuests(Packet charData)
+        private bool HandleQuests(Packet charData, out string? error)
         {
-            //Quests
-            var completedQuestCount = charData.ReadUInt16(); // 2   ushort  CompletedQuestCount
-            var completedQuests = charData.ReadUInt32Array(completedQuestCount); // *   uint[]  CompletedQuests
+            error = null;
 
-            var activeQuestCount = charData.ReadUInt8(); // 1   byte    ActiveQuestCount
-            Custom.WriteLine($"activeQuestCount: {activeQuestCount}");
-
-            for (var activeQuestIndex = 0; activeQuestIndex < activeQuestCount; activeQuestIndex++)
+            try
             {
-                var questRefQuestId = charData.ReadUInt32(); // 4   uint    quest.RefQuestID
-                var questAchievementCount = charData.ReadUInt8(); // 1   byte    quest.AchievementCount
-                var questRequiresAutoShareParty = charData.ReadUInt8(); // 1   byte    quest.RequiresAutoShareParty
-                var questType = charData.ReadUInt8(); // 1   byte    quest.Type
+                var completedQuestCount = charData.ReadUInt16();
+                charData.ReadUInt32Array(completedQuestCount);
 
-                if (questType == 28)
+                var activeQuestCount = charData.ReadUInt8();
+
+                for (var activeQuestIndex = 0; activeQuestIndex < activeQuestCount; activeQuestIndex++)
                 {
-                    var questRemainingTime = charData.ReadUInt32(); // 4   uint    remainingTime
-                }
+                    charData.ReadUInt32(); // RefQuestID
+                    charData.ReadUInt8();  // AchievementCount
+                    charData.ReadUInt8();  // RequiresAutoShareParty
+                    var questType = charData.ReadUInt8();
 
-                var questStatus = charData.ReadUInt8(); // 1   byte    quest.Status
+                    if (questType == 28)
+                        charData.ReadUInt32(); // remainingTime
 
-                if (questType != 8)
-                {
-                    var questObjectiveCount = charData.ReadUInt8(); // 1   byte    quest.ObjectiveCount
-                    for (var objectiveIndex = 0; objectiveIndex < questObjectiveCount; objectiveIndex++)
+                    charData.ReadUInt8(); // Status
+
+                    if (questType != 8)
                     {
-                        var questObjectiveId = charData.ReadUInt8(); // 1   byte    objective.ID
-                        var questObjectiveStatus =
-                            charData.ReadUInt8(); // 1   byte    objective.Status        //0 = Done, 1  = On
-                        var questObjectiveName =
-                            charData.ReadAscii(); // 2   ushort  objective.Name.Length // *   string  objective.Name
-                        var objectiveTaskCount = charData.ReadUInt8(); // 1   byte    objective.TaskCount
-
-                        for (var taskIndex = 0; taskIndex < objectiveTaskCount; taskIndex++)
+                        var questObjectiveCount = charData.ReadUInt8();
+                        for (var objectiveIndex = 0; objectiveIndex < questObjectiveCount; objectiveIndex++)
                         {
-                            var questTaskValue = charData.ReadUInt32(); // 4   uint    task.Value
+                            charData.ReadUInt8();  // objective.ID
+                            charData.ReadUInt8();  // objective.Status
+                            charData.ReadAscii();  // objective.Name
+                            var objectiveTaskCount = charData.ReadUInt8();
+                            for (var taskIndex = 0; taskIndex < objectiveTaskCount; taskIndex++)
+                                charData.ReadUInt32(); // task.Value
                         }
                     }
-                }
 
-                if (questType == 88)
-                {
-                    var refObjCount = charData.ReadUInt8(); // 1   byte    RefObjCount
-                    for (var refObjIndex = 0; refObjIndex < refObjCount; refObjIndex++)
+                    if (questType == 88)
                     {
-                        charData.ReadUInt32(); // 4   uint    RefObjID    //NPCs
+                        var refObjCount = charData.ReadUInt8();
+                        for (var i = 0; i < refObjCount; i++)
+                            charData.ReadUInt32(); // RefObjID
                     }
                 }
+
+                return true;
+            }
+            catch (SecurityException ex)
+            {
+                error = $"HandleQuests failed: {ex.Message}";
+                return false;
             }
         }
 
-        private void HandlePosition(Packet charData)
+        private bool HandlePosition(Packet charData, out string? error)
         {
-            //Position
-            var LatestRegionId = charData.ReadUInt16(); // 2   ushort  Position.RegionID
-            var PositionX = charData.ReadFloat(); // 4   float   Position.X
-            var PositionY = charData.ReadFloat(); // 4   float   Position.Y
-            var PositionZ = charData.ReadFloat(); // 4   float   Position.Z
-            var positionAngle = charData.ReadUInt16(); // 2   ushort  Position.Angle
+            error = null;
 
-            Custom.WriteLine($"LatestRegionId: {LatestRegionId}, posX: {PositionX} posY: {PositionY} posZ: {PositionZ} angle: {positionAngle}");
-
-            //Movement
-            var movementHasDestination = charData.ReadUInt8(); // 1   byte    Movement.HasDestination
-            Custom.WriteLine($"movementHasDestination: {movementHasDestination}");
-            var movementType = charData.ReadUInt8(); // 1   byte    Movement.Type
-            Custom.WriteLine($"movementType: {movementType}");
-
-            if (movementHasDestination == 1)
+            try
             {
-                var movementDestionationRegion = charData.ReadUInt16(); // 2   ushort  Movement.DestinationRegion        
-                Custom.WriteLine($"movementDestionationRegion: {movementDestionationRegion}");
-                if (LatestRegionId < short.MaxValue)
+                var LatestRegionId = charData.ReadUInt16();
+                charData.ReadFloat(); // X
+                charData.ReadFloat(); // Y
+                charData.ReadFloat(); // Z
+                charData.ReadUInt16(); // Angle
+
+                var movementHasDestination = charData.ReadUInt8();
+                charData.ReadUInt8(); // Movement.Type
+
+                if (movementHasDestination == 1)
                 {
-                    //World
-                    var movementDestinationOffsetX = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetX
-                    Custom.WriteLine($"movementDestinationOffsetX: {movementDestinationOffsetX}");
-                    var movementDestinationOffsetY = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetY
-                    Custom.WriteLine($"movementDestinationOffsetY: {movementDestinationOffsetY}");
-                    var movementDestinationOffsetZ = charData.ReadUInt16(); // 2   ushort  Movement.DestinationOffsetZ
-                    Custom.WriteLine($"movementDestinationOffsetZ: {movementDestinationOffsetZ}");
+                    charData.ReadUInt16(); // DestinationRegion
+
+                    if (LatestRegionId < short.MaxValue)
+                    {
+                        charData.ReadUInt16(); // OffsetX
+                        charData.ReadUInt16(); // OffsetY
+                        charData.ReadUInt16(); // OffsetZ
+                    }
+                    else
+                    {
+                        charData.ReadUInt32(); // OffsetX
+                        charData.ReadUInt32(); // OffsetY
+                        charData.ReadUInt32(); // OffsetZ
+                    }
                 }
                 else
                 {
-                    //Dungeon
-                    var movementDestinationOffsetX = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetX
-                    Custom.WriteLine($"movementDestinationOffsetX: {movementDestinationOffsetX}");
-                    var movementDestinationOffsetY = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetY
-                    Custom.WriteLine($"movementDestinationOffsetY: {movementDestinationOffsetY}");
-                    var movementDestinationOffsetZ = charData.ReadUInt32(); // 4   uint  Movement.DestinationOffsetZ
-                    Custom.WriteLine($"movementDestinationOffsetZ: {movementDestinationOffsetZ}");
+                    charData.ReadUInt8();  // Source
+                    charData.ReadUInt16(); // Angle
                 }
+
+                Custom.WriteLine($"[0x34A6] CharData OK, {charData.RemainingRead()} bytes remaining.");
+                return true;
             }
-            else
+            catch (SecurityException ex)
             {
-                var movementSource =
-                    charData.ReadUInt8(); // 1   byte    Movement.Source     //0 = Spinning, 1 = Sky-/Key-walking
-                Custom.WriteLine($"movementSource: {movementSource}");
-                var movementAngle =
-                    charData.ReadUInt16(); // 2   ushort  Movement.Angle      //Represents the new angle, character is looking at
-                Custom.WriteLine($"movementAngle: {movementAngle}");
+                error = $"HandlePosition failed: {ex.Message}";
+                return false;
             }
         }
     }
