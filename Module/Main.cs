@@ -139,10 +139,6 @@ namespace Module
 
             Module = Config.ModuleBinding[moduleIndex];
 
-            SessionBus.ApiPort = Module.ApiPort;
-            SessionBus.ApiPassword = Module.ApiPassword;
-            SessionBus.StartApiListener();
-
             Console.Title = $"NetGuard | {Module.Name}";
 
             Config.LogFile = Path.Combine(Config.LogFolder, Module.Name + ".txt");
@@ -151,6 +147,10 @@ namespace Module
 
             if (File.Exists(Config.LogFile))
                 File.Delete(Config.LogFile);
+
+            SessionBus.ApiPort = Module.ApiPort;
+            SessionBus.ApiPassword = Module.ApiPassword;
+            SessionBus.StartApiListener();
 
             var filterLoader = new FilterLoader(Config.FiltersPath);
             filterLoader.Start();
