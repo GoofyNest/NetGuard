@@ -84,6 +84,7 @@ namespace NetGuard.Filters.Agent.Client
                                             modified.WriteUInt8((byte)TargetType);
                                             modified.WriteUInt8(0x01);
 
+                                            // 18 09 00 00
                                             modified.WriteUInt8(malformedByte);
                                             modified.WriteUInt8(packet.ReadUInt8());
                                             modified.WriteUInt8(packet.ReadUInt8());

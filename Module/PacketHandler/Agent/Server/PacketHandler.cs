@@ -1,5 +1,6 @@
 ﻿using Module.Networking;
 using Module.PacketHandler.Filtering;
+using Module.Services;
 using SilkroadSecurityAPI;
 
 namespace Module.PacketHandler.Agent.Server
@@ -8,6 +9,8 @@ namespace Module.PacketHandler.Agent.Server
     {
         public static IPacketHandler GetHandler(Packet packet, SessionData client)
         {
+            //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
+
             // Dynamic filters first
             var dynamicFilter = FilterRegistry.Resolve(FilterContext.AgentServer, packet.Opcode);
             if (dynamicFilter != null)

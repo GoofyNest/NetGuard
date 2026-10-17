@@ -25,6 +25,29 @@ namespace NetGuardLoader
                 if (tempConfig != null)
                 {
                     Config = tempConfig;
+
+                    // Generate the group key ONCE if any module is missing one.
+                    var needsKey = Config.ModuleBinding.Any(m => string.IsNullOrEmpty(m.ApiPassword));
+                    if (needsKey)
+                    {
+                        foreach (var m in Config.ModuleBinding)
+                        {
+                            var Key = Convert.ToHexString(
+                            System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+                            if (string.IsNullOrEmpty(m.ApiPassword))
+                                m.ApiPassword = Key;
+                        }
+
+                        Custom.WriteLine("Generated shared API key for existing config.", ConsoleColor.Cyan);
+                    }
+                }
+
+                // Backfill ApiPort if missing.
+                for (var i = 0; i < Config.ModuleBinding.Count; i++)
+                {
+                    if (Config.ModuleBinding[i].ApiPort == 0)
+                        Config.ModuleBinding[i].ApiPort = 21000 + i;
                 }
 
                 foreach (var Module in Config.ModuleBinding)
@@ -47,12 +70,17 @@ namespace NetGuardLoader
 
                 for (var i = 0; i < 3; i++)
                 {
+                    var Key = Convert.ToHexString(
+                        System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
                     Config.ModuleBinding.Add(new ModuleSettings()
                     {
                         Name = "Example #" + (i + 1),
                         GuardPort = 15884 + i,
                         ModulePort = 5884 + i,
-                        ModuleType = ModuleType.AgentModule
+                        ModuleType = ModuleType.AgentModule,
+                        ApiPort = 21000 + i,
+                        ApiPassword = Key
                     });
                 }
 

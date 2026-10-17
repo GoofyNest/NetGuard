@@ -7,19 +7,13 @@ namespace NetGuard.Filters.Agent.Client
         {
             var response = new PacketHandlingResult();
 
-            uint Token = packet.ReadUInt32(); // from LOGIN_RESPONSE
-            client.PlayerInfo.AccInfo = new()
-            {
-                Username = packet.ReadAscii(),
-                Password = packet.ReadAscii()
-            };
-            byte OperationType = packet.ReadUInt8();
+            packet.ReadUInt32(); // token
+            client.PlayerInfo.Username = packet.ReadAscii();
+            client.PlayerInfo.Password = packet.ReadAscii();
+            packet.ReadUInt8(); // operation type
 
-            byte[] mac = packet.ReadUInt8Array(6);
-            string mac_address = BitConverter.ToString(mac);
-            int fail_count = mac.Count(b => b == 0x00);
-
-            client.PlayerInfo.AccInfo.Mac = mac_address;
+            var mac = packet.ReadUInt8Array(6);
+            client.PlayerInfo.Mac = BitConverter.ToString(mac);
 
             return response;
         }

@@ -1,6 +1,8 @@
+using NetGuard.Hot;
+
 namespace NetGuard.Filters.Gateway.Server
 {
-    [Filter(0xA101)] // SERVER_GATEWAY_SHARD_LIST_RESPONSE
+    [Filter(0xA101)]
     public sealed class ShardListResponse : IFilter
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)

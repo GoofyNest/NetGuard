@@ -15,4 +15,13 @@ namespace Module.PacketHandler.Filtering
     {
         PacketHandlingResult Handle(Packet packet, SessionData client);
     }
+
+    /// <summary>
+    /// A plugin that reacts to bus messages. Instantiated once per reload,
+    /// after compilation. Register handlers in the constructor.
+    /// </summary>
+    public interface IBusPlugin
+    {
+        void Register(BusDispatcher dispatcher);
+    }
 }

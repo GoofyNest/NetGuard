@@ -1,3 +1,5 @@
+using NetGuard.Hot;
+
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x70A7)]
@@ -5,13 +7,13 @@ namespace NetGuard.Filters.Agent.Client
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
+            var h = client.Host()!;
             var response = new PacketHandlingResult();
-
             var flag = packet.ReadUInt8();
 
             if (flag > 1)
             {
-                Custom.WriteLine($"Prevented {client.PlayerInfo.AccInfo.Username}, using Invisible exploit", ConsoleColor.Yellow);
+                Custom.WriteLine($"Prevented {client.PlayerInfo.Username}, using Invisible exploit", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
             }
 

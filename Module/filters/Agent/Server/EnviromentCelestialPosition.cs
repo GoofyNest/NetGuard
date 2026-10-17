@@ -1,20 +1,16 @@
+using NetGuard.Hot;
+
 namespace NetGuard.Filters.Agent.Server
 {
-    [Filter(0x3020)] // verify
+    [Filter(0x3020)]
     public sealed class EnviromentCelestialPosition : IFilter
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            var response = new PacketHandlingResult();
-
-            var charInfo = client.PlayerInfo.CharInfo.Find(m => m.Charname == client.PlayerInfo.CurrentCharName);
-
-            if (charInfo == null)
-                return response;
-
+            var charInfo = client.CurrentChar();
+            if (charInfo == null) return new PacketHandlingResult();
             charInfo.IsVisible = false;
-
-            return response;
+            return new PacketHandlingResult();
         }
     }
 }

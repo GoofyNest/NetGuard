@@ -22,6 +22,20 @@ namespace NetGuard.Filters.Gateway.Server
                     return response;
                 }
 
+                client.Gateway.SentLoginRequest = true;
+                foreach (var agent in Main.Config.ModuleBinding.Where(m => m.ModuleType == ModuleType.AgentModule))
+                {
+                    SessionBus.SendTo(
+                        client,
+                        agent.ApiPort,
+                        agent.ApiPassword,
+                        new BusMessage("gateway.login_requested", new
+                        {
+                            Username = client.PlayerInfo.Username ?? "",
+                            Target   = $"{host}:{port}",
+                        }));
+                }
+
                 var guardModule = Main.Config.ModuleBinding[index];
 
                 Custom.WriteLine($"Using {guardModule.GuardIP} {guardModule.GuardPort}", ConsoleColor.Cyan);

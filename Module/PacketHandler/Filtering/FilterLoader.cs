@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Module.Networking;
 using Module.Services;
 using System.Collections.Concurrent;
 using System.Reflection;
@@ -18,6 +19,11 @@ namespace Module.PacketHandler.Filtering
         private readonly object _reloadLock = new();
         private FileSystemWatcher? _watcher;
         private AssemblyLoadContext? _alc;
+
+        private ConstructorInfo? _hostCtor;
+        private Action<SessionData>? _attach;
+        private Action<SessionData>? _sync;
+        private Action<object?, object?>? _migrate;
 
         public FilterLoader(string rootDir)
         {
@@ -97,9 +103,17 @@ namespace Module.PacketHandler.Filtering
                         : new List<string>();
                 }
 
-                // 1b. Root-level files (shared global usings, helpers, etc.)
+                // 1b. All shared files under filters/ — root-level AND any subfolder that isn't
+                //     a context folder (Agent/Client, Agent/Server, Gateway/Client, Gateway/Server).
+                //     This picks up filters/Root/**/*.cs automatically.
+                var contextDirs = Enum.GetValues<FilterContext>()
+                    .Select(ctx => Path.GetFullPath(Path.Combine(_rootDir, ctx.ToFolderPath())))
+                    .ToArray();
+
                 var rootFiles = Directory.Exists(_rootDir)
-                    ? Directory.GetFiles(_rootDir, "*.cs", SearchOption.TopDirectoryOnly).ToList()
+                    ? Directory.GetFiles(_rootDir, "*.cs", SearchOption.AllDirectories)
+                        .Where(f => !contextDirs.Any(dir => Path.GetFullPath(f).StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+                        .ToList()
                     : new List<string>();
 
                 int totalContextFiles = filesByContext.Values.Sum(v => v.Count);
@@ -195,6 +209,14 @@ namespace Module.PacketHandler.Filtering
                     }
                 }
 
+                // Generate SessionHost from any ISessionState implementors
+                var hostTree = HostGeneration.Generate(syntaxTrees);
+                if (hostTree != null)
+                {
+                    syntaxTrees.Add(hostTree);
+                    Custom.WriteLine($"[filters] generated SessionHost.g.cs", ConsoleColor.Cyan);
+                }
+
                 var options = new CSharpCompilationOptions(
                     OutputKind.DynamicallyLinkedLibrary,
                     optimizationLevel: OptimizationLevel.Release,
@@ -254,6 +276,28 @@ namespace Module.PacketHandler.Filtering
 
                 var asm = newAlc.LoadFromStream(ms);
 
+                // Wire up bridge delegates
+                var hostType = asm.GetType("NetGuard.Hot.SessionHost");
+                var bridgeType = asm.GetType("NetGuard.Hot.SessionBridge");
+                var hostCtor = hostType?.GetConstructor(Type.EmptyTypes);
+
+                // Use MethodInfo.CreateDelegate -> Action<SessionData>
+                _attach = bridgeType?.GetMethod("Attach", new[] { typeof(SessionData) })
+                    ?.CreateDelegate<Action<SessionData>>();
+                _sync = bridgeType?.GetMethod("Sync", new[] { typeof(SessionData) })
+                    ?.CreateDelegate<Action<SessionData>>();
+                _migrate = bridgeType?.GetMethod("Migrate", new[] { typeof(object), typeof(object) })
+                    ?.CreateDelegate<Action<object?, object?>>();
+
+                if (hostType == null)
+                {
+                    Custom.WriteLine("[filters] WARNING: no SessionHost generated — session state will be null", ConsoleColor.Yellow);
+                }
+                if (bridgeType == null)
+                {
+                    Custom.WriteLine("[filters] WARNING: no SessionBridge found — state will not initialise", ConsoleColor.Yellow);
+                }
+
                 // 5. Map each type to its context (via namespace)
                 var newFilters = new Dictionary<(FilterContext, ushort), IFilter>();
                 var perContext = new Dictionary<FilterContext, int>();
@@ -307,11 +351,45 @@ namespace Module.PacketHandler.Filtering
                     }
                 }
 
+                // 5b. Register bus plugins (clears first, so reloads drop stale handlers)
+                BusRegistry.Dispatcher.Clear();
+                var busPluginCount = 0;
+
+                foreach (var type in asm.GetTypes())
+                {
+                    if (!typeof(IBusPlugin).IsAssignableFrom(type) || type.IsAbstract || type.IsInterface)
+                        continue;
+
+                    try
+                    {
+                        var plugin = (IBusPlugin)Activator.CreateInstance(type)!;
+                        plugin.Register(BusRegistry.Dispatcher);
+                        busPluginCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Custom.WriteLine($"[filters] bus plugin {type.Name}: {ex.Message}", ConsoleColor.Red);
+                    }
+                }
+
+                if (busPluginCount > 0)
+                    Custom.WriteLine($"[filters] registered {busPluginCount} bus plugin(s)", ConsoleColor.Cyan);
+
                 // 6. Swap
+                _hostCtor = hostCtor;
                 var oldAlc = _alc;
                 _filters.Clear();
                 foreach (var kvp in newFilters) _filters[kvp.Key] = kvp.Value;
                 _alc = newAlc;
+
+                // Re-attach live sessions to the new assembly
+                foreach (var s in FilterRegistry.LiveSessions.Values)
+                {
+                    var oldHost = s.Host;
+                    _attach?.Invoke(s);            // creates new SessionHost
+                    _migrate?.Invoke(oldHost, s.Host); // copies preserved fields
+                    _sync?.Invoke(s);              // shell <-> host
+                }
 
                 if (oldAlc != null)
                 {
@@ -326,6 +404,17 @@ namespace Module.PacketHandler.Filtering
 
                 Custom.WriteLine($"[filters] loaded {newFilters.Count} filter(s) from {totalFiles} file(s)", ConsoleColor.Cyan);
             }
+        }
+
+        internal void AttachSession(SessionData s)
+        {
+            _attach?.Invoke(s);
+            _sync?.Invoke(s);
+        }
+
+        internal void SyncSession(SessionData s)
+        {
+            _sync?.Invoke(s);
         }
 
         public void Dispose()

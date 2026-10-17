@@ -1,3 +1,5 @@
+using NetGuard.Hot;
+
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x7025)]
@@ -5,6 +7,7 @@ namespace NetGuard.Filters.Agent.Client
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
+            var h = client.Host()!;
             var response = new PacketHandlingResult();
             var Settings = Main.Settings.Agent;
             Packet modified = new(0x7025);
@@ -22,8 +25,8 @@ namespace NetGuard.Filters.Agent.Client
             }
 
             string message = packet.ReadAscii();
-
-            var adminIndex = Settings.GameMasterConfig.GMs.FindIndex(m => m.Username == client.PlayerInfo.AccInfo.Username);
+            var username = client.PlayerInfo.Username;
+            var adminIndex = Settings.GameMasterConfig.GMs.FindIndex(m => m.Username == username);
 
             if (Settings.GameMasterConfig.Misc.DisableGMChat && adminIndex == -1)
             {
@@ -32,7 +35,6 @@ namespace NetGuard.Filters.Agent.Client
                     response.ResultType = PacketResultType.Block;
                     return response;
                 }
-
                 if (chatType == 3)
                     message = ";" + message;
             }
@@ -40,7 +42,7 @@ namespace NetGuard.Filters.Agent.Client
             {
                 if (chatType == 7 && adminIndex == -1)
                 {
-                    Custom.WriteLine($"Blocked GM notice from {client.PlayerInfo.AccInfo.Username}");
+                    Custom.WriteLine($"Blocked GM notice from {username}");
                     response.ResultType = PacketResultType.Block;
                     return response;
                 }
@@ -53,7 +55,7 @@ namespace NetGuard.Filters.Agent.Client
 
                 if (!_permission.Contains("SendNotice") && chatType == 7)
                 {
-                    Custom.WriteLine($"Blocked GM notice from {client.PlayerInfo.AccInfo.Username}");
+                    Custom.WriteLine($"Blocked GM notice from {username}");
                     response.ResultType = PacketResultType.Block;
                     return response;
                 }
@@ -63,7 +65,6 @@ namespace NetGuard.Filters.Agent.Client
             }
 
             modified.WriteAscii(message);
-
             response.ModifiedPackets.Add(new PacketList { Packet = modified, SendImmediately = true, SecurityType = SecurityType.RemoteSecurity });
 
             return response;

@@ -14,8 +14,11 @@
 
   <ItemGroup>
     <Compile Remove="bin\**" />
+    <Compile Remove="filters\**" />
     <EmbeddedResource Remove="bin\**" />
+    <EmbeddedResource Remove="filters\**" />
     <None Remove="bin\**" />
+    <None Remove="filters\**" />
   </ItemGroup>
 
   <ItemGroup>

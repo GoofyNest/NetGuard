@@ -9,6 +9,7 @@ using GatewayServerHandler = Module.PacketHandler.Gateway.Server.PacketHandler;
 using GatewayClientHandler = Module.PacketHandler.Gateway.Client.PacketHandler;
 using AgentServerHandler = Module.PacketHandler.Agent.Server.PacketHandler;
 using AgentClientHandler = Module.PacketHandler.Agent.Client.PacketHandler;
+using Module.PacketHandler.Filtering;
 
 namespace Module.Networking
 {
@@ -74,6 +75,12 @@ namespace Module.Networking
             {
                 _client.PlayerInfo.IpInfo.Ip = endpoint.Address.ToString();
             }
+
+            //SessionBus.PlayerIp = _client.PlayerInfo.IpInfo.Ip;
+            SessionBus.Register(_client);
+
+            FilterRegistry.Loader?.AttachSession(_client);
+            FilterRegistry.LiveSessions[ClientId] = _client;
 
             Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
         }
@@ -146,6 +153,9 @@ namespace Module.Networking
                 if (handler != null)
                 {
                     var result = handler.Handle(packet, _client);
+
+                    FilterRegistry.Loader?.SyncSession(_client);
+
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
@@ -303,6 +313,11 @@ namespace Module.Networking
                 if (Volatile.Read(ref _disconnecting) == 1)
                     return;
 
+                // Drain here — before the Task.Run for packet handling
+                foreach (var msg in SessionBus.Drain(_client))
+                    BusRegistry.Dispatcher.Dispatch(_client, msg);
+
+
                 if (socket == _clientSocket)
                 {
                     await Task.Run(() => HandleReceivedData(bytesReceived, true));
@@ -410,6 +425,9 @@ namespace Module.Networking
         {
             if (Interlocked.Exchange(ref _disconnecting, 1) == 1)
                 return;
+
+            FilterRegistry.LiveSessions.TryRemove(ClientId, out _);
+            SessionBus.Unregister(_client);
 
             Custom.WriteLine($"Disconnecting client {ClientId} ({_client.PlayerInfo.IpInfo.Ip})", ConsoleColor.Yellow);
 

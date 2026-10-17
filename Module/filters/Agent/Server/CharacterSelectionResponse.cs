@@ -5,11 +5,8 @@ namespace NetGuard.Filters.Agent.Server
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client)
         {
-            var response = new PacketHandlingResult();
-
             client.Agent.InCharSelectionScreen = true;
-
-            return response;
+            return new PacketHandlingResult();
         }
     }
 }

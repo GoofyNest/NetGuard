@@ -133,76 +133,19 @@ namespace Module
             };
         }
 
-        private static void EnsureExampleFilters(string root)
-        {
-            foreach (FilterContext ctx in Enum.GetValues<FilterContext>())
-            {
-                var dir = Path.Combine(root, ctx.ToFolderPath());
-                Directory.CreateDirectory(dir);
-
-                // Name the file per context so there's no class-name collision across folders
-                var fileName = $"Example{ctx}.cs";
-                var filePath = Path.Combine(dir, fileName);
-
-                if (File.Exists(filePath))
-                    continue;
-
-                File.WriteAllText(filePath, BuildExampleSource(ctx));
-            }
-        }
-
-        private static string BuildExampleSource(FilterContext ctx) => $$"""
-namespace NetGuard.Filters.{{ctx.ToFolderPath().Replace(Path.DirectorySeparatorChar, '.')}}
-{
-    /// <summary>
-    /// Example filter for context: {{ctx}}
-    /// Replace the opcode and body with real logic.
-    ///
-    /// Folder determines context:
-    ///   filters/Agent/Client/   -> Agent, C -> S
-    ///   filters/Agent/Server/   -> Agent, S -> C
-    ///   filters/Gateway/Client/ -> Gateway, C -> S
-    ///   filters/Gateway/Server/ -> Gateway, S -> C
-    ///
-    /// Rules:
-    ///   * Filename must match class name: ExampleAgentClient.cs -> class ExampleAgentClient
-    ///   * Class must implement IFilter and have a parameterless constructor
-    ///   * Class must have [Filter(opcode)]
-    ///   * Only one filter per opcode per folder
-    /// </summary>
-    [Filter(0x0000)] // <-- replace with real opcode
-    public sealed class Example{{ctx}} : IFilter
-    {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
-        {
-            PacketHandlingResult response = new();
-
-            return response;
-        }
-    }
-}
-""";
-
         public static void StartProgram(int moduleIndex)
         {
             LoadSettings(true);
 
             Module = Config.ModuleBinding[moduleIndex];
 
+            SessionBus.ApiPort = Module.ApiPort;
+            SessionBus.ApiPassword = Module.ApiPassword;
+            SessionBus.StartApiListener();
+
             Console.Title = $"NetGuard | {Module.Name}";
 
             Config.LogFile = Path.Combine(Config.LogFolder, Module.Name + ".txt");
-
-            // Create root + the four context folders
-            //Directory.CreateDirectory(Config.FiltersPath);
-            //
-            //foreach (FilterContext ctx in Enum.GetValues<FilterContext>())
-            //{
-            //    Directory.CreateDirectory(Path.Combine(Config.FiltersPath, ctx.ToFolderPath()));
-            //}
-
-            // Seed example files (only writes if missing)
-            //EnsureExampleFilters(Config.FiltersPath);
 
             Directory.CreateDirectory(Config.LogFolder);
 

@@ -7,6 +7,7 @@ global using System.Net;
 global using System.Threading;
 global using System.Threading.Tasks;
 global using Module;
+global using Module.Config;
 global using Module.Networking;
 global using Module.PacketHandler;
 global using Module.PacketHandler.Filtering;
