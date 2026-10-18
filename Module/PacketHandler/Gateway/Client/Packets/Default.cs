@@ -6,7 +6,7 @@ namespace Module.PacketHandler.Gateway.Client.Packets
 {
     public class Default : IPacketHandler
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
 

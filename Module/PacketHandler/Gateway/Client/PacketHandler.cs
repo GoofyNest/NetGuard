@@ -7,14 +7,20 @@ namespace Module.PacketHandler.Gateway.Client
 {
     public class PacketHandler
     {
-        public static IPacketHandler GetHandler(Packet packet, SessionData client)
+        public static IPacketHandler GetHandler(Packet packet, SessionData client, SessionContext ctx)
         {
-            // Dynamic filters first
-            var dynamicFilter = FilterRegistry.Resolve(FilterContext.GatewayClient, packet.Opcode);
-            if (dynamicFilter != null)
-                return new DynamicFilterAdapter(dynamicFilter);
+            // 1. Landing — state machine, cross-cutting rules, side effects.
+            //    Return null to continue; return a result to short-circuit.
+            var landing = FilterRegistry.RunLanding(FilterContext.GatewayClient, packet, client, ctx);
+            if (landing != null)
+                return new StaticResultHandler(landing);
 
-            // Fallback only — all opcode-specific handlers moved to filters/
+            // 2. Opcode filter — if one exists, let it run.
+            var filter = FilterRegistry.Resolve(FilterContext.GatewayClient, packet.Opcode);
+            if (filter != null)
+                return new DynamicFilterAdapter(filter);
+
+            // 3. No filter registered → block (unchanged behavior).
             return new Default();
         }
     }

@@ -3,7 +3,7 @@ namespace NetGuard.Filters.Gateway.Client
     [Filter(0x6323)]
     public sealed class LoginIBUVAnswer : IFilter
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             //string code = packet.ReadAscii();
             return new PacketHandlingResult();

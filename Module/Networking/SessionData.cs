@@ -54,5 +54,7 @@ namespace Module.Networking
         public bool ClientQuitGame { get; set; }
         public byte LeaveType { get; set; }
 
+        // NEW — set by your exchange-related filters; read by the Landing.
+        public bool InExchange { get; set; }
     }
 }

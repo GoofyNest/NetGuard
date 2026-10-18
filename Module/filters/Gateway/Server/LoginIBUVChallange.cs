@@ -3,7 +3,7 @@ namespace NetGuard.Filters.Gateway.Server
     [Filter(0x2322)] // SERVER_GATEWAY_LOGIN_IBUV_CHALLENGE
     public sealed class LoginIBUVChallange : IFilter
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             var response = new PacketHandlingResult();
 

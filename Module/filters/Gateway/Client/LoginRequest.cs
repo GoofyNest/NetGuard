@@ -3,7 +3,7 @@ namespace NetGuard.Filters.Gateway.Client
     [Filter(0x6102)]
     public sealed class LoginRequest : IFilter
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             var response = new PacketHandlingResult();
 

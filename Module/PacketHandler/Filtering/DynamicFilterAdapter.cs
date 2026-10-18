@@ -7,7 +7,13 @@ namespace Module.PacketHandler.Filtering
     {
         private readonly IFilter _inner;
         public DynamicFilterAdapter(IFilter inner) => _inner = inner;
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
-            => _inner.Handle(packet, client);
+
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
+            => _inner.Handle(packet, client, ctx);
+    }
+
+    internal sealed class StaticResultHandler(PacketHandlingResult r) : IPacketHandler
+    {
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx) => r;
     }
 }

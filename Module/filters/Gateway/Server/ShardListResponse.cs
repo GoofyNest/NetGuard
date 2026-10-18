@@ -5,7 +5,7 @@ namespace NetGuard.Filters.Gateway.Server
     [Filter(0xA101)]
     public sealed class ShardListResponse : IFilter
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             client.Gateway.SentShardListResponse = true;
             return new PacketHandlingResult();

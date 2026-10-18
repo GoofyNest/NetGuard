@@ -3,7 +3,7 @@ namespace NetGuard.Filters.Gateway.Client
     [Filter(0x2002)]
     public sealed class GlobalPing : IFilter
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             var response = new PacketHandlingResult();
 

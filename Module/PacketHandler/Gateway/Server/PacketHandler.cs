@@ -6,16 +6,14 @@ namespace Module.PacketHandler.Gateway.Server
 {
     public class PacketHandler
     {
-        public static IPacketHandler GetHandler(Packet packet, SessionData client)
+        public static IPacketHandler GetHandler(Packet packet, SessionData client, SessionContext ctx)
         {
-            //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Yellow);
+            var landing = FilterRegistry.RunLanding(FilterContext.GatewayServer, packet, client, ctx);
+            if (landing != null)
+                return new StaticResultHandler(landing);
 
-            var dynamicFilter = FilterRegistry.Resolve(FilterContext.GatewayServer, packet.Opcode);
-            if (dynamicFilter != null)
-                return new DynamicFilterAdapter(dynamicFilter);
-
-            // If you had a Default fallback, keep it here
-            return null!; // or null! if you don't have one
+            var filter = FilterRegistry.Resolve(FilterContext.GatewayServer, packet.Opcode);
+            return filter != null ? new DynamicFilterAdapter(filter) : null!;
         }
     }
 }

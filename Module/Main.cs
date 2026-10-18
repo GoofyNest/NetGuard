@@ -159,7 +159,6 @@ namespace Module
             if (Module.ModuleType == ModuleType.AgentModule)
             {
                 Reader.Init();
-                PacketType.Init();
 
                 if (Settings.Agent.GameMasterConfig.GMs.Count == 0)
                 {

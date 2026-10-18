@@ -13,3 +13,4 @@ global using Module.PacketHandler;
 global using Module.PacketHandler.Filtering;
 global using Module.Services;
 global using SilkroadSecurityAPI;
+global using NetGuard.Filters.Shared;

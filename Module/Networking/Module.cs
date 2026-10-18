@@ -1,19 +1,20 @@
-﻿using System.Buffers;
-using System.Net;
-using System.Net.Sockets;
-using Module.Config;
+﻿using Module.Config;
 using Module.PacketHandler;
+using Module.PacketHandler.Filtering;
 using Module.Services;
 using SilkroadSecurityAPI;
-using GatewayServerHandler = Module.PacketHandler.Gateway.Server.PacketHandler;
-using GatewayClientHandler = Module.PacketHandler.Gateway.Client.PacketHandler;
-using AgentServerHandler = Module.PacketHandler.Agent.Server.PacketHandler;
+using System.Buffers;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
 using AgentClientHandler = Module.PacketHandler.Agent.Client.PacketHandler;
-using Module.PacketHandler.Filtering;
+using AgentServerHandler = Module.PacketHandler.Agent.Server.PacketHandler;
+using GatewayClientHandler = Module.PacketHandler.Gateway.Client.PacketHandler;
+using GatewayServerHandler = Module.PacketHandler.Gateway.Server.PacketHandler;
 
 namespace Module.Networking
 {
-    sealed class Module
+    sealed class Module : ISessionTransport
     {
         public int ClientId { get; }
         private Socket _clientSocket;
@@ -42,6 +43,13 @@ namespace Module.Networking
         // Per-direction "a receive is pending" flags.
         // [0] = client, [1] = server. 0 = idle (safe to arm), 1 = pending (don't double-arm).
         private readonly int[] _receiving = new int[2];
+
+        // Outbound queues drained after each filter/Landing runs.
+        private readonly ConcurrentQueue<Packet> _outToClient = new();
+        private readonly ConcurrentQueue<Packet> _outToServer = new();
+
+        // Reusable context object; created in the ctor after _client is set.
+        private readonly SessionContext _ctx;
 
         private const int RecvClient = 0;
         private const int RecvServer = 1;
@@ -81,6 +89,7 @@ namespace Module.Networking
 
             FilterRegistry.Loader?.AttachSession(_client);
             FilterRegistry.LiveSessions[ClientId] = _client;
+            _ctx = new SessionContext(_client, this);
 
             Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
         }
@@ -111,7 +120,35 @@ namespace Module.Networking
             }
         }
 
+        void ISessionTransport.EnqueueClient(Packet p) => _outToClient.Enqueue(p);
+        void ISessionTransport.EnqueueServer(Packet p) => _outToServer.Enqueue(p);
+
+        private async Task DrainOutboundAsync()
+        {
+            bool toClient = false;
+            while (_outToClient.TryDequeue(out var p))
+            {
+                _localSecurity.Send(p);
+                toClient = true;
+            }
+            if (toClient) await Send(false);
+
+            bool toServer = false;
+            while (_outToServer.TryDequeue(out var p))
+            {
+                _remoteSecurity.Send(p);
+                toServer = true;
+            }
+            if (toServer) await Send(true);
+        }
+
         async Task HandleReceivedData(int nReceived, bool isClient)
+        {
+            try { await HandleReceivedDataInner(nReceived, isClient); }
+            finally { await DrainOutboundAsync(); }
+        }
+
+        async Task HandleReceivedDataInner(int nReceived, bool isClient)
         {
             if (Volatile.Read(ref _disconnecting) == 1)
                 return;
@@ -143,16 +180,23 @@ namespace Module.Networking
 
                 if (_handlerType == ModuleType.GatewayModule)
                 {
-                    handler = isClient ? GatewayClientHandler.GetHandler(packet, _client) : GatewayServerHandler.GetHandler(packet, _client);
+                    handler = isClient
+                        ? GatewayClientHandler.GetHandler(packet, _client, _ctx)
+                        : GatewayServerHandler.GetHandler(packet, _client, _ctx);
                 }
                 else if (_handlerType == ModuleType.AgentModule)
                 {
-                    handler = isClient ? AgentClientHandler.GetHandler(packet, _client) : AgentServerHandler.GetHandler(packet, _client);
+                    handler = isClient
+                        ? AgentClientHandler.GetHandler(packet, _client, _ctx)
+                        : AgentServerHandler.GetHandler(packet, _client, _ctx);
                 }
 
                 if (handler != null)
                 {
-                    var result = handler.Handle(packet, _client);
+                    var result = handler.Handle(packet, _client, _ctx);
+
+                    // Flush anything the Landing/filter enqueued.
+                    await DrainOutboundAsync();
 
                     FilterRegistry.Loader?.SyncSession(_client);
 

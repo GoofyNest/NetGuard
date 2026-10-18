@@ -3,7 +3,7 @@ namespace NetGuard.Filters.Gateway.Server
     [Filter(0x5000)] // LOGIN_SERVER_HANDSHAKE
     public sealed class Handshake : IFilter
     {
-        public PacketHandlingResult Handle(Packet packet, SessionData client)
+        public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             return new PacketHandlingResult
             {
