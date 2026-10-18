@@ -9,6 +9,8 @@ namespace NetGuard.Filters.Gateway.Server
 
             byte res = packet.ReadUInt8();
 
+            Custom.WriteLine($"SERVER_GATEWAY_LOGIN_RESPONSE {res}");
+
             if (res == 1)
             {
                 uint id     = packet.ReadUInt32();
@@ -26,7 +28,7 @@ namespace NetGuard.Filters.Gateway.Server
                 foreach (var agent in Main.Config.ModuleBinding.Where(m => m.ModuleType == ModuleType.AgentModule))
                 {
                     SessionBus.SendTo(
-                        client,
+                        agent.ApiHost,
                         agent.ApiPort,
                         agent.ApiPassword,
                         new BusMessage("gateway.login_requested", new

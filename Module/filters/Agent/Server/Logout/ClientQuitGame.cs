@@ -11,7 +11,7 @@ namespace NetGuard.Filters.Agent.Server
             foreach (var gw in Main.Config.ModuleBinding.Where(m => m.ModuleType == ModuleType.GatewayModule))
             {
                 SessionBus.SendTo(
-                    client,
+                    gw.ApiHost,
                     gw.ApiPort,
                     gw.ApiPassword,
                     new BusMessage("agent.quit_acknowledged", new { Username = client.PlayerInfo.Username }));
