@@ -72,7 +72,7 @@ public sealed class BlockSuspiciousPickup : IFilter
 
 NetGuard is actively developed, with compatibility improvements and new features added over time.
 
-Need a custom feature or help with setup? Join the [NetGuard Discord](https://discord.gg/Kb575PXspG) to discuss development, get assistance, or contribute.
+Need a custom feature or help with setup? https://github.com/GoofyNest/NetGuard/issues
 
 ## Acknowledgements
 
