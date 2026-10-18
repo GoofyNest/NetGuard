@@ -26,10 +26,6 @@ namespace Module.Networking
         private readonly byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
         private readonly byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
-        // Cached SocketState per direction — avoids one allocation per BeginReceive
-        private SocketState _clientState = null!;
-        private SocketState _serverState = null!;
-
         private readonly Security _localSecurity = new();
         private readonly Security _remoteSecurity = new();
 
@@ -69,9 +65,6 @@ namespace Module.Networking
 
             _moduleType = moduleType;
             ModuleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-            _clientState = new SocketState(_clientSocket, _localBuffer);
-            _serverState = new SocketState(ModuleSocket, _remoteBuffer);
 
             _client.PlayerInfo.IpInfo = new();
 
@@ -309,6 +302,8 @@ namespace Module.Networking
                 if (Volatile.Read(ref _disconnecting) == 1)
                     return;
 
+                // Idempotent arm. If a receive loop is already running for this
+                // direction, do NOT start another one.
                 if (Interlocked.Exchange(ref _receiving[idx], 1) == 1)
                     return;
 
@@ -323,10 +318,7 @@ namespace Module.Networking
                     return;
                 }
 
-                socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, OnReceive,
-                    isClient ? _clientState : _serverState);
-
-                await Task.CompletedTask;
+                _ = ReceiveLoopAsync(socket, buffer, isClient);
             }
             catch (SocketException ex)
             {
@@ -348,62 +340,54 @@ namespace Module.Networking
             }
         }
 
-        async void OnReceive(IAsyncResult iar)
+        async Task ReceiveLoopAsync(Socket socket, byte[] buffer, bool isClient)
         {
+            int idx = isClient ? RecvClient : RecvServer;
+
             try
             {
-                if (iar.AsyncState is not SocketState state || state.Socket == null)
+                while (Volatile.Read(ref _disconnecting) == 0)
                 {
-                    Custom.WriteLine("Error: Socket or state is null.", ConsoleColor.Red);
-                    return;
-                }
+                    int bytesReceived;
 
-                Socket socket = state.Socket;
+                    try
+                    {
+                        bytesReceived = await socket.ReceiveAsync(buffer.AsMemory(), SocketFlags.None);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        HandleDisconnection();
+                        return;
+                    }
+                    catch (SocketException ex)
+                    {
+                        Custom.WriteLine($"SocketException in ReceiveLoop: {ex.SocketErrorCode}", ConsoleColor.Yellow);
+                        HandleDisconnection();
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Custom.WriteLine($"Exception in ReceiveLoop: {ex}", ConsoleColor.Red);
+                        HandleDisconnection();
+                        return;
+                    }
 
-                if (socket == _clientSocket)
-                    Interlocked.Exchange(ref _receiving[RecvClient], 0);
-                else if (socket == ModuleSocket)
-                    Interlocked.Exchange(ref _receiving[RecvServer], 0);
+                    // 0 = remote sent FIN.
+                    if (bytesReceived == 0)
+                    {
+                        HandleDisconnection();
+                        return;
+                    }
 
-                int bytesReceived = socket.EndReceive(iar);
+                    if (Volatile.Read(ref _disconnecting) == 1)
+                        return;
 
-                if (bytesReceived == 0)
-                {
-                    HandleDisconnection();
-                    return;
-                }
-
-                if (Volatile.Read(ref _disconnecting) == 1)
-                    return;
-
-                if (socket == _clientSocket)
-                {
-                    await HandleReceivedData(bytesReceived, true);
-
-                    if (Volatile.Read(ref _disconnecting) == 0)
-                        await DoReceive(true);
-                }
-                else if (socket == ModuleSocket)
-                {
-                    await HandleReceivedData(bytesReceived, false);
-
-                    if (Volatile.Read(ref _disconnecting) == 0)
-                        await DoReceive(false);
+                    await HandleReceivedData(bytesReceived, isClient);
                 }
             }
-            catch (ObjectDisposedException)
+            finally
             {
-                HandleDisconnection();
-            }
-            catch (SocketException ex)
-            {
-                Custom.WriteLine($"SocketException in OnReceive: {ex.SocketErrorCode}", ConsoleColor.Yellow);
-                HandleDisconnection();
-            }
-            catch (Exception ex)
-            {
-                Custom.WriteLine($"Exception in OnReceive: {ex}", ConsoleColor.Red);
-                HandleDisconnection();
+                Interlocked.Exchange(ref _receiving[idx], 0);
             }
         }
 

@@ -34,7 +34,7 @@ namespace Module.Services
             });
 
         private static StreamWriter? _fileWriter;
-        private static readonly object _fileInitLock = new();
+        private static readonly Lock _fileInitLock = new();
         private static bool _fileInitAttempted;
         private static int _linesSinceFlush;
 
