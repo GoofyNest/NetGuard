@@ -26,6 +26,10 @@ namespace Module.Networking
         private readonly byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
         private readonly byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
 
+        // Cached SocketState per direction — avoids one allocation per BeginReceive
+        private SocketState _clientState = null!;
+        private SocketState _serverState = null!;
+
         private readonly Security _localSecurity = new();
         private readonly Security _remoteSecurity = new();
 
@@ -47,6 +51,10 @@ namespace Module.Networking
         private readonly ConcurrentQueue<Packet> _outToClient = new();
         private readonly ConcurrentQueue<Packet> _outToServer = new();
 
+        // Fast-path flags: skip the async state machine when nothing is queued.
+        private int _hasOutToClient = 0;
+        private int _hasOutToServer = 0;
+
         // Reusable context object; created in the ctor after _client is set.
         private readonly SessionContext _ctx;
 
@@ -61,6 +69,9 @@ namespace Module.Networking
 
             _moduleType = moduleType;
             ModuleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+            _clientState = new SocketState(_clientSocket, _localBuffer);
+            _serverState = new SocketState(ModuleSocket, _remoteBuffer);
 
             _client.PlayerInfo.IpInfo = new();
 
@@ -80,7 +91,6 @@ namespace Module.Networking
                 _client.PlayerInfo.IpInfo.Ip = endpoint.Address.ToString();
             }
 
-            //SessionBus.PlayerIp = _client.PlayerInfo.IpInfo.Ip;
             SessionBus.Register(_client);
 
             FilterRegistry.Loader?.AttachSession(_client);
@@ -99,8 +109,6 @@ namespace Module.Networking
                 await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
                 ModuleSocket.NoDelay = true;
 
-                // Only arm client receive — the server side will be armed lazily
-                // by the handler flow (PacketResultType.DoReceive).
                 await DoReceive(true);
 
                 await Send(false);
@@ -117,26 +125,47 @@ namespace Module.Networking
             }
         }
 
-        void ISessionTransport.EnqueueClient(Packet p) => _outToClient.Enqueue(p);
-        void ISessionTransport.EnqueueServer(Packet p) => _outToServer.Enqueue(p);
+        void ISessionTransport.EnqueueClient(Packet p)
+        {
+            _outToClient.Enqueue(p);
+            Volatile.Write(ref _hasOutToClient, 1);
+        }
+
+        void ISessionTransport.EnqueueServer(Packet p)
+        {
+            _outToServer.Enqueue(p);
+            Volatile.Write(ref _hasOutToServer, 1);
+        }
 
         private async Task DrainOutboundAsync()
         {
-            bool toClient = false;
-            while (_outToClient.TryDequeue(out var p))
-            {
-                _localSecurity.Send(p);
-                toClient = true;
-            }
-            if (toClient) await Send(false);
+            // Fast path — nothing to drain, no async state machine allocated
+            if (Volatile.Read(ref _hasOutToClient) == 0 && Volatile.Read(ref _hasOutToServer) == 0)
+                return;
 
-            bool toServer = false;
-            while (_outToServer.TryDequeue(out var p))
+            if (Volatile.Read(ref _hasOutToClient) == 1)
             {
-                _remoteSecurity.Send(p);
-                toServer = true;
+                Volatile.Write(ref _hasOutToClient, 0);
+                bool any = false;
+                while (_outToClient.TryDequeue(out var p))
+                {
+                    _localSecurity.Send(p);
+                    any = true;
+                }
+                if (any) await Send(false);
             }
-            if (toServer) await Send(true);
+
+            if (Volatile.Read(ref _hasOutToServer) == 1)
+            {
+                Volatile.Write(ref _hasOutToServer, 0);
+                bool any = false;
+                while (_outToServer.TryDequeue(out var p))
+                {
+                    _remoteSecurity.Send(p);
+                    any = true;
+                }
+                if (any) await Send(true);
+            }
         }
 
         async Task HandleReceivedData(int nReceived, bool isClient)
@@ -153,6 +182,8 @@ namespace Module.Networking
             if (isClient)
             {
                 _localSecurity.Recv(_localBuffer, 0, nReceived);
+                _bytesReceivedFromClient += (ulong)nReceived;
+                HandleClientFlooding();
             }
             else
             {
@@ -214,9 +245,6 @@ namespace Module.Networking
                             await Send(result.SkipSending);
                             continue;
 
-                        // Handler says: swallow this packet, don't forward it,
-                        // but make sure the server side is armed for the next read.
-                        // DoReceive is idempotent thanks to _receiving[].
                         case PacketResultType.DoReceive:
                             Custom.WriteLine($"DoReceive [0x{packet.Opcode:X4}]", ConsoleColor.Magenta);
                             await DoReceive(false);
@@ -281,8 +309,6 @@ namespace Module.Networking
                 if (Volatile.Read(ref _disconnecting) == 1)
                     return;
 
-                // Idempotent arm. If a receive is already pending on this
-                // direction, do NOT arm another one.
                 if (Interlocked.Exchange(ref _receiving[idx], 1) == 1)
                     return;
 
@@ -297,7 +323,8 @@ namespace Module.Networking
                     return;
                 }
 
-                socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, OnReceive, new SocketState(socket, buffer));
+                socket.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, OnReceive,
+                    isClient ? _clientState : _serverState);
 
                 await Task.CompletedTask;
             }
@@ -333,7 +360,6 @@ namespace Module.Networking
 
                 Socket socket = state.Socket;
 
-                // Clear the "pending" flag for this direction — receive completed.
                 if (socket == _clientSocket)
                     Interlocked.Exchange(ref _receiving[RecvClient], 0);
                 else if (socket == ModuleSocket)
@@ -341,7 +367,6 @@ namespace Module.Networking
 
                 int bytesReceived = socket.EndReceive(iar);
 
-                // 0 = remote sent FIN. Disconnect.
                 if (bytesReceived == 0)
                 {
                     HandleDisconnection();
@@ -407,12 +432,6 @@ namespace Module.Networking
                 {
                     var packet = outgoing[i];
                     await socket.SendAsync(packet.Key.Buffer);
-
-                    if (toHost)
-                    {
-                        _bytesReceivedFromClient += (ulong)packet.Key.Size;
-                        HandleClientFlooding();
-                    }
                 }
                 catch (ObjectDisposedException)
                 {
@@ -464,7 +483,6 @@ namespace Module.Networking
 
             Custom.WriteLine($"Disconnecting client {ClientId} ({_client.PlayerInfo.IpInfo.Ip})", ConsoleColor.Yellow);
 
-            // Close the proxy-to-server socket (handler doesn't know about this one)
             try
             {
                 if (ModuleSocket != null)
@@ -485,7 +503,6 @@ namespace Module.Networking
                 ModuleSocket = null!;
             }
 
-            // Let AsyncServer.OnClientDisconnect handle the client socket — that's its contract
             try
             {
                 _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _moduleType);

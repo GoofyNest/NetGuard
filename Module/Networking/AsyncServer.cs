@@ -17,6 +17,7 @@ namespace Module.Networking
 
         private readonly ConcurrentDictionary<int, Module> _activeClients = new();
         private long _clientIdCounter = 0;
+        private long _activeCount = 0;
 
         public async Task StartAsync(string bindAddr, int port, ModuleType servType)
         {
@@ -58,6 +59,7 @@ namespace Module.Networking
 
                     if (_activeClients.TryAdd(clientId, module))
                     {
+                        Interlocked.Increment(ref _activeCount);
                         Custom.WriteLine($"Client {clientId} connected. Total connections: {GetActiveConnections()}", ConsoleColor.Cyan);
                     }
 
@@ -101,10 +103,7 @@ namespace Module.Networking
             }
         }
 
-        public int GetActiveConnections()
-        {
-            return _activeClients.Count;
-        }
+        public int GetActiveConnections() => (int)Interlocked.Read(ref _activeCount);
 
         private void OnClientDisconnect(int clientId, ref Socket clientSocket, ModuleType handlerType)
         {
@@ -113,6 +112,7 @@ namespace Module.Networking
             {
                 if (_activeClients.TryRemove(clientId, out _))
                 {
+                    Interlocked.Decrement(ref _activeCount);
                     Custom.WriteLine($"Client {clientId} disconnected. Total connections: {GetActiveConnections()}", ConsoleColor.Yellow);
                 }
             }
