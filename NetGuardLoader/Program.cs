@@ -174,7 +174,7 @@ namespace NetGuardLoader
                 }
 
                 var instance = Activator.CreateInstance(targetType);
-                method.Invoke(instance, new object[] { moduleIndex });
+                method.Invoke(instance, [moduleIndex]);
 
                 // Do NOT call alc.Unload() — the module runs background threads and
                 // keeps running after StartProgram returns. Keeping the ALC alive for
@@ -217,7 +217,12 @@ namespace NetGuardLoader
 
             LoadSettings();
 
+            // In Program.Main, after LoadDll(args):
             LoadDll(args);
+
+            // Block Main forever. The process exits when someone calls Environment.Exit
+            // or Ctrl+C is pressed.
+            new ManualResetEventSlim(false).Wait();
         }
     }
 }

@@ -50,6 +50,7 @@ namespace Module.Networking
                 try
                 {
                     var clientSocket = await _listenerSocket.AcceptAsync(cancellationToken);
+                    clientSocket.NoDelay = true;
 
                     // If Module constructor does async work, ensure it’s handled asynchronously
                     int clientId = (int)Interlocked.Increment(ref _clientIdCounter) & int.MaxValue;

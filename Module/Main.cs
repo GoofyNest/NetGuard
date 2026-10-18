@@ -23,20 +23,39 @@ namespace Module
         {
             while (true)
             {
-                Thread.Sleep(1);
+                string? cmd = Console.ReadLine();
+                if (cmd == null) return;
 
-                string cmd = Console.ReadLine() ?? string.Empty;
-
-                if(cmd == "test")
+                switch (cmd.Trim().ToLowerInvariant())
                 {
-
+                    case "test":
+                        Custom.WriteLine("[console] test command received", ConsoleColor.Cyan);
+                        break;
+                    case "gc":
+                        GC.Collect();
+                        Custom.WriteLine("[console] forced GC", ConsoleColor.Cyan);
+                        break;
+                    case "stats":
+                        Custom.WriteLine(
+                            $"[console] live={FilterRegistry.LiveSessions.Count}",
+                            ConsoleColor.Cyan);
+                        break;
+                    case "exit":
+                    case "quit":
+                        Environment.Exit(0);
+                        break;
+                    case "":
+                        break;
+                    default:
+                        Custom.WriteLine($"[console] unknown: {cmd}", ConsoleColor.Yellow);
+                        break;
                 }
             }
         }
 
         private static void LoadSettings(bool isMainFunction)
         {
-            if (isMainFunction == false)
+            if (!isMainFunction)
             {
                 Custom.WriteLine("changes detected", ConsoleColor.Yellow);
                 if (File.Exists(Config.SettingsPath))
@@ -49,18 +68,17 @@ namespace Module
 
                         var tempSettings = JsonConvert.DeserializeObject<AppSettings>(settingsContent);
                         if (tempSettings != null)
-                        {
                             Settings = tempSettings;
-                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error reading settings file: {ex.Message}");
+                        Custom.WriteLine($"Error reading settings file: {ex.Message}", ConsoleColor.Red);
                     }
                 }
                 return;
             }
 
+            // Load NetworkConfig
             if (File.Exists(Config.BindingsPath))
             {
                 try
@@ -70,18 +88,16 @@ namespace Module
                     var bindingsContent = reader.ReadToEnd();
 
                     var tempConfig = JsonConvert.DeserializeObject<NetworkConfig>(bindingsContent);
-
                     if (tempConfig != null)
-                    {
                         Config = tempConfig;
-                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error reading settings file: {ex.Message}");
+                    Custom.WriteLine($"Error reading bindings file: {ex.Message}", ConsoleColor.Red);
                 }
             }
 
+            // Load AppSettings
             if (File.Exists(Config.SettingsPath))
             {
                 try
@@ -91,21 +107,20 @@ namespace Module
                     var settingsContent = reader.ReadToEnd();
 
                     var tempSettings = JsonConvert.DeserializeObject<AppSettings>(settingsContent);
-
                     if (tempSettings != null)
-                    {
                         Settings = tempSettings;
-                    }
 
+                    Directory.CreateDirectory(Path.GetDirectoryName(Config.SettingsPath)!);
                     File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error reading settings file: {ex.Message}");
+                    Custom.WriteLine($"Error reading settings file: {ex.Message}", ConsoleColor.Red);
                 }
             }
             else
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(Config.SettingsPath)!);
                 File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
             }
         }
@@ -122,10 +137,7 @@ namespace Module
                 EnableRaisingEvents = true
             };
 
-            _settingsWatcher.Changed += (sender, e) =>
-            {
-                LoadSettings(false);
-            };
+            _settingsWatcher.Changed += (sender, e) => LoadSettings(false);
 
             _settingsWatcher.Error += (sender, e) =>
             {
@@ -135,6 +147,23 @@ namespace Module
 
         public static void StartProgram(int moduleIndex)
         {
+            // 1. Shutdown handler — flush logs on Ctrl+C / window close
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                try { Custom.WriteLine("[shutdown] exiting", ConsoleColor.Yellow); } catch { }
+                try { Custom.FlushAndStop(); } catch { }
+            };
+
+            // 2. Start the logger
+            Custom.StartDrain();
+
+            // 3. Thread pool tuning
+            ThreadPool.GetMinThreads(out var wMin, out var ioMin);
+            ThreadPool.SetMinThreads(
+                Math.Max(wMin, Environment.ProcessorCount * 4),
+                Math.Max(ioMin, Environment.ProcessorCount * 4));
+
+            // 3. Load configuration
             LoadSettings(true);
 
             Module = Config.ModuleBinding[moduleIndex];
@@ -142,20 +171,22 @@ namespace Module
             Console.Title = $"NetGuard | {Module.Name}";
 
             Config.LogFile = Path.Combine(Config.LogFolder, Module.Name + ".txt");
-
             Directory.CreateDirectory(Config.LogFolder);
 
             if (File.Exists(Config.LogFile))
                 File.Delete(Config.LogFile);
 
+            // 4. Start bus
             SessionBus.ApiPort = Module.ApiPort;
             SessionBus.ApiPassword = Module.ApiPassword;
             SessionBus.StartApiListener();
 
+            // 5. Start filter loader
             var filterLoader = new FilterLoader(Config.FiltersPath);
             filterLoader.Start();
             FilterRegistry.Loader = filterLoader;
 
+            // 6. Agent-specific init
             if (Module.ModuleType == ModuleType.AgentModule)
             {
                 Reader.Init();
@@ -178,11 +209,24 @@ namespace Module
 
             WatchSettingsFile();
 
-            // Use these values in your method as needed
-            Custom.WriteLine($"Guard IP: {Module.GuardIP}, Guard Port: {Module.GuardPort}, Module IP: {Module.ModuleIP}, Module Port: {Module.ModulePort}", ConsoleColor.Magenta);
+            Custom.WriteLine(
+                $"Guard IP: {Module.GuardIP}, Guard Port: {Module.GuardPort}, " +
+                $"Module IP: {Module.ModuleIP}, Module Port: {Module.ModulePort}",
+                ConsoleColor.Magenta);
 
-            Task.Run(() => StartAsyncServer());
-            new Thread(ConsolePoolThread).Start();
+            // 7. Start the async server with error handling
+            Task.Run(async () =>
+            {
+                try { await StartAsyncServer(); }
+                catch (Exception ex)
+                {
+                    Custom.WriteLine($"[fatal] Server startup failed: {ex}", ConsoleColor.Red);
+                    Environment.Exit(1);
+                }
+            });
+
+            // 8. Console command thread (background, so it doesn't block shutdown)
+            new Thread(ConsolePoolThread) { IsBackground = true, Name = "console" }.Start();
         }
 
         static async Task StartAsyncServer()

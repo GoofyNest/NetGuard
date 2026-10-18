@@ -3,10 +3,9 @@ using SilkroadSecurityAPI;
 
 namespace Module.PacketHandler.Filtering
 {
-    internal sealed class DynamicFilterAdapter : IPacketHandler
+    internal sealed class DynamicFilterAdapter(IFilter inner) : IPacketHandler
     {
-        private readonly IFilter _inner;
-        public DynamicFilterAdapter(IFilter inner) => _inner = inner;
+        private readonly IFilter _inner = inner;
 
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
             => _inner.Handle(packet, client, ctx);

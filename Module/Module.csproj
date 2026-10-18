@@ -10,6 +10,11 @@
   <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+  <!-- NEW: GC tuning for high-throughput server workloads -->
+  <ServerGarbageCollection>true</ServerGarbageCollection>
+  <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  <TieredPGO>true</TieredPGO>
 </PropertyGroup>
 
   <ItemGroup>

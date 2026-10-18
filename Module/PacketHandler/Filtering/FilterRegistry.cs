@@ -11,18 +11,20 @@ namespace Module.PacketHandler.Filtering
 
         public static readonly ConcurrentDictionary<int, SessionData> LiveSessions = new();
 
-        private static readonly ConcurrentDictionary<FilterContext, ILanding> _landings = new();
+        private static readonly ILanding?[] _landings = new ILanding?[4];
 
         public static IFilter? Resolve(FilterContext ctx, ushort opcode)
             => Loader?.Resolve(ctx, opcode);
 
         public static void SetLanding(FilterContext ctx, ILanding? landing)
         {
-            if (landing == null) _landings.TryRemove(ctx, out _);
-            else _landings[ctx] = landing;
+            Volatile.Write(ref _landings[(int)ctx], landing);
         }
 
-        public static void ClearLandings() => _landings.Clear();
+        public static void ClearLandings()
+        {
+            for (int i = 0; i < 4; i++) Volatile.Write(ref _landings[i], null);
+        }
 
         /// <summary>
         /// Runs the landing for the given context, if any. Returns null if no
@@ -31,7 +33,8 @@ namespace Module.PacketHandler.Filtering
         public static PacketHandlingResult? RunLanding(
             FilterContext ctx, Packet packet, SessionData client, SessionContext sessionCtx)
         {
-            if (!_landings.TryGetValue(ctx, out var landing)) return null;
+            var landing = Volatile.Read(ref _landings[(int)ctx]);
+            if (landing == null) return null;
             try { return landing.Handle(packet, client, sessionCtx); }
             catch (Exception ex)
             {

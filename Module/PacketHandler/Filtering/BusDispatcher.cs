@@ -10,7 +10,7 @@ namespace Module.PacketHandler.Filtering
 
         public void On(string kind, Action<SessionData, BusMessage> handler)
         {
-            var list = _handlers.GetOrAdd(kind, _ => new());
+            var list = _handlers.GetOrAdd(kind, _ => []);
             lock (list) list.Add(handler);
         }
 
@@ -18,7 +18,7 @@ namespace Module.PacketHandler.Filtering
         {
             if (!_handlers.TryGetValue(msg.Kind, out var list)) return;
             Action<SessionData, BusMessage>[] snapshot;
-            lock (list) snapshot = list.ToArray();
+            lock (list) snapshot = [.. list];
             foreach (var h in snapshot)
             {
                 try { h(session, msg); }

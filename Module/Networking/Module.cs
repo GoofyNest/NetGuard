@@ -21,7 +21,7 @@ namespace Module.Networking
         private readonly AsyncServer.DelClientDisconnect _clientDisconnectHandler;
 
         private Socket ModuleSocket;
-        private readonly ModuleType _handlerType;
+        private readonly ModuleType _moduleType;
 
         private readonly byte[] _localBuffer = ArrayPool<byte>.Shared.Rent(8192);
         private readonly byte[] _remoteBuffer = ArrayPool<byte>.Shared.Rent(8192);
@@ -29,7 +29,6 @@ namespace Module.Networking
         private readonly Security _localSecurity = new();
         private readonly Security _remoteSecurity = new();
 
-        public static FixedSizeQueue<Packet> _lastPackets = new(100);
         private ulong _bytesReceivedFromClient = 0;
         private readonly DateTime _startTime = DateTime.Now;
 
@@ -54,21 +53,18 @@ namespace Module.Networking
         private const int RecvClient = 0;
         private const int RecvServer = 1;
 
-        public Module(int clientId, Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType _serverType)
+        public Module(int clientId, Socket clientSocket, AsyncServer.DelClientDisconnect delDisconnect, ModuleType moduleType)
         {
             ClientId = clientId;
             _clientSocket = clientSocket;
             _clientDisconnectHandler = delDisconnect;
 
-            _handlerType = _serverType;
+            _moduleType = moduleType;
             ModuleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            _client.PlayerInfo = new()
-            {
-                IpInfo = new()
-            };
+            _client.PlayerInfo.IpInfo = new();
 
-            switch (_serverType)
+            switch (moduleType)
             {
                 case ModuleType.GatewayModule:
                     _client.Gateway = new();
@@ -101,6 +97,7 @@ namespace Module.Networking
                 _localSecurity.GenerateSecurity(true, true, true);
 
                 await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
+                ModuleSocket.NoDelay = true;
 
                 // Only arm client receive — the server side will be armed lazily
                 // by the handler flow (PacketResultType.DoReceive).
@@ -178,13 +175,13 @@ namespace Module.Networking
 
                 IPacketHandler handler = null!;
 
-                if (_handlerType == ModuleType.GatewayModule)
+                if (_moduleType == ModuleType.GatewayModule)
                 {
                     handler = isClient
                         ? GatewayClientHandler.GetHandler(packet, _client, _ctx)
                         : GatewayServerHandler.GetHandler(packet, _client, _ctx);
                 }
-                else if (_handlerType == ModuleType.AgentModule)
+                else if (_moduleType == ModuleType.AgentModule)
                 {
                     handler = isClient
                         ? AgentClientHandler.GetHandler(packet, _client, _ctx)
@@ -194,9 +191,6 @@ namespace Module.Networking
                 if (handler != null)
                 {
                     var result = handler.Handle(packet, _client, _ctx);
-
-                    // Flush anything the Landing/filter enqueued.
-                    await DrainOutboundAsync();
 
                     FilterRegistry.Loader?.SyncSession(_client);
 
@@ -357,21 +351,16 @@ namespace Module.Networking
                 if (Volatile.Read(ref _disconnecting) == 1)
                     return;
 
-                // Drain here — before the Task.Run for packet handling
-                foreach (var msg in SessionBus.Drain(_client))
-                    BusRegistry.Dispatcher.Dispatch(_client, msg);
-
-
                 if (socket == _clientSocket)
                 {
-                    await Task.Run(() => HandleReceivedData(bytesReceived, true));
+                    await HandleReceivedData(bytesReceived, true);
 
                     if (Volatile.Read(ref _disconnecting) == 0)
                         await DoReceive(true);
                 }
                 else if (socket == ModuleSocket)
                 {
-                    await Task.Run(() => HandleReceivedData(bytesReceived, false));
+                    await HandleReceivedData(bytesReceived, false);
 
                     if (Volatile.Read(ref _disconnecting) == 0)
                         await DoReceive(false);
@@ -449,7 +438,7 @@ namespace Module.Networking
         {
             double bytesPerSecond = GetBytesPerSecondFromClient();
 
-            if (bytesPerSecond <= 1000)
+            if (bytesPerSecond <= 100000)
                 return;
 
             Custom.WriteLine($"Client({_client.PlayerInfo.IpInfo.Ip}) disconnected for flooding.", ConsoleColor.Yellow);
@@ -475,6 +464,7 @@ namespace Module.Networking
 
             Custom.WriteLine($"Disconnecting client {ClientId} ({_client.PlayerInfo.IpInfo.Ip})", ConsoleColor.Yellow);
 
+            // Close the proxy-to-server socket (handler doesn't know about this one)
             try
             {
                 if (ModuleSocket != null)
@@ -495,33 +485,18 @@ namespace Module.Networking
                 ModuleSocket = null!;
             }
 
+            // Let AsyncServer.OnClientDisconnect handle the client socket — that's its contract
             try
             {
-                if (_clientSocket != null)
-                {
-                    if (_clientSocket.Connected)
-                    {
-                        try { _clientSocket.Shutdown(SocketShutdown.Both); } catch { }
-                    }
-                    _clientSocket.Close();
-                }
-            }
-            catch (Exception ex)
-            {
-                Custom.WriteLine($"HandleDisconnection()::Error closing client socket. Exception: {ex}", ConsoleColor.Red);
-            }
-            finally
-            {
-                _clientSocket = null!;
-            }
-
-            try
-            {
-                _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _handlerType);
+                _clientDisconnectHandler?.Invoke(ClientId, ref _clientSocket, _moduleType);
             }
             catch (Exception ex)
             {
                 Custom.WriteLine($"HandleDisconnection()::Error in disconnect callback. Exception: {ex}", ConsoleColor.Red);
+            }
+            finally
+            {
+                _clientSocket = null!;
             }
         }
     }

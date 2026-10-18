@@ -14,8 +14,9 @@ namespace Module.PacketHandler.Filtering
         private readonly string _parentDir;
         private readonly string _rootName;
 
-        // key = (context, opcode)
-        private readonly ConcurrentDictionary<(FilterContext, ushort), IFilter> _filters = new();
+        // Indexed by (int)FilterContext, then by opcode.
+        // Swapped atomically on reload; null entries mean "no filter".
+        private IFilter?[][] _filters = new IFilter?[4][];
 
         private readonly System.Timers.Timer _debounce;
         private readonly object _reloadLock = new();
@@ -23,6 +24,14 @@ namespace Module.PacketHandler.Filtering
         private FileSystemWatcher? _parentWatcher;  // watches filters/ itself (create/delete/rename)
         private AssemblyLoadContext? _alc;
         private bool _disposed;
+
+        private List<MetadataReference>? _cachedRefs;
+
+        private static readonly string[] _probeDirs = [.. new[]
+        {
+    AppContext.BaseDirectory,
+    Path.GetDirectoryName(typeof(FilterLoader).Assembly.Location) ?? AppContext.BaseDirectory,
+}.Distinct()];
 
         private ConstructorInfo? _hostCtor;
         private Action<SessionData>? _attach;
@@ -150,7 +159,10 @@ namespace Module.PacketHandler.Filtering
         }
 
         public IFilter? Resolve(FilterContext ctx, ushort opcode)
-            => _filters.TryGetValue((ctx, opcode), out var f) ? f : null;
+        {
+            var arr = Volatile.Read(ref _filters)[(int)ctx];
+            return arr?[opcode];
+        }
 
         private static FilterContext? ContextFromNamespace(string? ns)
         {
@@ -190,7 +202,7 @@ namespace Module.PacketHandler.Filtering
 
             FilterRegistry.ClearLandings();
 
-            _filters.Clear();
+            Volatile.Write(ref _filters, new IFilter?[4][]);
 
             var old = _alc;
             _alc = null;
@@ -201,6 +213,47 @@ namespace Module.PacketHandler.Filtering
                 GC.WaitForPendingFinalizers();
                 GC.Collect();
             }
+        }
+
+        private static List<MetadataReference> BuildRefs()
+        {
+            var refs = new List<MetadataReference>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Every assembly the host has loaded
+            foreach (var appAsm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (appAsm.IsDynamic) continue;
+                if (string.IsNullOrEmpty(appAsm.Location)) continue;
+                if (!seen.Add(appAsm.Location)) continue;
+                try { refs.Add(MetadataReference.CreateFromFile(appAsm.Location)); } catch { }
+            }
+
+            // 2. Every .dll sitting next to the host
+            foreach (var dir in _probeDirs)
+            {
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
+                foreach (var dll in Directory.GetFiles(dir, "*.dll"))
+                {
+                    if (!seen.Add(dll)) continue;
+                    try { refs.Add(MetadataReference.CreateFromFile(dll)); } catch { }
+                }
+            }
+
+            // 3. The runtime's own assemblies
+            var tpa = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+            if (!string.IsNullOrEmpty(tpa))
+            {
+                foreach (var path in tpa.Split(Path.PathSeparator))
+                {
+                    if (string.IsNullOrEmpty(path)) continue;
+                    if (!path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!seen.Add(path)) continue;
+                    try { refs.Add(MetadataReference.CreateFromFile(path)); } catch { }
+                }
+            }
+
+            return refs;
         }
 
         private void Reload()
@@ -262,13 +315,13 @@ namespace Module.PacketHandler.Filtering
                     try
                     {
                         files = Directory.Exists(dir)
-                            ? Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories).ToList()
-                            : new List<string>();
+                            ? [.. Directory.GetFiles(dir, "*.cs", SearchOption.AllDirectories)]
+                            : [];
                     }
                     catch (Exception ex)
                     {
                         Custom.WriteLine($"[filters] enumerate {dir}: {ex.Message}", ConsoleColor.Red);
-                        files = new List<string>();
+                        files = [];
                     }
                     filesByContext[ctx] = files;
                 }
@@ -281,14 +334,13 @@ namespace Module.PacketHandler.Filtering
                 var rootFiles = new List<string>();
                 try
                 {
-                    rootFiles = Directory.GetFiles(_rootDir, "*.cs", SearchOption.AllDirectories)
+                    rootFiles = [.. Directory.GetFiles(_rootDir, "*.cs", SearchOption.AllDirectories)
                         .Where(f =>
                         {
                             var full = Path.GetFullPath(f);
                             return !contextDirs.Any(dir =>
                                 full.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
-                        })
-                        .ToList();
+                        })];
                 }
                 catch (Exception ex)
                 {
@@ -340,48 +392,7 @@ namespace Module.PacketHandler.Filtering
                 }
 
                 // 3c. Reference every assembly the host has loaded
-                var refs = new List<MetadataReference>();
-                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var appAsm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (appAsm.IsDynamic) continue;
-                    if (string.IsNullOrEmpty(appAsm.Location)) continue;
-                    if (!seen.Add(appAsm.Location)) continue;
-                    try { refs.Add(MetadataReference.CreateFromFile(appAsm.Location)); }
-                    catch { }
-                }
-
-                var probeDirs = new[]
-                {
-                    AppContext.BaseDirectory,
-                    Path.GetDirectoryName(typeof(FilterLoader).Assembly.Location) ?? AppContext.BaseDirectory,
-                }.Distinct().ToArray();
-
-                foreach (var dir in probeDirs)
-                {
-                    if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
-
-                    foreach (var dll in Directory.GetFiles(dir, "*.dll"))
-                    {
-                        if (!seen.Add(dll)) continue;
-                        try { refs.Add(MetadataReference.CreateFromFile(dll)); }
-                        catch { }
-                    }
-                }
-
-                var tpa = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
-                if (!string.IsNullOrEmpty(tpa))
-                {
-                    foreach (var path in tpa.Split(Path.PathSeparator))
-                    {
-                        if (string.IsNullOrEmpty(path)) continue;
-                        if (!path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
-                        if (!seen.Add(path)) continue;
-                        try { refs.Add(MetadataReference.CreateFromFile(path)); }
-                        catch { }
-                    }
-                }
+                var refs = _cachedRefs ??= BuildRefs();
 
                 // Generate SessionHost from any ISessionState implementors
                 var hostTree = HostGeneration.Generate(syntaxTrees);
@@ -426,7 +437,7 @@ namespace Module.PacketHandler.Filtering
                         return loaded;
 
                     var fileName = name.Name + ".dll";
-                    foreach (var dir in probeDirs)
+                    foreach (var dir in _probeDirs)
                     {
                         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
 
@@ -467,11 +478,11 @@ namespace Module.PacketHandler.Filtering
                     bridgeType = asm.GetType("NetGuard.Hot.SessionBridge");
                     hostCtor = hostType?.GetConstructor(Type.EmptyTypes);
 
-                    attach = bridgeType?.GetMethod("Attach", new[] { typeof(SessionData) })
+                    attach = bridgeType?.GetMethod("Attach", [typeof(SessionData)])
                         ?.CreateDelegate<Action<SessionData>>();
-                    sync = bridgeType?.GetMethod("Sync", new[] { typeof(SessionData) })
+                    sync = bridgeType?.GetMethod("Sync", [typeof(SessionData)])
                         ?.CreateDelegate<Action<SessionData>>();
-                    migrate = bridgeType?.GetMethod("Migrate", new[] { typeof(object), typeof(object) })
+                    migrate = bridgeType?.GetMethod("Migrate", [typeof(object), typeof(object)])
                         ?.CreateDelegate<Action<object?, object?>>();
                 }
                 catch (Exception ex)
@@ -606,9 +617,19 @@ namespace Module.PacketHandler.Filtering
                 foreach (var kvp in newLandings)
                     FilterRegistry.SetLanding(kvp.Key, kvp.Value);
 
+                // Build array form of the new filters (one array per context, indexed by opcode)
+                var newArray = new IFilter?[4][];
+                for (int c = 0; c < 4; c++)
+                    newArray[c] = new IFilter?[65536];
+
+                foreach (var kvp in newFilters)
+                    newArray[(int)kvp.Key.Item1][kvp.Key.Item2] = kvp.Value;
+
                 var oldAlc = _alc;
-                _filters.Clear();
-                foreach (var kvp in newFilters) _filters[kvp.Key] = kvp.Value;
+
+                // Atomic publish — readers see either the old array or the new one, never a half-built one
+                Volatile.Write(ref _filters, newArray);
+
                 _alc = newAlc;
 
                 if (newLandings.Count > 0)
