@@ -1,60 +1,86 @@
-# NetGuard [Discord server](https://discord.gg/Kb575PXspG)
+# NetGuard
 
-# What is NetGuard?
-NetGuard is my new C# packet filter base for `legend 1(ECSRO, jSRO)` Silkroad Online files, it will most likely work for vSRO 1.88 aswell!
+NetGuard is a C# packet filter for `Legend 1` Silkroad Online files, with potential compatibility for vSRO 1.88.
 
-### You may remember me or my previous projects, such as Supermike, Superman, and KRYLFILTER.
-[Superman](https://www.elitepvpers.com/forum/sro-pserver-guides-releases/3778943-release-superman-vsro-anti-exploit-free.html)
-[Supermike](https://www.elitepvpers.com/forum/sro-pserver-guides-releases/3943130-release-supermike-exploit-filter-free-tons-features-stable.html)
+**Hot-reloadable filters. No rebuilds, restarts, or player disconnects.**
 
-The original engine, async server, and base were initially created by Chernobyl but have been rewritten multiple times since then.
+## Getting Started
 
-# Why NetGuard?
-I set out to create a packet filter with a clean and structured approach to handling packets from both the server and the client. While this version achieves that goal, it is not the final/full release and will keep getting updates daily. The project was ported to `.NET 8.0` from `.NET Framework`, which now supports both Windows and Linux environments.
+1. **Download** — Clone the repository or download the latest build from the [Releases](../../releases) page.
+2. **Run** — Launch `NetGuardLoader.exe`. It automatically generates the required configuration files and `.bat` files for running the modules.
+3. **Configure** — Set up your module bindings, IP addresses, ports, and API keys in the generated configuration files.
+4. **Launch** — Use the generated `.bat` files to start the Gateway and Agent modules.
+5. **Filter** — Add or edit `.cs` files under `filters/`. Save your changes and NetGuard automatically reloads the filters.
 
-### Performance preview
-[YouTube](https://www.youtube.com/watch?v=u4uCDbXQ3rw)
+## Features
 
-### Why use us
-> **Open-Source & Free** – NetGuard is completely open-source, giving you full control over how you use and modify it.
-> Unlike other packet filters, we don’t lock you into a closed ecosystem.
+- **Hot Reloading** — Compile and swap filters at runtime without restarting the proxy.
+- **Per-Context Filtering** — Separate filtering contexts for Agent and Gateway, handling both client and server traffic.
+- **Landing Layer** — Centralized packet validation and state-dependent filtering before opcode dispatch.
+- **SessionBus** — HMAC-SHA256-authenticated communication between modules, enabling shared player state across machines.
+- **Synchronous Handlers** — No `async` / `await` in filter handlers, helping minimize per-call overhead.
+- **Cross-Platform** — Built on .NET 10 for Windows and Linux.
+- **Open Source** — Free to use and modify, with no artificial player caps or hosting restrictions.
 
-> **No Hosting Restrictions** – You're free to host your protection on your own server.
-> We don’t force you to rely on external services.
+## Performance Preview
 
-> **Unlimited Player Support** – No artificial player caps. Whether your project is small or scales to thousands of users,
-> NetGuard has no restrictions.
+[Watch the performance preview on YouTube](https://www.youtube.com/watch?v=u4uCDbXQ3rw)
 
-> **No Hidden Fees** – We don’t charge you based on the size of your server,
-> the number of players, or any other unnecessary limitations.
+## Quick Example
 
-> **Cross-Platform Support** – Thanks to .NET 8.0, NetGuard runs efficiently on both Windows and Linux, giving you the flexibility to deploy it wherever you need.
+Filters are organized by module, direction, and feature:
 
-> **Constant Updates** – We're actively improving NetGuard daily, ensuring you get the best performance, security, and compatibility with your Silkroad Online server.
+```text
+filters/
+└── Agent/
+    └── Client/
+        └── Feature/
+            └── BlockSuspiciousPickup.cs
+```
 
-> **Custom Features & Setup Support** – Need something tailored to your server?
-> We can implement custom features that will also be available in the public source.
-> If you need help setting things up, we offer setup assistance for a reasonable price.
+Example filter:
 
+```csharp
+using Module.Networking;
+using Module.PacketHandler.Filtering;
+using SilkroadSecurityAPI;
 
-> **Join Our Community** – If you like our project and want to get in touch, join our [Discord server](https://discord.gg/Kb575PXspG)!
-> We’re always open to feedback, discussions, and collaboration.
+namespace NetGuard.Filters.Agent.Client;
 
-### Why `.NET 8.0`? 
-It brings significant improvements over the older `.NET Framework`, particularly in terms of performance. `.NET 8.0` introduces native AOT (Ahead-of-Time) compilation, which reduces startup time and improves runtime efficiency by compiling the code directly to native machine code. This leads to faster execution, reduced memory usage, and better resource management.
+[Filter(0x7074)] // AGENT_PLAYER_ACTION
+public sealed class BlockSuspiciousPickup : IFilter
+{
+    public PacketHandlingResult Handle(
+        Packet packet,
+        SessionData client,
+        SessionContext ctx)
+    {
+        if (!client.Agent.IsIngame)
+        {
+            return new PacketHandlingResult
+            {
+                ResultType = PacketResultType.Block
+            };
+        }
 
-Additionally, `.NET 8.0` offers enhanced socket handling and optimized networking performance, which is crucial for applications that rely on high-speed data transmission. Its improved garbage collection minimizes memory fragmentation, resulting in smoother performance, especially for long-running applications. These enhancements make `.NET 8.0` more suitable for modern, high-performance environments compared to the older `.NET Framework`, where these capabilities were either lacking or less efficient.
+        return new PacketHandlingResult();
+    }
+}
+```
 
-# Special thanks
+## Development & Support
 
-* [DaxterSoul](https://www.elitepvpers.com/forum/members/1084164-daxtersoul.html)
-  - for the [SilkroadDocs]([https://www.elitepvpers.com/forum/members/1084164-daxtersoul.html](https://github.com/DummkopfOfHachtenduden/SilkroadDoc/))
-* [pushedx](https://www.elitepvpers.com/forum/members/900141-pushedx.html)
-  - for the original released [SilkroadSecurityAPI](https://www.elitepvpers.com/forum/sro-coding-corner/1063078-c-silkroadsecurity.html)
-* Chernobyl
-  - for the main idea about building a packet filter
-* [DuckSoup](https://github.com/ducksoup-sro/ducksoup)
-  - for some of his packet parsing with the help of other devs like BimBum1337
- 
-# License
-Do what you want cause a pirate is free
+NetGuard is actively developed, with compatibility improvements and new features added over time.
+
+Need a custom feature or help with setup? https://github.com/GoofyNest/NetGuard/issues
+
+## Acknowledgements
+
+- [DaxterSoul](https://www.elitepvpers.com/forum/members/1084164-daxtersoul.html) — [SilkroadDocs](https://github.com/DummkopfOfHachtenduden/SilkroadDoc/).
+- [pushedx](https://www.elitepvpers.com/forum/sro-coding-corner/1063078-c-silkroadsecurity.html) — SilkroadSecurityAPI.
+- **Chernobyl** — The original packet filter concept and foundation.
+- [DuckSoup](https://github.com/ducksoup-sro/ducksoup) — Packet parsing contributions.
+
+## License
+
+Do what you want, 'cause a pirate is free.
