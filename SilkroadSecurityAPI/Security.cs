@@ -658,25 +658,28 @@ public sealed class Security
 
         while (available > 0)
         {
-            // --- Fill the 2-byte length prefix --------------------------------
-            if (_recvBuffer.Size < 2)
-            {
-                int need = 2 - _recvBuffer.Size;
-                int take = Math.Min(need, available);
-                Buffer.BlockCopy(rawBuffer.Buffer, srcIndex,
-                                 _recvBuffer.Buffer, _recvBuffer.Size, take);
-                _recvBuffer.Size += take;
-                srcIndex += take;
-                available -= take;
-                if (_recvBuffer.Size < 2) break;
-            }
-
-            // --- Once we have the length, allocate _currentBuffer if needed ---
+            // --- If we don't have a current packet, acquire the 2-byte length
+            //     prefix and allocate _currentBuffer. This block must ONLY run
+            //     when _currentBuffer is null — otherwise bytes belonging to
+            //     the in-progress packet would be misrouted into _recvBuffer
+            //     and mistaken for the next packet's length prefix.
             if (_currentBuffer is null)
             {
+                if (_recvBuffer.Size < 2)
+                {
+                    int need = 2 - _recvBuffer.Size;
+                    int take = Math.Min(need, available);
+                    Buffer.BlockCopy(rawBuffer.Buffer, srcIndex,
+                                     _recvBuffer.Buffer, _recvBuffer.Size, take);
+                    _recvBuffer.Size += take;
+                    srcIndex += take;
+                    available -= take;
+                    if (_recvBuffer.Size < 2)
+                        return; // need more data to know the length
+                }
+
                 int payload = _recvBuffer.Buffer[1] << 8 | _recvBuffer.Buffer[0];
                 int wireSize;
-
                 if ((payload & 0x8000) > 0)
                 {
                     payload &= 0x7FFF;
@@ -691,15 +694,27 @@ public sealed class Security
 
                 _currentBuffer = new TransferBuffer(wireSize, 0, wireSize);
 
-                // Drain whatever is already in _recvBuffer into _currentBuffer.
-                int move = Math.Min(_recvBuffer.Size, _currentBuffer.Size);
+                // Move the 2-byte prefix into the new packet buffer.
+                int move = Math.Min(_recvBuffer.Size, wireSize);
                 Buffer.BlockCopy(_recvBuffer.Buffer, 0,
                                  _currentBuffer.Buffer, 0, move);
                 _currentBuffer.Offset = move;
-                _recvBuffer.Size = 0;
+
+                // Slide any surplus (should normally be zero; defensive).
+                if (_recvBuffer.Size > move)
+                {
+                    int surplus = _recvBuffer.Size - move;
+                    Buffer.BlockCopy(_recvBuffer.Buffer, move,
+                                     _recvBuffer.Buffer, 0, surplus);
+                    _recvBuffer.Size = surplus;
+                }
+                else
+                {
+                    _recvBuffer.Size = 0;
+                }
             }
 
-            // --- Top up _currentBuffer from the incoming raw buffer -----------
+            // --- Fill _currentBuffer directly from the incoming raw buffer.
             int needMore = _currentBuffer.Size - _currentBuffer.Offset;
             if (needMore > 0)
             {
@@ -720,8 +735,7 @@ public sealed class Security
             }
             else
             {
-                // Need more data from the network.
-                break;
+                return; // need more data to finish the current packet
             }
         }
     }

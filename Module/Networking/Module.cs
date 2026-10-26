@@ -36,14 +36,15 @@ namespace Module.Networking
 
         private readonly SessionData _client = new();
 
-        // Guard against re-entrant disconnection
+        // Re-entrancy guard for HandleDisconnection. One canonical place closes
+        // the sockets; every other caller just trips this flag and returns.
         private int _disconnecting = 0;
 
-        // Per-direction "a receive is pending" flags.
-        // [0] = client, [1] = server. 0 = idle (safe to arm), 1 = pending (don't double-arm).
+        // Per-direction "a receive is pending" flag.
+        // [0] = client, [1] = server. 0 = idle (safe to arm), 1 = pending.
         private readonly int[] _receiving = new int[2];
 
-        // Outbound queues drained after each filter/Landing runs.
+        // Outbound queues drained after each filter/landing run.
         private readonly ConcurrentQueue<Packet> _outToClient = new();
         private readonly ConcurrentQueue<Packet> _outToServer = new();
 
@@ -51,7 +52,6 @@ namespace Module.Networking
         private int _hasOutToClient = 0;
         private int _hasOutToServer = 0;
 
-        // Reusable context object; created in the ctor after _client is set.
         private readonly SessionContext _ctx;
 
         private const int RecvClient = 0;
@@ -132,7 +132,7 @@ namespace Module.Networking
 
         private async Task DrainOutboundAsync()
         {
-            // Fast path — nothing to drain, no async state machine allocated
+            // Fast path — nothing to drain, no async state machine allocated.
             if (Volatile.Read(ref _hasOutToClient) == 0 && Volatile.Read(ref _hasOutToServer) == 0)
                 return;
 
@@ -185,7 +185,7 @@ namespace Module.Networking
 
             var receivedPackets = isClient ? _localSecurity.TransferIncoming() : _remoteSecurity.TransferIncoming();
 
-            if (receivedPackets == null)
+            if (receivedPackets == null || receivedPackets.Count == 0)
                 return;
 
             int count = receivedPackets.Count;
@@ -302,8 +302,8 @@ namespace Module.Networking
                 if (Volatile.Read(ref _disconnecting) == 1)
                     return;
 
-                // Idempotent arm. If a receive loop is already running for this
-                // direction, do NOT start another one.
+                // Idempotent arm: never start a second receive loop for a direction
+                // that already has one running.
                 if (Interlocked.Exchange(ref _receiving[idx], 1) == 1)
                     return;
 
@@ -410,6 +410,8 @@ namespace Module.Networking
 
             int count = outgoing.Count;
 
+            // One TCP write per Silkroad packet — the wire format the client
+            // (and server) actually expect. No coalescing.
             for (int i = 0; i < count; i++)
             {
                 try

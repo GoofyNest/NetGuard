@@ -27,6 +27,7 @@ namespace NetGuard.Filters.Agent.Client
 
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
+            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
             var response = new PacketHandlingResult();
 
             var _files = Main.Settings.ServerType.CurrentValue;
@@ -45,31 +46,13 @@ namespace NetGuard.Filters.Agent.Client
 
                         switch (ActionType)
                         {
-                            case ActionType.Attack:
+                            case ActionType.Attack: // 0x01
                                 {
 
                                 }
                                 break;
 
-                            case ActionType.Trace:
-                                {
-
-                                }
-                                break;
-
-                            case ActionType.Cast:
-                                {
-
-                                }
-                                break;
-
-                            case ActionType.Dispel:
-                                {
-
-                                }
-                                break;
-
-                            case ActionType.Pickup:
+                            case ActionType.Pickup: // 0x02
                                 {
                                     ActionTarget TargetType = (ActionTarget)packet.ReadUInt8();
 
@@ -102,11 +85,87 @@ namespace NetGuard.Filters.Agent.Client
                                         }
                                         catch (Exception ex)
                                         {
-                                            Custom.WriteLine($"Error emulating pickup {ex.ToString()}");
+                                            Custom.WriteLine($"0x7074 Action.Pickup exception {ex.ToString()}");
                                             response.ResultType = PacketResultType.Block;
                                             return response;
                                         }
                                     }
+                                }
+                                break;
+
+                            case ActionType.Trace: // 0x03
+                                {
+
+                                }
+                                break;
+
+                            case ActionType.Cast: // 0x04
+                                {
+                                    try 
+                                    {
+                                        var RefSkill = Main.Skills;
+
+                                        var Skill_ID = packet.ReadUInt32();
+                                        Custom.WriteLine($"ID: {Skill_ID}");
+
+                                        RefSkill.TryGetValue((int)Skill_ID, out var _skill);
+
+                                        if(_skill == null)
+                                        {
+                                            Custom.WriteLine($"0x7074 Action.Cast sending invalid Skill_ID");
+                                            response.ResultType = PacketResultType.Block;
+                                            return response;
+                                        }
+
+                                        int packetLength = packet.GetBytes().Length;
+                                        
+                                        /*
+                                            Fix exploits here
+                                        */
+
+                                        if(packetLength > 12)
+                                        {
+                                            Custom.WriteLine($"0x7074 Action.Cast packetLength > 12, should never happen");
+                                            response.ResultType = PacketResultType.Block;
+                                            return response;
+                                        }
+
+                                        // RSBot crash emulation
+                                        if(packetLength > 7 && packetLength <= 11)
+                                        {
+                                            modified.WriteUInt8((byte)CommandType);
+                                            modified.WriteUInt8((byte)ActionType);
+                                            modified.WriteUInt32(Skill_ID);
+                                            
+                                            packet.ReadUInt8();
+
+                                            modified.WriteUInt8(0x01);
+                                            modified.WriteUInt8(0x01);
+                                            modified.WriteUInt32(packet.ReadUInt32());
+
+                                            response.ModifiedPackets.Add(new PacketList
+                                            {
+                                                Packet = modified,
+                                                SendImmediately = true,
+                                                SecurityType = SecurityType.RemoteSecurity
+                                            });
+
+                                            Custom.WriteLine("Emulating bot malformed skill cast packet");
+                                            return response;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Custom.WriteLine($"0x7074 Action.Cast exception {ex.ToString()}");
+                                        response.ResultType = PacketResultType.Block;
+                                        return response;
+                                    }
+                                }
+                                break;
+
+                            case ActionType.Dispel: // 0x05
+                                {
+
                                 }
                                 break;
 

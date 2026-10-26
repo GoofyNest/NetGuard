@@ -280,11 +280,29 @@ namespace NetGuard.Filters.Agent.Server
             try
             {
                 charData.ReadUInt8();
+                
                 var nextMastery = charData.ReadUInt8();
-                while (nextMastery == 1) { charData.ReadUInt32(); charData.ReadUInt8(); nextMastery = charData.ReadUInt8(); }
+                while (nextMastery == 1)
+                {
+                    charData.ReadUInt32(); 
+
+                    charData.ReadUInt8(); 
+
+                    nextMastery = charData.ReadUInt8();
+                }
+
                 charData.ReadUInt8();
+
                 var nextSkill = charData.ReadUInt8();
-                while (nextSkill == 1) { charData.ReadUInt32(); charData.ReadUInt8(); nextSkill = charData.ReadUInt8(); }
+                while (nextSkill == 1)
+                {
+                    charData.ReadUInt32(); 
+                    
+                    charData.ReadUInt8(); 
+
+                    nextSkill = charData.ReadUInt8();
+                }
+
                 return true;
             }
             catch (SecurityException ex) { error = $"HandleSkills failed: {ex.Message}"; return false; }
