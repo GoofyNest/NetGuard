@@ -6,6 +6,7 @@ using Module.PacketHandler.Agent.Client;
 using Module.PacketHandler.Filtering;
 using Module.Services;
 using Newtonsoft.Json;
+using System.Collections.Concurrent;
 
 namespace Module
 {
@@ -14,8 +15,8 @@ namespace Module
         public static NetworkConfig Config { get; set; } = new();
         public static ModuleSettings Module { get; set; } = new();
         public static AppSettings Settings { get; set; } = new();
-        public static Dictionary<int, ItemData> Items { get; set; } = [];
-        public static Dictionary<int, SkillData> Skills { get; set; } = [];
+        public static ConcurrentDictionary<int, ItemData> Items { get; set; } = new();
+        public static ConcurrentDictionary<int, SkillData> Skills { get; set; } = new();
 
         private static FileSystemWatcher? _settingsWatcher;
 
@@ -150,6 +151,7 @@ namespace Module
             // 1. Shutdown handler — flush logs on Ctrl+C / window close
             AppDomain.CurrentDomain.ProcessExit += (_, _) =>
             {
+                try { Reader.Shutdown(); } catch { }
                 try { Custom.WriteLine("[shutdown] exiting", ConsoleColor.Yellow); } catch { }
                 try { Custom.FlushAndStop(); } catch { }
             };
