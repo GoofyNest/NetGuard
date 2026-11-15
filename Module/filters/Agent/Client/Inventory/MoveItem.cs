@@ -1,3 +1,4 @@
+using NetGuard.Hot;
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x7034)]

@@ -1,4 +1,5 @@
 using NetGuard.Hot;
+using NetGuard.Hot.Helpers;
 
 namespace NetGuard.Filters.Agent.Client
 {
@@ -7,13 +8,13 @@ namespace NetGuard.Filters.Agent.Client
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
-            var h = client.Host()!;
             var response = new PacketHandlingResult();
 
             if (client.Agent.InCharSelectionScreen)
             {
                 Custom.WriteLine($"Prevented {client.PlayerInfo.Username}, attempt to crash people", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
+                return response;
             }
 
             byte action = packet.ReadUInt8();
@@ -21,6 +22,7 @@ namespace NetGuard.Filters.Agent.Client
             {
                 Custom.WriteLine($"Prevented {client.PlayerInfo.Username}, attempt to crash people", ConsoleColor.Yellow);
                 response.ResultType = PacketResultType.Block;
+                return response;
             }
 
             switch (action)
@@ -31,7 +33,7 @@ namespace NetGuard.Filters.Agent.Client
                     response.ResultType = PacketResultType.Block;
                     break;
             }
-
+            
             return response;
         }
     }

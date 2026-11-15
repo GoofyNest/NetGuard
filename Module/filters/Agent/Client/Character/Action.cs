@@ -1,3 +1,5 @@
+using NetGuard.Hot;
+
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x7074)]
@@ -30,6 +32,8 @@ namespace NetGuard.Filters.Agent.Client
             Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
             var response = new PacketHandlingResult();
 
+            var h = client.Host()!;
+            
             var _files = Main.Settings.ServerType.CurrentValue;
 
             if (_files != "jSRO")

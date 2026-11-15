@@ -1,3 +1,4 @@
+using NetGuard.Hot;
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x7021)]
@@ -6,7 +7,6 @@ namespace NetGuard.Filters.Agent.Client
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             var response = new PacketHandlingResult();
-
             
             return response;
         }
