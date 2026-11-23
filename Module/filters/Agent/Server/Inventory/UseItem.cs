@@ -8,50 +8,63 @@ namespace NetGuard.Filters.Agent.Server
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
-            var h = client.Host()!;
             var response = new PacketHandlingResult();
 
-            byte status = packet.ReadUInt8();
+            try {
+                var h = client.Host()!;
+                byte status = packet.ReadUInt8();
+                var character = client.CurrentChar();
+                if (character != null)
+                    PetTracking.UseResult(character, status == 0x01);
 
-            if(status == 0x01)
-            {
-                byte Slot = packet.ReadUInt8();
-                ushort unk = packet.ReadUInt16();
-                ushort ItemType = packet.ReadUInt16();
-
-                switch(ItemType)
+                if(status == 0x01)
                 {
-                    /*
-                        Rideable horse
-                        Trade pets
-                    */
-                    case 0x11ED: // Item mall
-                    case 0x11EC: // Normal
-                    {
-                        h.UseItem.HorseTime = DateTime.UtcNow;
-                    }
-                    break;
+                    byte Slot = packet.ReadUInt8();
+                    ushort unk = packet.ReadUInt16();
+                    ushort ItemType = packet.ReadUInt16();
 
-                    /*
-                        Grab pets
-                    */
-                    case 0x10CD:
-                    {
-                        h.UseItem.GrabPetTime = DateTime.UtcNow;
-                    }
-                    break;
+                    if (character != null) character.LastUseItem = ItemType;
 
-                    /*
-                        Attack pets
-                    */
-                    case 0x08CD: // Item mall
-                    case 0x08CC: // Normal
+                    switch(ItemType)
                     {
-                        h.UseItem.AttackPetTime = DateTime.UtcNow;
+                        /*
+                            Rideable horse
+                            Trade pets
+                        */
+                        case 0x11ED: // Item mall
+                        case 0x11EC: // Normal
+                        {
+                            h.UseItem.HorseTime = DateTime.UtcNow;
+                        }
+                        break;
+
+                        /*
+                            Grab pets
+                        */
+                        case 0x10CD:
+                        {
+                            //character.HasGrabPetSummoned = true;
+                            h.UseItem.GrabPetTime = DateTime.UtcNow;
+                        }
+                        break;
+
+                        /*
+                            Attack pets
+                        */
+                        case 0x08CD: // Item mall
+                        case 0x08CC: // Normal
+                        {
+                            //character.HasAttackPetSummoned = true;
+                            h.UseItem.AttackPetTime = DateTime.UtcNow;
+                        }
+                        break;
                     }
-                    break;
+
                 }
-
+            }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"[S->C] 0xB04C {ex}", ConsoleColor.Red);
             }
 
             return response;

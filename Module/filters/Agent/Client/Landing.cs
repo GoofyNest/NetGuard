@@ -11,24 +11,6 @@ namespace Module.PacketHandler.Filtering.Agent.Client
     {
         public PacketHandlingResult? Handle(Packet packet, SessionData client, SessionContext ctx)
         {
-            // ---- Exchange window ----
-            if (client.Agent.InExchange)
-            {
-                switch (packet.Opcode)
-                {
-                    case (ushort)Exchange.Confirm:
-                    case (ushort)Exchange.Cancel:
-                    case (ushort)Exchange.Approve:
-                    case (ushort)Global.KeepAlive:      // ← was Global.Ping
-                        return null;
-
-                    default:
-                        ctx.SendToClient(ChatPackets.CreateNotice(
-                            $"[exchange] 0x{packet.Opcode:X4} is not allowed while trading."));
-                        return new PacketHandlingResult { ResultType = PacketResultType.Block };
-                }
-            }
-
             // ---- Offline / char-selection state machine ----
             if (!client.Agent.IsIngame)
             {
@@ -111,6 +93,41 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                         return new PacketHandlingResult { ResultType = PacketResultType.Block };
                     }
                     return null;
+            }
+
+            // ---- Exchange window ----
+            if (client.Agent.InExchange)
+            {
+                switch (packet.Opcode)
+                {
+                    case 0x7034:
+                    {
+                        byte status = packet.ReadUInt8();
+
+                        if(status == 0x0D || status == 0x04 || status == 0x05)
+                        {
+                            return null;
+                        }
+                        else
+                        {
+                            ctx.SendToClient(ChatPackets.CreateNotice(
+                                $"[exchange] 0x{packet.Opcode:X4} is not allowed while trading."));
+                            return new PacketHandlingResult { ResultType = PacketResultType.Block };
+                        }
+                    }
+                    break;
+
+                    case (ushort)Exchange.Confirm:
+                    case (ushort)Exchange.Cancel:
+                    case (ushort)Exchange.Approve:
+                    case (ushort)Global.KeepAlive:      // ← was Global.Ping
+                        return null;
+
+                    default:
+                        ctx.SendToClient(ChatPackets.CreateNotice(
+                            $"[exchange] 0x{packet.Opcode:X4} is not allowed while trading."));
+                        return new PacketHandlingResult { ResultType = PacketResultType.Block };
+                }
             }
 
             return null;

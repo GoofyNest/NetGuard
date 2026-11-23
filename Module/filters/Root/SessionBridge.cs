@@ -66,6 +66,32 @@ public static class SessionBridge
         dst.HwanLevel        = (int)   (Get("HwanLevel")        ?? 0);
         dst.PvpCape          = (int)   (Get("PvpCape")          ?? 0);
         dst.Timestamp        = (DateTime)(Get("Timestamp")      ?? DateTime.UtcNow);
+        // Pet guards must survive filter hot reloads. An old host without the
+        // readiness flag requires a fresh login/teleport snapshot before summoning.
+        lock (Get("PetSync") ?? src)
+        {
+            dst.PetStateReady = (bool)(Get("PetStateReady") ?? false);
+            dst.AttackPetPending = (bool)(Get("AttackPetPending") ?? false);
+            dst.GrabPetPending = (bool)(Get("GrabPetPending") ?? false);
+            if (Get("PendingItemUses") is System.Collections.IEnumerable pending)
+                foreach (var type in pending)
+                    dst.PendingItemUses.Enqueue(Convert.ToInt32(type));
+            if (Get("Pets") is System.Collections.IEnumerable pets)
+            {
+                foreach (var pet in pets)
+                {
+                    if (pet == null) continue;
+                    var t = pet.GetType();
+                    dst.Pets.Add(new CosState
+                    {
+                        UniqueID = Convert.ToUInt32(t.GetProperty("UniqueID")?.GetValue(pet) ?? 0u),
+                        ObjectID = Convert.ToUInt32(t.GetProperty("ObjectID")?.GetValue(pet) ?? 0u),
+                        Type = Convert.ToInt32(t.GetProperty("Type")?.GetValue(pet) ?? 0),
+                        Summoned = (bool)(t.GetProperty("Summoned")?.GetValue(pet) ?? false)
+                    });
+                }
+            }
+        }
 
         var oldInv = srcT.GetProperty("Inventory")?.GetValue(src);
         if (oldInv is not null)

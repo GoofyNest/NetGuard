@@ -17,6 +17,7 @@ namespace Module
         public static AppSettings Settings { get; set; } = new();
         public static ConcurrentDictionary<int, ItemData> Items { get; set; } = new();
         public static ConcurrentDictionary<int, SkillData> Skills { get; set; } = new();
+        public static ConcurrentDictionary<int, CharData> Chars { get; set; } = new();
 
         private static FileSystemWatcher? _settingsWatcher;
 

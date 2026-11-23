@@ -8,6 +8,8 @@ namespace NetGuard.Filters.Agent.Server
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
             client.Host()!.Agent.CharData = null;
+            if (client.CurrentChar() is { } character)
+                PetTracking.BeginSnapshot(character);
             return new PacketHandlingResult();
         }
     }

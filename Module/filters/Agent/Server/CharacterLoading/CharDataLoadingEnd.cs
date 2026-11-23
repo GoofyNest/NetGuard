@@ -34,7 +34,7 @@ namespace NetGuard.Filters.Agent.Server
                 }
                 charData.Lock();
 
-                Custom.WriteLine($"[0x34A6] Parsing CharData, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Parsing CharData, {charData.RemainingRead()} bytes remaining.");
 
                 var Settings = Main.Settings;
                 bool vSRO = Settings.ServerType.CurrentValue == "vSRO";
@@ -65,44 +65,45 @@ namespace NetGuard.Filters.Agent.Server
                     _char.PvpCape   = charData.ReadUInt8();
                 }
 
-                Custom.WriteLine($"[0x34A6] Items started, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Items started, {charData.RemainingRead()} bytes remaining.");
                 if (!HandleItems(_char, charData, vSRO, out var itemsError))
                 {
                     Custom.WriteLine($"[0x34A6] {itemsError}");
                     return response;
                 }
-                Custom.WriteLine($"[0x34A6] Items OK, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Items OK, {charData.RemainingRead()} bytes remaining.");
 
-                if (vSRO) return response;
+                if (vSRO) 
+                    return response;
 
                 var Skills = Main.Skills;
 
-                Custom.WriteLine($"[0x34A6] Skills started, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Skills started, {charData.RemainingRead()} bytes remaining.");
                 if (!HandleSkills(charData, out var skillsError))
                 {
                     Custom.WriteLine($"[0x34A6] {skillsError}");
                     return response;
                 }
-                Custom.WriteLine($"[0x34A6] Skills OK, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Skills OK, {charData.RemainingRead()} bytes remaining.");
 
-                Custom.WriteLine($"[0x34A6] Quests started, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Quests started, {charData.RemainingRead()} bytes remaining.");
                 if (!HandleQuests(charData, out var questError))
                 {
                     Custom.WriteLine($"[0x34A6] {questError}");
                     return response;
                 }
-                Custom.WriteLine($"[0x34A6] Quest OK, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Quest OK, {charData.RemainingRead()} bytes remaining.");
 
                 charData.ReadUInt8();
                 charData.ReadUInt32();
 
-                Custom.WriteLine($"[0x34A6] Position started, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Position started, {charData.RemainingRead()} bytes remaining.");
                 if (!HandlePosition(charData, out var posError))
                 {
                     Custom.WriteLine($"[0x34A6] {posError}");
                     return response;
                 }
-                Custom.WriteLine($"[0x34A6] Position OK, {charData.RemainingRead()} bytes remaining.");
+                //Custom.WriteLine($"[0x34A6] Position OK, {charData.RemainingRead()} bytes remaining.");
 
                 charData.ReadUInt8();
                 charData.ReadUInt8();
@@ -138,6 +139,8 @@ namespace NetGuard.Filters.Agent.Server
                 charData.ReadUInt8();
                 charData.ReadUInt64();
                 charData.ReadUInt8();
+
+                //Custom.WriteLine($"CharData complete");
             }
             catch (SecurityException ex) { Custom.WriteLine($"[0x34A6] CharData parse failed: {ex.Message}"); }
             catch (Exception ex) { Custom.WriteLine($"[0x34A6] Unexpected error: {ex}"); }
@@ -148,6 +151,8 @@ namespace NetGuard.Filters.Agent.Server
         private bool HandleItems(CharState _char, Packet charData, bool vSRO, out string? error)
         {
             error = null;
+            PetTracking.BeginSnapshot(_char);
+            var pets = new List<CosState>();
             _char.Inventory = new();
             var Inventory = _char.Inventory;
 
@@ -202,6 +207,9 @@ namespace NetGuard.Filters.Agent.Server
                     bool IsTrading          = IsStackable && record.TypeID3 == 8;
                     bool IsSpecialtyGoodBox = IsTrading && record.TypeID4 == 3;
 
+                    bool isAttackPet = IsPet && record.TypeID4 == 1;
+                    bool isGrabPet   = IsPet && record.TypeID4 == 2;
+
                     if (IsEquip || IsFellowEquip || IsJobEquip)
                     {
                         _tempItem.OptLevel    = charData.ReadUInt8();
@@ -227,19 +235,44 @@ namespace NetGuard.Filters.Agent.Server
                     else if (IsPet)
                     {
                         var cosState = charData.ReadUInt8();
+
+                        //Custom.WriteLine($"{_tempItem.CodeName128} cosState: {cosState} TypeID4: {record.TypeID4} isAttack: {isAttackPet} isGrab: {isGrabPet}");
+
                         if (cosState == 2 || cosState == 3 || cosState == 4)
                         {
-                            charData.ReadUInt32();
-                            charData.ReadAscii();
+                            UInt32 RefCharID = charData.ReadUInt32(); // RefCharID
+                            string petName = charData.ReadAscii();
+
+                            if (isAttackPet || isGrabPet)
+                            {
+                                pets.Add(new CosState
+                                {
+                                    ObjectID = RefCharID,
+                                    Type = isAttackPet ? 1 : 2,
+                                    Summoned = cosState == 2
+                                });
+                            }
                             if (record.TypeID4 == 2)
                             {
-                                if (!vSRO) charData.ReadUInt32();
+                                if (!vSRO) 
+                                    charData.ReadUInt32();
                                 else
                                 {
                                     if (charData.ReadUInt8() == 0x1)
                                     {
-                                        charData.ReadUInt8(); charData.ReadUInt32();
-                                        if (charData.ReadUInt32() == 5) { charData.ReadUInt32(); charData.ReadUInt8(); }
+                                        charData.ReadUInt8(); 
+
+                                        var unk_1 = charData.ReadUInt32();
+
+                                        //Custom.WriteLine($"{unk_1}");
+
+                                        if (charData.ReadUInt32() == 5) { 
+                                            var unk_2 = charData.ReadUInt32(); 
+
+                                            //Custom.WriteLine($"{unk_2}");
+
+                                            charData.ReadUInt8(); 
+                                        }
                                     }
                                 }
                             }
@@ -265,6 +298,7 @@ namespace NetGuard.Filters.Agent.Server
                     Inventory.Items.Add(_tempItem);
                 }
 
+                PetTracking.CompleteSnapshot(_char, pets);
                 return true;
             }
             catch (SecurityException ex)
@@ -372,3 +406,4 @@ namespace NetGuard.Filters.Agent.Server
         }
     }
 }
+

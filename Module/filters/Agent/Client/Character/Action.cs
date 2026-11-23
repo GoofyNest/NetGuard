@@ -48,11 +48,26 @@ namespace NetGuard.Filters.Agent.Client
                     {
                         ActionType ActionType = (ActionType)packet.ReadUInt8();
 
+                        int packetLength = packet.GetBytes().Length;
+
                         switch (ActionType)
                         {
+                            /*
+                                [C -> S][7074]
+                                01                                                ................
+                                01                                                ................
+                                01                                                ................
+                                01                                                ................
+                                60 3C 00 00                                       `<..............
+                            */
                             case ActionType.Attack: // 0x01
                                 {
-
+                                    if(packetLength != 8)
+                                    {
+                                        Custom.WriteLine($"0x7074 Action.Attack blocked exploit");
+                                        response.ResultType = PacketResultType.Block;
+                                        return response;
+                                    }
                                 }
                                 break;
 
@@ -97,9 +112,23 @@ namespace NetGuard.Filters.Agent.Client
                                 }
                                 break;
 
+
+                            /*
+                                [C -> S][7074]
+                                01                                                ................
+                                03                                                ................
+                                01                                                ................
+                                01                                                ................
+                                23 4A 01 00                                       #J..............
+                            */
                             case ActionType.Trace: // 0x03
                                 {
-
+                                    if(packetLength != 8)
+                                    {
+                                        Custom.WriteLine($"0x7074 Action.Trace blocked exploit");
+                                        response.ResultType = PacketResultType.Block;
+                                        return response;
+                                    }
                                 }
                                 break;
 
@@ -121,7 +150,7 @@ namespace NetGuard.Filters.Agent.Client
                                             return response;
                                         }
 
-                                        int packetLength = packet.GetBytes().Length;
+                                        
                                         
                                         /*
                                             Fix exploits here
@@ -154,22 +183,36 @@ namespace NetGuard.Filters.Agent.Client
                                                 SecurityType = SecurityType.RemoteSecurity
                                             });
 
-                                            Custom.WriteLine("Emulating bot malformed skill cast packet");
+                                            //Custom.WriteLine("Emulating bot malformed skill cast packet");
                                             return response;
                                         }
                                     }
                                     catch (Exception ex)
                                     {
-                                        Custom.WriteLine($"0x7074 Action.Cast exception {ex.ToString()}");
+                                        //Custom.WriteLine($"0x7074 Action.Cast exception {ex.ToString()}");
                                         response.ResultType = PacketResultType.Block;
                                         return response;
                                     }
                                 }
                                 break;
 
+
+                            /*
+                                [C -> S][7074]
+                                01                                                ................
+                                05                                                ................
+                                29 0C 00 00                                       )...............
+                                00                                                ................
+
+                            */
                             case ActionType.Dispel: // 0x05
                                 {
-
+                                    if(packetLength != 7)
+                                    {
+                                        Custom.WriteLine($"0x7074 Action.Dispel blocked exploit");
+                                        response.ResultType = PacketResultType.Block;
+                                        return response;
+                                    }
                                 }
                                 break;
 

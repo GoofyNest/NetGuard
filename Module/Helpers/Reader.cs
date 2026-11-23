@@ -1,11 +1,17 @@
 ﻿using System.Text;
 using Module.Helpers.ClientData;
 using Module.Services;
+using System.Globalization;
+using System.Reflection;
 
 namespace Module.Helpers
 {
     public static class Reader
     {
+        private static readonly (CharField Field, PropertyInfo Property)[] CharColumns =
+            Array.ConvertAll(Enum.GetValues<CharField>(),
+                field => (field, typeof(CharData).GetProperty(field.ToString())!));
+
         // Serializes Init() and the watcher's reload. Without this, two rapid
         // saves could race: one clears the dictionaries while the other is
         // half-way through repopulating them.
@@ -46,6 +52,7 @@ namespace Module.Helpers
         {
             Main.Items.Clear();
             Main.Skills.Clear();
+            Main.Chars.Clear();
 
             var folderFiles = Directory.GetFiles(path);
             var fileCount = folderFiles.Length;
@@ -61,18 +68,24 @@ namespace Module.Helpers
             Custom.WriteLine(
                 $"Skills loaded successfully {Main.Skills.Count}",
                 ConsoleColor.Green);
+            Custom.WriteLine(
+                $"Characters loaded successfully {Main.Chars.Count}",
+                ConsoleColor.Green);
         }
 
         private static void LoadFile(string file)
         {
-            file = file.ToLower();
+            var fileName = Path.GetFileName(file);
+            bool isItemData = false, isSkillData = false, isCharData = false;
 
-            bool isItemData = false, isSkillData = false;
-
-            if (file.Contains("itemdata"))
+            if (fileName.Contains("itemdata", StringComparison.OrdinalIgnoreCase))
                 isItemData = true;
-            else if (file.Contains("skilldata.txt"))
+            else if (fileName.Equals("skilldata.txt", StringComparison.OrdinalIgnoreCase))
                 isSkillData = true;
+            else if ((fileName.StartsWith("chardata", StringComparison.OrdinalIgnoreCase)
+                   || fileName.StartsWith("characterdata", StringComparison.OrdinalIgnoreCase))
+                  && fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                isCharData = true;
             else
                 return;
 
@@ -109,6 +122,19 @@ namespace Module.Helpers
                 else if (isSkillData)
                 {
                     ProcessSkillData(searchBetweenTabs);
+                }
+                else if (isCharData)
+                {
+                    if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//"))
+                        continue;
+                    try
+                    {
+                        ProcessCharData(searchBetweenTabs);
+                    }
+                    catch (FormatException ex)
+                    {
+                        Custom.WriteLine($"[Reader] {fileName}, line {d + 1}: {ex.Message}", ConsoleColor.Red);
+                    }
                 }
             }
         }
@@ -307,6 +333,41 @@ namespace Module.Helpers
             {
                 Custom.WriteLine(ex.ToString());
             }
+        }
+
+        private static void ProcessCharData(string[] values)
+        {
+            if (values[0].Trim().Equals("Service", StringComparison.OrdinalIgnoreCase))
+                return;
+            if (!int.TryParse(values[0].Trim(), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out var service))
+                throw new FormatException("Invalid Service value.");
+            if (service != 1)
+                return;
+            if (values.Length < CharColumns.Length)
+                throw new FormatException($"Expected at least {CharColumns.Length} columns, got {values.Length}.");
+
+            var record = new CharData();
+            foreach (var (field, property) in CharColumns)
+            {
+                string value = values[(int)field].Trim();
+                try
+                {
+                    object parsed = Convert.ChangeType(value, property.PropertyType,
+                        CultureInfo.InvariantCulture);
+                    if (parsed is float number && !float.IsFinite(number))
+                        throw new FormatException("Expected a finite number.");
+                    property.SetValue(record, parsed);
+                }
+                catch (Exception ex) when (ex is FormatException || ex is OverflowException)
+                {
+                    throw new FormatException($"Invalid {field}: '{value}'.", ex);
+                }
+            }
+
+            if (record.ID <= 0)
+                throw new FormatException("ID must be greater than zero.");
+            Main.Chars.TryAdd(record.ID, record);
         }
 
         private static void ProcessItemData(string[] searchBetweenTabs)
