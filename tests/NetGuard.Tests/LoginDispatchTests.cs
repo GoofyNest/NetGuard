@@ -29,6 +29,20 @@ internal static class LoginDispatchTests
         try
         {
             var session = new SessionData(); loader.AttachSession(session);
+            var otherSession = new SessionData(); loader.AttachSession(otherSession);
+            session.PlayerInfo.Username = "first"; otherSession.PlayerInfo.Username = "second";
+            var targeted = new BusMessage("gateway.login_requested", System.Text.Json.JsonSerializer.SerializeToElement(
+                new { Username = "first", Target = $"{App.Module.ModuleIP}:{App.Module.ModulePort}" }));
+            BusRegistry.Dispatcher.Dispatch(session, targeted);
+            BusRegistry.Dispatcher.Dispatch(otherSession, targeted);
+            Check(session.Agent.LoginRequested && !otherSession.Agent.LoginRequested, "Login bus notification only updates matching user");
+            session.Agent.LoginRequested = false;
+            BusRegistry.Dispatcher.Dispatch(session, new BusMessage("gateway.login_requested", System.Text.Json.JsonSerializer.SerializeToElement(
+                new { Username = "first", Target = "wrong-host:0" })));
+            Check(!session.Agent.LoginRequested, "Login bus notification for other destination ignored");
+            session.PlayerInfo.Username = "";
+            BusRegistry.Dispatcher.Dispatch(session, targeted);
+            Check(!session.Agent.LoginRequested, "Unauthenticated unknown session is not matched by broadcast");
             Packet Make(ushort opcode, Action<Packet>? write = null)
             { var packet = new Packet(opcode); write?.Invoke(packet); packet.Lock(); return packet; }
             var handshake = Make(0x5000);
@@ -140,6 +154,8 @@ internal static class LoginDispatchTests
             await ReceiveUntil(client, clientSecurity, 0x5000);
             await serverHandshake;
             Check(true, "Real StartAsync and identification complete both handshakes");
+            Check(typeof(ProxyConnection).GetField("_handshakeTimer", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(proxy) == null,
+                "Both accepted handshakes cancel handshake deadline");
             var login = new Packet(0x6103, true);
             login.WriteUInt32(123); login.WriteAscii("test-user"); login.WriteAscii("test-password");
             login.WriteUInt8(0); login.WriteUInt8Array(new byte[6]); clientSecurity.Send(login);
@@ -150,6 +166,18 @@ internal static class LoginDispatchTests
             var reply = new Packet(0xA103, true); reply.WriteUInt8(1); serverSecurity.Send(reply);
             await Flush(server, serverSecurity);
             Check((await ReceiveUntil(client, clientSecurity, 0xA103)).ReadUInt8() == 1, "Successful login response reaches client");
+            Check(typeof(ProxyConnection).GetField("_loginTimer", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(proxy) == null,
+                "Successful login cancels login deadline");
+            var upstreamSecurity = (Security)typeof(ProxyConnection).GetField("_remoteSecurity", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(proxy)!;
+            upstreamSecurity.MassivePacketTimeout = TimeSpan.FromMilliseconds(50);
+            var incomplete = new Packet(0x600D);
+            incomplete.WriteUInt8(1); incomplete.WriteUInt16(1); incomplete.WriteUInt16(0x3013);
+            serverSecurity.Send(incomplete); await Flush(server, serverSecurity);
+            bool closedForAssembly = false;
+            try { closedForAssembly = await client.ReceiveAsync(new byte[1], SocketFlags.None, deadline.Token) == 0; }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset) { closedForAssembly = true; }
+            Check(closedForAssembly && upstreamSecurity.MassiveTimeRemaining <= TimeSpan.Zero,
+                "Incomplete massive assembly closes idle socket without requiring another packet");
             return checks;
         }
         finally

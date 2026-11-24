@@ -32,6 +32,9 @@ namespace Module.Networking
         private readonly ByteRateLimiter _clientRate = new(100_000, 200_000);
         private readonly SemaphoreSlim _processingGate = new(1, 1);
         private readonly OrderedSocketSender?[] _senders = new OrderedSocketSender?[2];
+        private Timer? _handshakeTimer;
+        private Timer? _loginTimer;
+        private int _loginCompleted;
         private readonly object _receiveLifecycle = new();
         private readonly int[] _returnedBuffers = new int[2];
 
@@ -104,6 +107,11 @@ namespace Module.Networking
         {
             try
             {
+                ModuleSettings.ValidateLimits();
+                _handshakeTimer = new Timer(_ => ExpireConnection("handshake"), null,
+                    TimeSpan.FromSeconds(ModuleSettings.HandshakeTimeoutSeconds), Timeout.InfiniteTimeSpan);
+                _loginTimer = new Timer(_ => ExpireConnection("login"), null,
+                    TimeSpan.FromSeconds(ModuleSettings.LoginTimeoutSeconds), Timeout.InfiniteTimeSpan);
                 _localSecurity.GenerateSecurity(true, true, true);
 
                 using var connectDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -203,6 +211,8 @@ namespace Module.Networking
             }
 
             var receivedPackets = isClient ? _localSecurity.TransferIncoming() : _remoteSecurity.TransferIncoming();
+            if (_localSecurity.HandshakeAccepted && _remoteSecurity.HandshakeAccepted)
+                Interlocked.Exchange(ref _handshakeTimer, null)?.Dispose();
 
             if (receivedPackets == null || receivedPackets.Count == 0)
                 return;
@@ -215,6 +225,16 @@ namespace Module.Networking
                     return;
 
                 Packet packet = receivedPackets[i];
+
+                if (!isClient && packet.Opcode == (_moduleType == ModuleType.AgentModule ? 0xA103 : 0xA102))
+                {
+                    var loginReply = new Packet(packet);
+                    if (loginReply.RemainingRead() > 0 && loginReply.ReadUInt8() == 1)
+                    {
+                        Volatile.Write(ref _loginCompleted, 1);
+                        Interlocked.Exchange(ref _loginTimer, null)?.Dispose();
+                    }
+                }
 
                 var result = DispatchPacket(packet, isClient);
                 if (result != null)
@@ -405,7 +425,14 @@ namespace Module.Networking
 
                     try
                     {
-                        bytesReceived = await socket.ReceiveAsync(buffer.AsMemory(), SocketFlags.None);
+                        var security = isClient ? _localSecurity : _remoteSecurity;
+                        security.CheckReceiveTimeout();
+                        if (security.MassiveTimeRemaining is { } remaining)
+                        {
+                            using var assemblyDeadline = new CancellationTokenSource(remaining);
+                            bytesReceived = await socket.ReceiveAsync(buffer.AsMemory(), SocketFlags.None, assemblyDeadline.Token);
+                        }
+                        else bytesReceived = await socket.ReceiveAsync(buffer.AsMemory(), SocketFlags.None);
                     }
                     catch (ObjectDisposedException)
                     {
@@ -433,8 +460,16 @@ namespace Module.Networking
                         await _processingGate.WaitAsync();
                         try
                         {
-                            await Task.WhenAll(_senders.Where(s => s != null).Select(s => s!.FinishAsync()));
-                            HandleDisconnection();
+                            try
+                            {
+                                await OrderedSocketSender.DrainAsync(_senders.OfType<OrderedSocketSender>(),
+                                    TimeSpan.FromSeconds(ModuleSettings.DrainTimeoutSeconds));
+                            }
+                            catch (TimeoutException)
+                            {
+                                Custom.WriteLine($"Client {ClientId}: shutdown drain deadline exceeded.", ConsoleColor.Yellow);
+                            }
+                            finally { HandleDisconnection(); }
                         }
                         finally { _processingGate.Release(); }
                         return;
@@ -500,6 +535,15 @@ namespace Module.Networking
         }
         internal void Stop() => HandleDisconnection();
 
+        private void ExpireConnection(string phase)
+        {
+            if (Volatile.Read(ref _disconnecting) != 0) return;
+            if (phase == "handshake" && _localSecurity.HandshakeAccepted && _remoteSecurity.HandshakeAccepted) return;
+            if (phase == "login" && Volatile.Read(ref _loginCompleted) != 0) return;
+            Custom.WriteLine($"Client {ClientId}: {phase} deadline exceeded.", ConsoleColor.Yellow);
+            HandleDisconnection();
+        }
+
         private void ReturnBuffer(int direction)
         {
             if (Interlocked.Exchange(ref _returnedBuffers[direction], 1) == 0)
@@ -512,6 +556,8 @@ namespace Module.Networking
                 return;
 
             foreach (var sender in _senders) sender?.Stop();
+            Interlocked.Exchange(ref _handshakeTimer, null)?.Dispose();
+            Interlocked.Exchange(ref _loginTimer, null)?.Dispose();
 
             FilterRegistry.LiveSessions.TryRemove(ClientId, out _);
             SessionBus.Unregister(_client);

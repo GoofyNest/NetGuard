@@ -106,6 +106,10 @@ internal static class NetworkPerformanceTests
             for (int i = 0; i < 1024; i++)
                 if (!sender.TryEnqueue(block)) { full = true; break; }
             Check(full, "Slow peer reaches bounded queue limit without silently dropping bytes");
+            bool drainExpired = false;
+            try { await OrderedSocketSender.DrainAsync(new[] { sender }, TimeSpan.FromMilliseconds(50)); }
+            catch (TimeoutException) { drainExpired = true; }
+            Check(drainExpired, "Overall drain deadline aborts blocked sender");
         }
         finally { sender.Stop(); await sender.Completion.WaitAsync(TimeSpan.FromSeconds(5)); }
         Check(!sender.TryEnqueue(new byte[1]), "Stopped sender rejects new work");

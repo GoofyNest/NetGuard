@@ -14,6 +14,7 @@ var work = Path.Combine(Path.GetTempPath(), "NetGuardReviewTests-" + Guid.NewGui
 Directory.CreateDirectory(work);
 int passed = 0;
 passed += await NetworkPerformanceTests.Run();
+passed += await ReliabilityTests.Run(work);
 void Check(bool ok, string message)
 {
     if (!ok) throw new Exception(message);

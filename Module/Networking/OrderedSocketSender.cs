@@ -45,6 +45,17 @@ internal sealed class OrderedSocketSender
         return Completion;
     }
 
+    internal static async Task DrainAsync(IEnumerable<OrderedSocketSender> senders, TimeSpan timeout)
+    {
+        var writers = senders.ToArray();
+        try { await Task.WhenAll(writers.Select(s => s.FinishAsync())).WaitAsync(timeout); }
+        catch
+        {
+            foreach (var writer in writers) writer.Stop();
+            throw;
+        }
+    }
+
     private async Task RunAsync(Socket socket, Action<Exception> failed)
     {
         byte[]? batch = null;

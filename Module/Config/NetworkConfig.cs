@@ -20,6 +20,18 @@
 
     public class ModuleSettings
     {
+        public int MaxConnections { get; set; } = 5000;
+        public int MaxConnectionsPerIP { get; set; } = 100;
+        public int HandshakeTimeoutSeconds { get; set; } = 30;
+        public int LoginTimeoutSeconds { get; set; } = 120;
+        public int DrainTimeoutSeconds { get; set; } = 10;
+        internal void ValidateLimits()
+        {
+            if (MaxConnections < 1 || MaxConnectionsPerIP < 1 || HandshakeTimeoutSeconds < 1
+                || LoginTimeoutSeconds < HandshakeTimeoutSeconds || DrainTimeoutSeconds < 1
+                || LoginTimeoutSeconds > 86400 || DrainTimeoutSeconds > 300)
+                throw new InvalidOperationException("Invalid connection limits or network deadlines.");
+        }
         public string Name { get; set; } = "Example #1";
         public string GuardIP { get; set; } = "127.0.0.1";
         public int GuardPort { get; set; } = 15779;

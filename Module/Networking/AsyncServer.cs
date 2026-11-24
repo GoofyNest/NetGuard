@@ -19,6 +19,7 @@ namespace Module.Networking
         private long _clientIdCounter = 0;
         private long _activeCount = 0;
         private int _disposed;
+        private ConnectionAdmission _admission = null!;
 
         public async Task StartAsync(string bindAddr, int port, ModuleType servType)
         {
@@ -28,6 +29,8 @@ namespace Module.Networking
             }
 
             _serverType = servType;
+            Main.Module.ValidateLimits();
+            _admission = new ConnectionAdmission(Main.Module.MaxConnections, Main.Module.MaxConnectionsPerIP);
             _listenerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             try
             {
@@ -53,10 +56,32 @@ namespace Module.Networking
                 {
                     var clientSocket = await _listenerSocket.AcceptAsync(cancellationToken);
                     clientSocket.NoDelay = true;
+                    var ip = ((IPEndPoint)clientSocket.RemoteEndPoint!).Address.ToString();
+                    if (!_admission.TryAcquire(ip))
+                    {
+                        clientSocket.Dispose();
+                        continue;
+                    }
 
                     // If Module constructor does async work, ensure it’s handled asynchronously
                     int clientId = (int)Interlocked.Increment(ref _clientIdCounter) & int.MaxValue;
-                    var module = new Module(clientId, clientSocket, OnClientDisconnect, _serverType);
+                    int released = 0;
+                    Module module;
+                    try
+                    {
+                        module = new Module(clientId, clientSocket,
+                            (int id, ref Socket socket, ModuleType type) =>
+                            {
+                                if (Interlocked.Exchange(ref released, 1) == 0) _admission.Release(ip);
+                                OnClientDisconnect(id, ref socket, type);
+                            }, _serverType);
+                    }
+                    catch
+                    {
+                        if (Interlocked.Exchange(ref released, 1) == 0) _admission.Release(ip);
+                        clientSocket.Dispose();
+                        throw;
+                    }
 
                     if (_activeClients.TryAdd(clientId, module))
                     {

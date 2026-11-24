@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
+using System.Diagnostics;
 
 namespace SilkroadSecurityAPI;
 
@@ -129,6 +130,19 @@ public sealed class Security
 
     private ushort _massiveCount;
     private Packet? _massivePacket;
+    private long _massiveStarted;
+    private int _massiveBytes;
+    public int MaxMassivePacketBytes { get; set; } = 8 * 1024 * 1024;
+    public TimeSpan MassivePacketTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public bool HandshakeAccepted => Volatile.Read(ref _acceptedHandshake);
+    public TimeSpan? MassiveTimeRemaining => _massivePacket == null ? null
+        : MassivePacketTimeout - Stopwatch.GetElapsedTime(_massiveStarted);
+
+    public void CheckReceiveTimeout()
+    {
+        if (MassiveTimeRemaining is { } remaining && remaining <= TimeSpan.Zero)
+            throw new SecurityException("[Security::Recv] Massive packet assembly timed out.");
+    }
 
     // ---------------------------------------------------------------------
     // Construction
@@ -667,6 +681,7 @@ public sealed class Security
     public void Recv(TransferBuffer rawBuffer)
     {
         ArgumentNullException.ThrowIfNull(rawBuffer);
+        CheckReceiveTimeout();
 
         int available = rawBuffer.Size - rawBuffer.Offset;
         int srcIndex = rawBuffer.Offset;
@@ -839,15 +854,26 @@ public sealed class Security
             byte mode = reader.ReadByte();
             if (mode == 1)
             {
+                if (_massivePacket != null)
+                    throw new SecurityException("[Security::Recv] Nested massive packet.");
+                if (packetSize != 5)
+                    throw new SecurityException("[Security::Recv] Invalid massive header length.");
                 _massiveCount = reader.ReadUInt16();
                 ushort contained = reader.ReadUInt16();
+                if (_massiveCount == 0 || contained is 0x5000 or 0x9000 or 0x600D)
+                    throw new SecurityException("[Security::Recv] Invalid massive header.");
                 _massivePacket = new Packet(contained, packetEncrypted, true);
+                _massiveStarted = Stopwatch.GetTimestamp();
+                _massiveBytes = 0;
             }
-            else
+            else if (mode == 0)
             {
                 if (_massivePacket is null)
                     throw new SecurityException("[Security::Recv] Malformed 0x600D packet.");
 
+                if (packetSize <= 1 || _massiveBytes > MaxMassivePacketBytes - (packetSize - 1))
+                    throw new SecurityException("[Security::Recv] Massive packet exceeds assembly limit.");
+                _massiveBytes += packetSize - 1;
                 _massivePacket.WriteUInt8Array(reader.ReadBytes(packetSize - 1));
                 _massiveCount--;
                 if (_massiveCount == 0)
@@ -857,6 +883,7 @@ public sealed class Security
                     _massivePacket = null;
                 }
             }
+            else throw new SecurityException("[Security::Recv] Invalid massive mode.");
             return;
         }
 

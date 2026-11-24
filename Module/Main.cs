@@ -1,4 +1,4 @@
-﻿using Module.Config;
+using Module.Config;
 using Module.Helpers;
 using Module.Helpers.ClientData;
 using Module.Networking;
@@ -14,7 +14,12 @@ namespace Module
     {
         public static NetworkConfig Config { get; set; } = new();
         public static ModuleSettings Module { get; set; } = new();
-        public static AppSettings Settings { get; set; } = new();
+        private static AppSettings _settings = new();
+        public static AppSettings Settings
+        {
+            get => Volatile.Read(ref _settings);
+            set => Volatile.Write(ref _settings, value ?? throw new ArgumentNullException(nameof(value)));
+        }
         private static ClientDataSnapshot _data = new();
         public static ClientDataSnapshot Data => Volatile.Read(ref _data);
         public static ConcurrentDictionary<int, ItemData> Items => Data.Items;
@@ -22,7 +27,7 @@ namespace Module
         public static ConcurrentDictionary<int, CharData> Chars => Data.Chars;
         internal static void PublishData(ClientDataSnapshot data) => Volatile.Write(ref _data, data);
 
-        private static FileSystemWatcher? _settingsWatcher;
+        private static SettingsReloader? _settingsWatcher;
         private static AsyncServer? _server;
 
         static void ConsolePoolThread()
@@ -61,28 +66,7 @@ namespace Module
 
         private static void LoadSettings(bool isMainFunction)
         {
-            if (!isMainFunction)
-            {
-                Custom.WriteLine("changes detected", ConsoleColor.Yellow);
-                if (File.Exists(Config.SettingsPath))
-                {
-                    try
-                    {
-                        using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                        using var reader = new StreamReader(stream);
-                        var settingsContent = reader.ReadToEnd();
-
-                        var tempSettings = JsonConvert.DeserializeObject<AppSettings>(settingsContent);
-                        if (tempSettings != null)
-                            Settings = tempSettings;
-                    }
-                    catch (Exception ex)
-                    {
-                        Custom.WriteLine($"Error reading settings file: {ex.Message}", ConsoleColor.Red);
-                    }
-                }
-                return;
-            }
+            if (!isMainFunction) { _settingsWatcher?.ReloadNow(); return; }
 
             // Load NetworkConfig
             if (File.Exists(Config.BindingsPath))
@@ -103,59 +87,29 @@ namespace Module
                 }
             }
 
-            // Load AppSettings
+            // Existing configuration must be complete and valid before publication.
             if (File.Exists(Config.SettingsPath))
-            {
-                try
-                {
-                    using var stream = new FileStream(Config.SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    using var reader = new StreamReader(stream);
-                    var settingsContent = reader.ReadToEnd();
-
-                    var tempSettings = JsonConvert.DeserializeObject<AppSettings>(settingsContent);
-                    if (tempSettings != null)
-                        Settings = tempSettings;
-
-                    Directory.CreateDirectory(Path.GetDirectoryName(Config.SettingsPath)!);
-                    File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
-                }
-                catch (Exception ex)
-                {
-                    Custom.WriteLine($"Error reading settings file: {ex.Message}", ConsoleColor.Red);
-                }
-            }
+                Settings = SettingsFile.Parse(File.ReadAllText(Config.SettingsPath));
             else
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(Config.SettingsPath)!);
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(Config.SettingsPath))!);
                 File.WriteAllText(Config.SettingsPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
             }
         }
 
         private static void WatchSettingsFile()
         {
-            Custom.WriteLine("Starting WatchSettingsFile", ConsoleColor.Yellow);
-
-            _settingsWatcher = new()
-            {
-                Path = Path.GetDirectoryName(Config.SettingsPath)!,
-                Filter = Path.GetFileName(Config.SettingsPath),
-                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
-                EnableRaisingEvents = true
-            };
-
-            _settingsWatcher.Changed += (sender, e) => LoadSettings(false);
-
-            _settingsWatcher.Error += (sender, e) =>
-            {
-                Custom.WriteLine($"FileSystemWatcher error: {e.GetException()?.Message}", ConsoleColor.Red);
-            };
+            _settingsWatcher?.Dispose();
+            _settingsWatcher = new SettingsReloader(Config.SettingsPath,
+                settings => { Settings = settings; Custom.WriteLine("Settings reloaded.", ConsoleColor.Cyan); },
+                ex => Custom.WriteLine($"Settings retained; reload failed: {ex.Message}", ConsoleColor.Red));
         }
-
         public static void StartProgram(int moduleIndex)
         {
             // 1. Shutdown handler — flush logs on Ctrl+C / window close
             AppDomain.CurrentDomain.ProcessExit += (_, _) =>
             {
+                try { _settingsWatcher?.Dispose(); } catch { }
                 try { Reader.Shutdown(); } catch { }
                 try { _server?.Dispose(); } catch { }
                 try { SessionBus.Stop(); } catch { }
