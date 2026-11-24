@@ -15,11 +15,15 @@ namespace Module
         public static NetworkConfig Config { get; set; } = new();
         public static ModuleSettings Module { get; set; } = new();
         public static AppSettings Settings { get; set; } = new();
-        public static ConcurrentDictionary<int, ItemData> Items { get; set; } = new();
-        public static ConcurrentDictionary<int, SkillData> Skills { get; set; } = new();
-        public static ConcurrentDictionary<int, CharData> Chars { get; set; } = new();
+        private static ClientDataSnapshot _data = new();
+        public static ClientDataSnapshot Data => Volatile.Read(ref _data);
+        public static ConcurrentDictionary<int, ItemData> Items => Data.Items;
+        public static ConcurrentDictionary<int, SkillData> Skills => Data.Skills;
+        public static ConcurrentDictionary<int, CharData> Chars => Data.Chars;
+        internal static void PublishData(ClientDataSnapshot data) => Volatile.Write(ref _data, data);
 
         private static FileSystemWatcher? _settingsWatcher;
+        private static AsyncServer? _server;
 
         static void ConsolePoolThread()
         {
@@ -153,6 +157,8 @@ namespace Module
             AppDomain.CurrentDomain.ProcessExit += (_, _) =>
             {
                 try { Reader.Shutdown(); } catch { }
+                try { _server?.Dispose(); } catch { }
+                try { SessionBus.Stop(); } catch { }
                 try { Custom.WriteLine("[shutdown] exiting", ConsoleColor.Yellow); } catch { }
                 try { Custom.FlushAndStop(); } catch { }
             };
@@ -182,6 +188,7 @@ namespace Module
             // 4. Start bus
             SessionBus.ApiPort = Module.ApiPort;
             SessionBus.ApiPassword = Module.ApiPassword;
+            SessionBus.ListenAddress = Module.ApiListenIP;
             SessionBus.StartApiListener();
 
             // 5. Start filter loader
@@ -234,8 +241,8 @@ namespace Module
 
         static async Task StartAsyncServer()
         {
-            AsyncServer server = new();
-            await server.StartAsync(Module.GuardIP, Module.GuardPort, Module.ModuleType);
+            _server = new AsyncServer();
+            await _server.StartAsync(Module.GuardIP, Module.GuardPort, Module.ModuleType);
         }
     }
 }

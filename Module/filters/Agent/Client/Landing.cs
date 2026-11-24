@@ -3,6 +3,7 @@ using Module.PacketHandler;
 using Module.PacketHandler.Filtering;
 using Module.Services;
 using NetGuard.Hot.Helpers;
+using NetGuard.Hot;
 using SilkroadSecurityAPI;
 
 namespace Module.PacketHandler.Filtering.Agent.Client
@@ -11,6 +12,15 @@ namespace Module.PacketHandler.Filtering.Agent.Client
     {
         public PacketHandlingResult? Handle(Packet packet, SessionData client, SessionContext ctx)
         {
+            // Permit the loading acknowledgements and keepalive; reject gameplay
+            // until the server reports that teleport has completed.
+            if (client.Host()!.Agent.IsTeleporting && packet.Opcode is not (0x34B6 or 0x3012 or 0x3014 or 0x2002))
+            {
+                Custom.WriteLine(
+                    $"[Teleport] Blocked C->S opcode=0x{packet.Opcode:X4} character={client.PlayerInfo.CurrentCharName}");
+                return new PacketHandlingResult { ResultType = PacketResultType.Block };
+            }
+
             // ---- Offline / char-selection state machine ----
             if (!client.Agent.IsIngame)
             {
@@ -27,7 +37,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                             {
                                 client.PlayerInfo.CurrentCharName = packet.ReadAscii();
                             }
-                            return null;
+                            return new PacketHandlingResult { };
                     }
 
                     Custom.WriteLine(
@@ -42,7 +52,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                     case (ushort)Global.Identification:
                     case (ushort)Global.AcceptHandshake:
                     case (ushort)Global.Handshake:       // ← was Global.HandShake
-                        return null;
+                        return new PacketHandlingResult { };
 
                     default:
                         Custom.WriteLine(
@@ -77,7 +87,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                             ConsoleColor.Yellow);
                         return new PacketHandlingResult { ResultType = PacketResultType.Block };
                     }
-                    return null;
+                    return new PacketHandlingResult { };
             }
 
             switch (packet.Opcode)
@@ -92,7 +102,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                             ConsoleColor.Yellow);
                         return new PacketHandlingResult { ResultType = PacketResultType.Block };
                     }
-                    return null;
+                    return new PacketHandlingResult { };
             }
 
             // ---- Exchange window ----
@@ -106,7 +116,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
 
                         if(status == 0x0D || status == 0x04 || status == 0x05)
                         {
-                            return null;
+                            return new PacketHandlingResult { };
                         }
                         else
                         {
@@ -121,7 +131,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                     case (ushort)Exchange.Cancel:
                     case (ushort)Exchange.Approve:
                     case (ushort)Global.KeepAlive:      // ← was Global.Ping
-                        return null;
+                        return new PacketHandlingResult { };
 
                     default:
                         ctx.SendToClient(ChatPackets.CreateNotice(
@@ -130,7 +140,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                 }
             }
 
-            return null;
+            return new PacketHandlingResult { };
         }
     }
 }

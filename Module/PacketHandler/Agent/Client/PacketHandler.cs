@@ -10,12 +10,13 @@ namespace Module.PacketHandler.Agent.Client
         {
             // 1. Landing — full, hot-reloadable control over every packet.
             var landing = FilterRegistry.RunLanding(FilterContext.AgentClient, packet, client, ctx);
-            if (landing != null)
+            if (FilterRegistry.StopsDispatch(landing))
                 return new StaticResultHandler(landing);
 
             // 2. Per-opcode filter.
             var filter = FilterRegistry.Resolve(FilterContext.AgentClient, packet.Opcode);
-            return filter != null ? new DynamicFilterAdapter(filter) : null!;
+            return filter != null ? new DynamicFilterAdapter(filter)
+                : landing != null ? new StaticResultHandler(landing) : null!;
         }
     }
 }

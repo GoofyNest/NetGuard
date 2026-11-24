@@ -27,6 +27,7 @@
         public int ModulePort { get; set; } = 5779;
         public ModuleType ModuleType { get; set; } = 0;
         public string ApiHost { get; set; } = "127.0.0.1";
+        public string ApiListenIP { get; set; } = "127.0.0.1";
         public int ApiPort { get; set; } = 0;
         public string ApiPassword { get; set; } = "";
     }

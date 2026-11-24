@@ -1,3 +1,11 @@
+/*
+0x3014 | Agent | Client -> Server
+Name: SpoofLocaleVersion
+
+// Payload fields are not identified by the available source.
+
+*/
+
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x3014)]

@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using Module.Config;
@@ -6,7 +6,7 @@ using Module.Services;
 
 namespace Module.Networking
 {
-    public sealed class AsyncServer : IDisposable
+    public sealed class AsyncServer : IDisposable, IAsyncDisposable
     {
         private Socket _listenerSocket = null!;
         private ModuleType _serverType;
@@ -18,6 +18,7 @@ namespace Module.Networking
         private readonly ConcurrentDictionary<int, Module> _activeClients = new();
         private long _clientIdCounter = 0;
         private long _activeCount = 0;
+        private int _disposed;
 
         public async Task StartAsync(string bindAddr, int port, ModuleType servType)
         {
@@ -62,14 +63,17 @@ namespace Module.Networking
                         Interlocked.Increment(ref _activeCount);
                         Custom.WriteLine($"Client {clientId} connected. Total connections: {GetActiveConnections()}", ConsoleColor.Cyan);
                     }
+                    else { module.Stop(); continue; }
 
                     // Use the cancellation token directly here
-                    _ = Task.Run(() => HandleClientAsync(module, cancellationToken), cancellationToken);
+                    _ = HandleClientAsync(module, cancellationToken);
                 }
                 catch (SocketException) when (cancellationToken.IsCancellationRequested)
                 {
                     Custom.WriteLine("Server shutting down gracefully.", ConsoleColor.Yellow);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested) { break; }
                 catch (Exception ex)
                 {
                     Custom.WriteLine($"Exception in AcceptConnectionsAsync: {ex}", ConsoleColor.Red);
@@ -89,17 +93,25 @@ namespace Module.Networking
                     case ModuleType.AgentModule:
                         {
                             // If the Module class uses async operations, you might need to await it
-                            await module.StartAsync();  // Assuming there's an async method to handle client in Module
+                            await module.StartAsync(cancellationToken);
                         }
                         break;
                     default:
                         Custom.WriteLine("Unknown server type", ConsoleColor.Red);
+                        module.Stop();
                         break;
                 }
             }
             catch (SocketException socketEx)
             {
                 Custom.WriteLine($"Error while starting context. Exception: {socketEx}", ConsoleColor.Red);
+                module.Stop();
+            }
+            catch (Exception ex)
+            {
+                module.Stop();
+                if (!cancellationToken.IsCancellationRequested)
+                    Custom.WriteLine($"Client startup failed: {ex}", ConsoleColor.Red);
             }
         }
 
@@ -146,35 +158,17 @@ namespace Module.Networking
 
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);  // This should only be called in Dispose, not in DisposeAsync
-        }
-
-        private void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _cancellationTokenSource.Cancel();
-                _listenerSocket?.Dispose();  // ✅ Use Dispose() instead of Close()
-                _listenerSocket = null!;
-            }
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _cancellationTokenSource.Cancel();
+            _listenerSocket?.Dispose();
+            foreach (var module in _activeClients.Values) module.Stop();
         }
 
         public async ValueTask DisposeAsync()
         {
-            // Only async-specific cleanup code goes here
-            if (_acceptTask != null)
-            {
-                await _acceptTask;  // ✅ Prevents deadlocks
-            }
-
-            // No need to call GC.SuppressFinalize here.
-            Dispose(false);  // You may still call Dispose(false) for any non-managed cleanup
-        }
-
-        ~AsyncServer()
-        {
-            Dispose(false);  // Only clean up unmanaged resources if Dispose wasn't called
+            Dispose();
+            try { await _acceptTask; }
+            catch (OperationCanceledException) { }
         }
     }
 }

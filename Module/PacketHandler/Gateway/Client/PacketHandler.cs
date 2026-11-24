@@ -10,9 +10,9 @@ namespace Module.PacketHandler.Gateway.Client
         public static IPacketHandler GetHandler(Packet packet, SessionData client, SessionContext ctx)
         {
             // 1. Landing — state machine, cross-cutting rules, side effects.
-            //    Return null to continue; return a result to short-circuit.
+            //    Empty results allow opcode dispatch; explicit actions stop it.
             var landing = FilterRegistry.RunLanding(FilterContext.GatewayClient, packet, client, ctx);
-            if (landing != null)
+            if (FilterRegistry.StopsDispatch(landing))
                 return new StaticResultHandler(landing);
 
             // 2. Opcode filter — if one exists, let it run.
@@ -21,7 +21,7 @@ namespace Module.PacketHandler.Gateway.Client
                 return new DynamicFilterAdapter(filter);
 
             // 3. No filter registered → block (unchanged behavior).
-            return new Default();
+            return landing != null ? new StaticResultHandler(landing) : new Default();
         }
     }
 }

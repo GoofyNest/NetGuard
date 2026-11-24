@@ -8,6 +8,8 @@ namespace Module.Networking
     /// </summary>
     public class SessionData
     {
+        public object StateSync { get; } = new();
+        public bool FilterStateValid { get; set; } = true;
         public PlayerInformation PlayerInfo { get; set; } = new();
         public GatewayServer Gateway { get; set; } = new();
         public AgentServer Agent { get; set; } = new();

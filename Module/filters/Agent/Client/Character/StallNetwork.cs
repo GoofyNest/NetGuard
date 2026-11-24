@@ -1,3 +1,11 @@
+/*
+0x7461 | Agent | Client -> Server
+Name: StallNetwork
+
+// Payload fields are not identified by the available source.
+
+*/
+
 namespace NetGuard.Filters.Agent.Client
 {
     [Filter(0x7461)]

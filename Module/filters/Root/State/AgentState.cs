@@ -8,6 +8,7 @@ public sealed class AgentState : ISessionState
     public List<CharState> Chars { get; } = new();
     public Packet? CharData { get; set; }
     public int CharDataProcess { get; set; }
+    public bool IsTeleporting { get; set; }
 
     public CharState? Current(string name)
         => Chars.FirstOrDefault(c => c.Charname == name);

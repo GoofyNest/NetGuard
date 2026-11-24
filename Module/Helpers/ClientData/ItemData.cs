@@ -300,6 +300,11 @@
         public int MaxMagicOptCount { get; set; }
         public int ChildItemCount { get; set; }
 
+        public override string ToString() => string.Join(
+            Environment.NewLine,
+            GetType().GetProperties().Select(property =>
+                $"{property.Name}: {property.GetValue(this)}"));
+
         // Override Equals and GetHashCode to compare based on ID and CodeName128
         public override bool Equals(object? obj)
         {

@@ -40,9 +40,11 @@
     - First build: everything is copied.
     - Later builds: files that already exist in the destination are NOT overwritten,
       so user edits in build/Debug/filters/ survive.
-    - New files added in source are copied (destination doesn't exist yet).
+    - New files added in source are copied (destination doesn't exist yet), unless
+      the output has a managed packet catalog. That catalog owns its renamed paths;
+      copying stale source paths back would register duplicate opcode handlers.
   -->
-  <Target Name="CopyFiltersToOutput" AfterTargets="Build">
+  <Target Name="CopyFiltersToOutput" AfterTargets="Build" Condition="!Exists('$(OutDir)filters\PACKETS.md')">
     <ItemGroup>
       <FilterSourceFiles Include="$(MSBuildThisFileDirectory)filters\**\*" />
     </ItemGroup>

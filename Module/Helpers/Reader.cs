@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Module.Helpers.ClientData;
 using Module.Services;
 using System.Globalization;
@@ -45,22 +45,24 @@ namespace Module.Helpers
         }
 
         /// <summary>
-        /// Clears all loaded data and re-parses every .txt file in the folder.
+        /// Parses replacements privately, then publishes a complete generation.
         /// Called by Init() and by the file watcher.
         /// </summary>
         private static void ReloadAll(string path)
         {
-            Main.Items.Clear();
-            Main.Skills.Clear();
-            Main.Chars.Clear();
+            var next = new ClientDataSnapshot();
 
             var folderFiles = Directory.GetFiles(path);
             var fileCount = folderFiles.Length;
 
             for (var i = 0; i < fileCount; i++)
             {
-                LoadFile(folderFiles[i]);
+                LoadFile(folderFiles[i], next);
             }
+
+            Module.PacketHandler.Filtering.FilterRegistry.ExecutionGate.EnterWriteLock();
+            try { Main.PublishData(next); }
+            finally { Module.PacketHandler.Filtering.FilterRegistry.ExecutionGate.ExitWriteLock(); }
 
             Custom.WriteLine(
                 $"Items loaded successfully {Main.Items.Count}",
@@ -73,7 +75,7 @@ namespace Module.Helpers
                 ConsoleColor.Green);
         }
 
-        private static void LoadFile(string file)
+        private static void LoadFile(string file, ClientDataSnapshot next)
         {
             var fileName = Path.GetFileName(file);
             bool isItemData = false, isSkillData = false, isCharData = false;
@@ -99,42 +101,44 @@ namespace Module.Helpers
                 Custom.WriteLine(
                     $"[Reader] Skipping {Path.GetFileName(file)} (still being written?): {ex.Message}",
                     ConsoleColor.DarkYellow);
-                return;
+                throw;
             }
             catch (Exception ex)
             {
                 Custom.WriteLine(
                     $"[Reader] Failed to read {Path.GetFileName(file)}: {ex}",
                     ConsoleColor.Red);
-                return;
+                throw;
             }
 
             var linesCount = data.Count;
             for (var d = 0; d < linesCount; d++)
             {
                 var line = data[d];
+                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//"))
+                    continue;
                 var searchBetweenTabs = line.Split('\t');
+                if (searchBetweenTabs[0].Trim().Equals("Service", StringComparison.OrdinalIgnoreCase))
+                    continue;
 
-                if (isItemData)
+                try
                 {
-                    ProcessItemData(searchBetweenTabs);
-                }
-                else if (isSkillData)
-                {
-                    ProcessSkillData(searchBetweenTabs);
-                }
-                else if (isCharData)
-                {
-                    if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//"))
-                        continue;
-                    try
+                    if (isItemData)
                     {
-                        ProcessCharData(searchBetweenTabs);
+                        ProcessItemData(searchBetweenTabs, next);
                     }
-                    catch (FormatException ex)
+                    else if (isSkillData)
                     {
-                        Custom.WriteLine($"[Reader] {fileName}, line {d + 1}: {ex.Message}", ConsoleColor.Red);
+                        ProcessSkillData(searchBetweenTabs, next);
                     }
+                    else if (isCharData)
+                    {
+                        ProcessCharData(searchBetweenTabs, next);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new FormatException($"{fileName}, line {d + 1}: {ex.Message}", ex);
                 }
             }
         }
@@ -289,131 +293,84 @@ namespace Module.Helpers
             _watcher = null;
         }
 
-        private static void ProcessSkillData(string[] searchBetweenTabs)
+
+        private static void ProcessSkillData(string[] values, ClientDataSnapshot next)
         {
-            var _temp = new SkillData();
+            if (values[0].Trim() != "1") return;
+            var record = ParseRecord<SkillData, SkillField>(values);
+            if (record.ID <= 0) throw new FormatException("Skill ID must be positive.");
+            next.Skills.TryAdd(record.ID, record);
+        }
 
-            var enabled = searchBetweenTabs[(int)SkillField.Service].Trim();
-            if (enabled == "0")
-                return;
+        private static void ProcessItemData(string[] values, ClientDataSnapshot next)
+        {
+            if (values[0].Trim() != "1") return;
+            var record = ParseRecord<ItemData, ItemField>(values);
+            if (record.ID <= 0) throw new FormatException("Item ID must be positive.");
+            next.Items.TryAdd(record.ID, record);
+        }
 
+        private static T ParseRecord<T, TField>(string[] values)
+            where T : new() where TField : struct, Enum
+        {
+            var record = new T();
+            foreach (var property in typeof(T).GetProperties())
+            {
+                if (!Enum.TryParse<TField>(property.Name, out var field)) continue;
+                int index = Convert.ToInt32(field);
+                if (index >= values.Length)
+                    continue; // Older item/skill exports omit optional trailing fields.
+                SetValue(record!, property, values[index]);
+            }
+            return record;
+        }
+
+        private static void SetValue(object record, PropertyInfo property, string value)
+        {
             try
             {
-                var properties = typeof(SkillData).GetProperties();
-
-                foreach (var property in properties)
-                {
-                    if (Enum.IsDefined(typeof(SkillField), property.Name))
-                    {
-                        int index = (int)Enum.Parse(typeof(SkillField), property.Name);
-                        if (index >= searchBetweenTabs.Length) continue;
-
-                        string value = searchBetweenTabs[index].Trim();
-
-                        if (property.PropertyType == typeof(int) && int.TryParse(value, out int intValue))
-                        {
-                            property.SetValue(_temp, intValue);
-                        }
-                        else if (property.PropertyType == typeof(float) && float.TryParse(value, out float floatValue))
-                        {
-                            property.SetValue(_temp, floatValue);
-                        }
-                        else if (property.PropertyType == typeof(string))
-                        {
-                            property.SetValue(_temp, value);
-                        }
-                    }
-                }
-                if (_temp.ID > 0 && !Main.Skills.ContainsKey(_temp.ID))
-                {
-                    Main.Skills[_temp.ID] = _temp;
-                }
+                object parsed = Convert.ChangeType(value.Trim(), property.PropertyType, CultureInfo.InvariantCulture);
+                if (parsed is float f && !float.IsFinite(f) || parsed is double d && !double.IsFinite(d))
+                    throw new FormatException("Expected a finite number.");
+                property.SetValue(record, parsed);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is FormatException || ex is OverflowException)
             {
-                Custom.WriteLine(ex.ToString());
+                throw new FormatException($"Invalid {property.Name}: '{value}'.", ex);
             }
         }
 
-        private static void ProcessCharData(string[] values)
+        private static void ProcessCharData(string[] input, ClientDataSnapshot next)
         {
-            if (values[0].Trim().Equals("Service", StringComparison.OrdinalIgnoreCase))
-                return;
-            if (!int.TryParse(values[0].Trim(), NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out var service))
-                throw new FormatException("Invalid Service value.");
-            if (service != 1)
-                return;
-            if (values.Length < CharColumns.Length)
-                throw new FormatException($"Expected at least {CharColumns.Length} columns, got {values.Length}.");
+            if (input[0].Trim() != "1") return;
+            var values = input.ToList();
+            while (values.Count > 0 && string.IsNullOrWhiteSpace(values[^1]))
+                values.RemoveAt(values.Count - 1);
+
+            // Some horse rows omit the last common file column. Recognize only
+            // that specific extended layout, preserving every other empty cell.
+            if (values.Count == 119 && int.TryParse(values[56], out _)
+                && values[55] == "xxx")
+                values.Insert(56, "");
+
+            bool extended = values.Count == 120;
+            if (!extended && values.Count != 104)
+                throw new FormatException($"Unsupported character text layout: {values.Count} columns (expected 104 or 120).");
 
             var record = new CharData();
             foreach (var (field, property) in CharColumns)
             {
-                string value = values[(int)field].Trim();
-                try
-                {
-                    object parsed = Convert.ChangeType(value, property.PropertyType,
-                        CultureInfo.InvariantCulture);
-                    if (parsed is float number && !float.IsFinite(number))
-                        throw new FormatException("Expected a finite number.");
-                    property.SetValue(record, parsed);
-                }
-                catch (Exception ex) when (ex is FormatException || ex is OverflowException)
-                {
-                    throw new FormatException($"Invalid {field}: '{value}'.", ex);
-                }
+                int index = (int)field;
+                // The SQL export excludes the six resistance columns present
+                // in the client's extended text layout, immediately after MaxMP.
+                if (!extended && field >= CharField.Resistance1 && field <= CharField.Resistance6)
+                    continue;
+                if (!extended && field >= CharField.InventorySize) index -= 6;
+                SetValue(record, property, values[index]);
             }
-
-            if (record.ID <= 0)
-                throw new FormatException("ID must be greater than zero.");
-            Main.Chars.TryAdd(record.ID, record);
-        }
-
-        private static void ProcessItemData(string[] searchBetweenTabs)
-        {
-            var _temp = new ItemData();
-
-            var enabled = searchBetweenTabs[(int)ItemField.Service].Trim();
-            if (enabled == "0")
-                return;
-
-            try
-            {
-                var properties = typeof(ItemData).GetProperties();
-
-                foreach (var property in properties)
-                {
-                    if (Enum.IsDefined(typeof(ItemField), property.Name))
-                    {
-                        int index = (int)Enum.Parse(typeof(ItemField), property.Name);
-                        if (index >= searchBetweenTabs.Length) continue;
-
-                        string value = searchBetweenTabs[index].Trim();
-
-                        if (property.PropertyType == typeof(int) && int.TryParse(value, out int intValue))
-                        {
-                            property.SetValue(_temp, intValue);
-                        }
-                        else if (property.PropertyType == typeof(float) && float.TryParse(value, out float floatValue))
-                        {
-                            property.SetValue(_temp, floatValue);
-                        }
-                        else if (property.PropertyType == typeof(string))
-                        {
-                            property.SetValue(_temp, value);
-                        }
-                    }
-                }
-                if (_temp.ID > 0 && !Main.Items.ContainsKey(_temp.ID))
-                {
-                    Main.Items[_temp.ID] = _temp;
-                }
-            }
-            catch (Exception ex)
-            {
-                Custom.WriteLine(ex.ToString());
-            }
+            record.ExtraColumns = extended ? values.Skip(110).ToArray() : Array.Empty<string>();
+            if (record.ID <= 0) throw new FormatException("Character ID must be positive.");
+            next.Chars.TryAdd(record.ID, record);
         }
     }
 }

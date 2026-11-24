@@ -5,6 +5,7 @@ namespace NetGuardLoader.Services
     class ConsoleHelper
     {
         private const uint ENABLE_QUICK_EDIT = 0x0040;
+        private const uint ENABLE_EXTENDED_FLAGS = 0x0080;
         private const int STD_INPUT_HANDLE = -10;
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -16,8 +17,9 @@ namespace NetGuardLoader.Services
         [DllImport("kernel32.dll")]
         private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
-        public static void DisableQuickEdit()
+        public static void EnableQuickEdit()
         {
+            if (!OperatingSystem.IsWindows()) return;
             IntPtr consoleHandle = GetStdHandle(STD_INPUT_HANDLE);
 
             // Get current console mode
@@ -26,8 +28,9 @@ namespace NetGuardLoader.Services
                 return;
             }
 
-            // Remove Quick Edit Mode
-            mode &= ~ENABLE_QUICK_EDIT;
+            // Allow mouse selection. Module console output runs on a dedicated
+            // thread, so a selected console cannot block packet logging callers.
+            mode |= ENABLE_QUICK_EDIT | ENABLE_EXTENDED_FLAGS;
 
             // Set the new mode
             SetConsoleMode(consoleHandle, mode);

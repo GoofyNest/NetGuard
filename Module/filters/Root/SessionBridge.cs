@@ -4,104 +4,104 @@ namespace NetGuard.Hot;
 
 public static class SessionBridge
 {
-    public static void Attach(SessionData s)
-    {
-        s.Host = new SessionHost();
-    }
-
-    // No-op. All shell-owned fields stay on SessionData; nothing to mirror.
-    public static void Sync(SessionData s) { }
+    public static void Attach(SessionData session) => session.Host = new SessionHost();
+    public static void Sync(SessionData session) { }
 
     public static void Migrate(object? oldHost, object? newHost)
     {
-        if (oldHost is null || newHost is null) return;
-        if (newHost is not SessionHost @new) return;
-
-        var oldT = oldHost.GetType();
-
-        // --- Agent data ---
-        var oldAg = oldT.GetProperty("Agent")?.GetValue(oldHost);
-        if (oldAg is not null)
+        if (oldHost == null || newHost is not SessionHost target) return;
+        // Copy shell-independent scalar state for all generated host properties,
+        // including gateway flags and item cooldowns.
+        foreach (var property in typeof(SessionHost).GetProperties())
         {
-            var agT = oldAg.GetType();
+            var previous = Get(oldHost, property.Name);
+            var next = property.GetValue(target);
+            if (previous != null && next != null) CopyScalars(previous, next);
+        }
 
-            var oldChars = agT.GetProperty("Chars")?.GetValue(oldAg) as System.Collections.IEnumerable;
-            if (oldChars is not null)
+        var agent = Get(oldHost, "Agent");
+        if (agent == null) return;
+        if (Get(agent, "CharData") is SilkroadSecurityAPI.Packet packet)
+            target.Agent.CharData = new SilkroadSecurityAPI.Packet(packet);
+        if (Get(agent, "Chars") is not System.Collections.IEnumerable characters) return;
+        foreach (var previous in characters)
+        {
+            if (previous == null) continue;
+            var character = new CharState();
+            lock (Get(previous, "PetSync") ?? previous)
             {
-                foreach (var oldChar in oldChars)
+                CopyScalars(previous, character);
+                if (Get(previous, "PendingItemUses") is System.Collections.IEnumerable pending)
+                    foreach (var type in pending) character.PendingItemUses.Enqueue(Convert.ToInt32(type));
+                if (Get(previous, "Pets") is System.Collections.IEnumerable pets)
                 {
-                    if (oldChar is null) continue;
-                    var cs = new CharState();
-                    CopyCharScalars(oldChar.GetType(), oldChar, cs);
-                    @new.Agent.Chars.Add(cs);
+                    foreach (var oldPet in pets)
+                    {
+                        if (oldPet == null) continue;
+                        var pet = new CosState();
+                        CopyScalars(oldPet, pet);
+                        character.Pets.Add(pet);
+                    }
                 }
             }
+
+            var inventory = Get(previous, "Inventory");
+            if (inventory != null)
+            {
+                CopyInventory(inventory, character.Inventory);
+                if (!character.Inventory.IsSynchronized)
+                    InventoryTracking.LogSyncFailure(character.Inventory, character.Charname, null);
+            }
+            target.Agent.Chars.Add(character);
         }
     }
 
-    private static void CopyCharScalars(Type srcT, object src, CharState dst)
+    private static object? Get(object source, string name) =>
+        source.GetType().GetProperty(name)?.GetValue(source);
+
+    private static void CopyInventory(object previous, Inventory target)
     {
-        object? Get(string n) => srcT.GetProperty(n)?.GetValue(src);
-
-        dst.Charname         = (string)(Get("Charname")         ?? "");
-        dst.IsVisible        = (bool)  (Get("IsVisible")        ?? false);
-        dst.ServerTime       = (long)  (Get("ServerTime")       ?? 0L);
-        dst.RefObjID         = (long)  (Get("RefObjID")         ?? 0L);
-        dst.Scale            = (int)   (Get("Scale")            ?? 0);
-        dst.CurLevel         = (int)   (Get("CurLevel")         ?? 0);
-        dst.MaxLevel         = (int)   (Get("MaxLevel")         ?? 0);
-        dst.ExpOffset        = (ulong) (Get("ExpOffset")        ?? 0UL);
-        dst.SExpOffset       = (long)  (Get("SExpOffset")       ?? 0L);
-        dst.RemainGold       = (ulong) (Get("RemainGold")       ?? 0UL);
-        dst.RemainSkillPoint = (long)  (Get("RemainSkillPoint") ?? 0L);
-        dst.RemainStatPoint  = (int)   (Get("RemainStatPoint")  ?? 0);
-        dst.RemainHwanCount  = (int)   (Get("RemainHwanCount")  ?? 0);
-        dst.GatheredExpPoint = (long)  (Get("GatheredExpPoint") ?? 0L);
-        dst.Hp               = (long)  (Get("Hp")               ?? 0L);
-        dst.Mp               = (long)  (Get("Mp")               ?? 0L);
-        dst.AutoInverstExp   = (int)   (Get("AutoInverstExp")   ?? 0);
-        dst.DailyPk          = (int)   (Get("DailyPk")          ?? 0);
-        dst.TotalPk          = (int)   (Get("TotalPk")          ?? 0);
-        dst.PkPenaltyPoint   = (long)  (Get("PkPenaltyPoint")   ?? 0L);
-        dst.HwanLevel        = (int)   (Get("HwanLevel")        ?? 0);
-        dst.PvpCape          = (int)   (Get("PvpCape")          ?? 0);
-        dst.Timestamp        = (DateTime)(Get("Timestamp")      ?? DateTime.UtcNow);
-        // Pet guards must survive filter hot reloads. An old host without the
-        // readiness flag requires a fresh login/teleport snapshot before summoning.
-        lock (Get("PetSync") ?? src)
-        {
-            dst.PetStateReady = (bool)(Get("PetStateReady") ?? false);
-            dst.AttackPetPending = (bool)(Get("AttackPetPending") ?? false);
-            dst.GrabPetPending = (bool)(Get("GrabPetPending") ?? false);
-            if (Get("PendingItemUses") is System.Collections.IEnumerable pending)
-                foreach (var type in pending)
-                    dst.PendingItemUses.Enqueue(Convert.ToInt32(type));
-            if (Get("Pets") is System.Collections.IEnumerable pets)
+        CopyScalars(previous, target);
+        if (Get(previous, "Items") is System.Collections.IEnumerable items)
+            foreach (var oldItem in items)
             {
-                foreach (var pet in pets)
+                if (oldItem == null) continue;
+                var item = new ItemState(); CopyScalars(oldItem, item);
+                if (oldItem.GetType().GetProperty("Amount") == null)
                 {
-                    if (pet == null) continue;
-                    var t = pet.GetType();
-                    dst.Pets.Add(new CosState
-                    {
-                        UniqueID = Convert.ToUInt32(t.GetProperty("UniqueID")?.GetValue(pet) ?? 0u),
-                        ObjectID = Convert.ToUInt32(t.GetProperty("ObjectID")?.GetValue(pet) ?? 0u),
-                        Type = Convert.ToInt32(t.GetProperty("Type")?.GetValue(pet) ?? 0),
-                        Summoned = (bool)(t.GetProperty("Summoned")?.GetValue(pet) ?? false)
-                    });
+                    item.AmountKnown = Main.Items.TryGetValue((int)item.Id, out var record) && record.TypeID2 != 3;
+                    if (!item.AmountKnown) target.Invalidate("Relog or teleport to initialize pre-update stack quantities.");
                 }
+                target.Put(item);
             }
-        }
-
-        var oldInv = srcT.GetProperty("Inventory")?.GetValue(src);
-        if (oldInv is not null)
-        {
-            var invT = oldInv.GetType();
-            dst.Inventory = new Inventory
+        if (Get(previous, "Containers") is System.Collections.IEnumerable containers)
+            foreach (var pair in containers)
             {
-                Size      = (int)(invT.GetProperty("Size")?.GetValue(oldInv)      ?? 0),
-                ItemCount = (int)(invT.GetProperty("ItemCount")?.GetValue(oldInv) ?? 0),
-            };
+                var key = Get(pair!, "Key") as string; var value = Get(pair!, "Value");
+                if (key == null || value == null) continue;
+                var container = new Inventory(); CopyInventory(value, container); target.Containers[key] = container;
+            }
+        if (Get(previous, "PendingSnapshots") is System.Collections.IEnumerable snapshots)
+            foreach (var pair in snapshots)
+                if (Get(pair!, "Key") is string key && Get(pair!, "Value") is IEnumerable<byte> bytes)
+                    target.PendingSnapshots[key] = new List<byte>(bytes);
+        if (Get(previous, "NpcCodes") is System.Collections.IEnumerable npcs)
+            foreach (var pair in npcs)
+                if (Get(pair!, "Key") is uint id && Get(pair!, "Value") is string code) target.NpcCodes[id] = code;
+        target.ItemCount = target.Items.Count;
+    }
+
+    private static void CopyScalars(object source, object destination)
+    {
+        foreach (var property in destination.GetType().GetProperties())
+        {
+            var type = property.PropertyType;
+            if (!property.CanWrite || !(type.IsPrimitive || type.IsEnum || type == typeof(string)
+                || type == typeof(DateTime) || type == typeof(TimeSpan) || type == typeof(decimal)))
+                continue;
+            var old = source.GetType().GetProperty(property.Name);
+            if (old != null && old.PropertyType == type)
+                property.SetValue(destination, old.GetValue(source));
         }
     }
 }

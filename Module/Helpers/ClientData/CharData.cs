@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Module.Helpers.ClientData
 {
-    // Column order matches the supplied SQL SELECT.
+    // Extended client text layout. Reader also supports the 104-column SQL export.
     public enum CharField
     {
         Service,
@@ -68,6 +68,12 @@ namespace Module.Helpers.ClientData
         CharGender,
         MaxHP,
         MaxMP,
+        Resistance1,
+        Resistance2,
+        Resistance3,
+        Resistance4,
+        Resistance5,
+        Resistance6,
         InventorySize,
         CanStore_TID1,
         CanStore_TID2,
@@ -176,6 +182,15 @@ namespace Module.Helpers.ClientData
         public int CharGender { get; set; }
         public int MaxHP { get; set; }
         public int MaxMP { get; set; }
+        // Keep numeric labels until this client's resistance names are verified.
+        public int Resistance1 { get; set; }
+        public int Resistance2 { get; set; }
+        public int Resistance3 { get; set; }
+        public int Resistance4 { get; set; }
+        public int Resistance5 { get; set; }
+        public int Resistance6 { get; set; }
+        // Client-specific trailing columns are preserved, not assigned guessed meanings.
+        public string[] ExtraColumns { get; set; } = Array.Empty<string>();
         public int InventorySize { get; set; }
         public int CanStore_TID1 { get; set; }
         public int CanStore_TID2 { get; set; }
@@ -209,15 +224,20 @@ namespace Module.Helpers.ClientData
         public int DefaultSkill_9 { get; set; }
         public int DefaultSkill_10 { get; set; }
         public int TextureType { get; set; }
-        public int Except_1 { get; set; }
-        public int Except_2 { get; set; }
-        public int Except_3 { get; set; }
-        public int Except_4 { get; set; }
-        public int Except_5 { get; set; }
-        public float Except_6 { get; set; }
-        public float Except_7 { get; set; }
-        public float Except_8 { get; set; }
-        public float Except_9 { get; set; }
-        public float Except_10 { get; set; }
+        public double Except_1 { get; set; }
+        public double Except_2 { get; set; }
+        public double Except_3 { get; set; }
+        public double Except_4 { get; set; }
+        public double Except_5 { get; set; }
+        public double Except_6 { get; set; }
+        public double Except_7 { get; set; }
+        public double Except_8 { get; set; }
+        public double Except_9 { get; set; }
+        public double Except_10 { get; set; }
+
+        public override string ToString() => string.Join(
+            Environment.NewLine,
+            GetType().GetProperties().Select(property =>
+                $"{property.Name}: {(property.GetValue(this) is string[] values ? string.Join(", ", values) : property.GetValue(this))}"));
     }
 }

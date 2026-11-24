@@ -7,6 +7,8 @@ namespace Module.PacketHandler.Filtering
 {
     public static class FilterRegistry
     {
+        // Held only for synchronous filter execution/publication, never socket I/O.
+        internal static readonly ReaderWriterLockSlim ExecutionGate = new(LockRecursionPolicy.SupportsRecursion);
         public static FilterLoader? Loader { get; set; }
 
         public static readonly ConcurrentDictionary<int, SessionData> LiveSessions = new();
@@ -15,6 +17,11 @@ namespace Module.PacketHandler.Filtering
 
         public static IFilter? Resolve(FilterContext ctx, ushort opcode)
             => Loader?.Resolve(ctx, opcode);
+
+        // A default result permits the packet; it must not suppress its opcode
+        // handler (handshakes, authentication, inventory tracking, etc.).
+        internal static bool StopsDispatch([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] PacketHandlingResult? result)
+            => result != null && (result.ResultType != PacketResultType.None || result.ModifiedPackets.Count != 0);
 
         public static void SetLanding(FilterContext ctx, ILanding? landing)
         {
@@ -35,13 +42,13 @@ namespace Module.PacketHandler.Filtering
         {
             var landing = Volatile.Read(ref _landings[(int)ctx]);
             if (landing == null) return null;
-            try { return landing.Handle(packet, client, sessionCtx); }
+            try { return landing.Handle(new Packet(packet), client, sessionCtx); }
             catch (Exception ex)
             {
                 Custom.WriteLine(
                     $"[landing] {ctx} threw on 0x{packet.Opcode:X4}: {ex.Message}",
                     ConsoleColor.Red);
-                return null;
+                return new PacketHandlingResult { ResultType = PacketResultType.Block };
             }
         }
     }

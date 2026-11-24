@@ -1,3 +1,12 @@
+/*
+0x7005 | Agent | Client -> Server
+Name: LogoutRequest
+
+// Current NetGuard parsed fields (may cover only part of the payload):
+byte action
+
+*/
+
 using NetGuard.Hot;
 using NetGuard.Hot.Helpers;
 

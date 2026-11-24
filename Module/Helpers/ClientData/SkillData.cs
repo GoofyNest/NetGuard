@@ -243,6 +243,11 @@
         public int Param49 { get; set; }
         public int Param50 { get; set; }
 
+        public override string ToString() => string.Join(
+            Environment.NewLine,
+            GetType().GetProperties().Select(property =>
+                $"{property.Name}: {property.GetValue(this)}"));
+
         public bool ParamsContains(int value)
         {
             int[] parameters =

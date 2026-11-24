@@ -189,7 +189,7 @@ namespace NetGuardLoader
 
         static void Main(string[] args)
         {
-            ConsoleHelper.DisableQuickEdit();
+            ConsoleHelper.EnableQuickEdit();
 
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Title = "NetGuard | Loader";

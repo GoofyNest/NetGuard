@@ -1,3 +1,12 @@
+/*
+0x34A9 | Agent | Client -> Server
+Name: MagicOptionGrant
+
+// Current NetGuard parsed fields (may cover only part of the payload):
+ascii avatarBlue
+
+*/
+
 using NetGuard.Hot;
 
 namespace NetGuard.Filters.Agent.Client

@@ -16,6 +16,19 @@ namespace Module.PacketHandler.Filtering
 
         public void Dispatch(SessionData session, BusMessage msg)
         {
+            FilterRegistry.ExecutionGate.EnterReadLock();
+            try
+            {
+                lock (session.StateSync)
+                {
+                    if (session.FilterStateValid) DispatchCore(session, msg);
+                }
+            }
+            finally { FilterRegistry.ExecutionGate.ExitReadLock(); }
+        }
+
+        private void DispatchCore(SessionData session, BusMessage msg)
+        {
             if (!_handlers.TryGetValue(msg.Kind, out var list)) return;
             Action<SessionData, BusMessage>[] snapshot;
             lock (list) snapshot = [.. list];

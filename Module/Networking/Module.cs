@@ -1,4 +1,4 @@
-﻿using Module.Config;
+using Module.Config;
 using Module.PacketHandler;
 using Module.PacketHandler.Filtering;
 using Module.Services;
@@ -29,8 +29,10 @@ namespace Module.Networking
         private readonly Security _localSecurity = new();
         private readonly Security _remoteSecurity = new();
 
-        private ulong _bytesReceivedFromClient = 0;
-        private readonly DateTime _startTime = DateTime.Now;
+        private readonly ByteRateLimiter _clientRate = new(100_000, 200_000);
+        private readonly SemaphoreSlim _processingGate = new(1, 1);
+        private readonly object _receiveLifecycle = new();
+        private readonly int[] _returnedBuffers = new int[2];
 
         private readonly ModuleSettings ModuleSettings = Main.Module;
 
@@ -84,27 +86,32 @@ namespace Module.Networking
                 _client.PlayerInfo.IpInfo.Ip = endpoint.Address.ToString();
             }
 
-            SessionBus.Register(_client);
-
-            FilterRegistry.Loader?.AttachSession(_client);
-            FilterRegistry.LiveSessions[ClientId] = _client;
+            FilterRegistry.ExecutionGate.EnterReadLock();
+            try
+            {
+                FilterRegistry.Loader?.AttachSession(_client);
+                FilterRegistry.LiveSessions[ClientId] = _client;
+                SessionBus.Register(_client);
+            }
+            finally { FilterRegistry.ExecutionGate.ExitReadLock(); }
             _ctx = new SessionContext(_client, this);
 
             Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
         }
 
-        public async Task StartAsync()
+        public async Task StartAsync(CancellationToken cancellationToken = default)
         {
             try
             {
                 _localSecurity.GenerateSecurity(true, true, true);
 
-                await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort));
+                using var connectDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                connectDeadline.CancelAfter(TimeSpan.FromSeconds(15));
+                await ModuleSocket.ConnectAsync(new IPEndPoint(IPAddress.Parse(ModuleSettings.ModuleIP), ModuleSettings.ModulePort), connectDeadline.Token);
                 ModuleSocket.NoDelay = true;
 
-                await DoReceive(true);
-
                 await Send(false);
+                await DoReceive(true);
             }
             catch (SocketException ex)
             {
@@ -163,8 +170,13 @@ namespace Module.Networking
 
         async Task HandleReceivedData(int nReceived, bool isClient)
         {
-            try { await HandleReceivedDataInner(nReceived, isClient); }
-            finally { await DrainOutboundAsync(); }
+            await _processingGate.WaitAsync();
+            try
+            {
+                await HandleReceivedDataInner(nReceived, isClient);
+                await DrainOutboundAsync();
+            }
+            finally { _processingGate.Release(); }
         }
 
         async Task HandleReceivedDataInner(int nReceived, bool isClient)
@@ -174,9 +186,13 @@ namespace Module.Networking
 
             if (isClient)
             {
+                if (!_clientRate.TryConsume(nReceived))
+                {
+                    Custom.WriteLine($"Client({_client.PlayerInfo.IpInfo.Ip}) disconnected for flooding.", ConsoleColor.Yellow);
+                    HandleDisconnection();
+                    return;
+                }
                 _localSecurity.Recv(_localBuffer, 0, nReceived);
-                _bytesReceivedFromClient += (ulong)nReceived;
-                HandleClientFlooding();
             }
             else
             {
@@ -197,27 +213,9 @@ namespace Module.Networking
 
                 Packet packet = receivedPackets[i];
 
-                IPacketHandler handler = null!;
-
-                if (_moduleType == ModuleType.GatewayModule)
+                var result = DispatchPacket(packet, isClient);
+                if (result != null)
                 {
-                    handler = isClient
-                        ? GatewayClientHandler.GetHandler(packet, _client, _ctx)
-                        : GatewayServerHandler.GetHandler(packet, _client, _ctx);
-                }
-                else if (_moduleType == ModuleType.AgentModule)
-                {
-                    handler = isClient
-                        ? AgentClientHandler.GetHandler(packet, _client, _ctx)
-                        : AgentServerHandler.GetHandler(packet, _client, _ctx);
-                }
-
-                if (handler != null)
-                {
-                    var result = handler.Handle(packet, _client, _ctx);
-
-                    FilterRegistry.Loader?.SyncSession(_client);
-
                     switch (result.ResultType)
                     {
                         case PacketResultType.Block:
@@ -244,6 +242,20 @@ namespace Module.Networking
                             continue;
                     }
 
+                }
+
+                // Recv has already consumed the handshake and queued its reply on
+                // the receiving Security instance. Never forward it to the other
+                // connection, even if an opcode filter is absent or passes it on.
+                // Explicit filter actions above (including SkipSending) still win.
+                if (packet.Opcode is 0x5000 or 0x9000)
+                {
+                    await Send(!isClient);
+                    continue;
+                }
+
+                if (result != null)
+                {
                     var modifiedCount = result.ModifiedPackets.Count;
                     if (modifiedCount > 0)
                     {
@@ -293,7 +305,43 @@ namespace Module.Networking
             }
         }
 
-        async Task DoReceive(bool isClient)
+        private PacketHandlingResult? DispatchPacket(Packet packet, bool isClient)
+        {
+            FilterRegistry.ExecutionGate.EnterReadLock();
+            try
+            {
+                lock (_client.StateSync)
+                {
+                    if (!_client.FilterStateValid)
+                        return new PacketHandlingResult { ResultType = PacketResultType.Disconnect };
+                    IPacketHandler? handler = _moduleType switch
+                    {
+                        ModuleType.GatewayModule => isClient
+                            ? GatewayClientHandler.GetHandler(packet, _client, _ctx)
+                            : GatewayServerHandler.GetHandler(packet, _client, _ctx),
+                        ModuleType.AgentModule => isClient
+                            ? AgentClientHandler.GetHandler(packet, _client, _ctx)
+                            : AgentServerHandler.GetHandler(packet, _client, _ctx),
+                        _ => null
+                    };
+                    var result = handler?.Handle(packet, _client, _ctx);
+                    FilterRegistry.Loader?.SyncSession(_client);
+                    return result;
+                }
+            }
+            finally { FilterRegistry.ExecutionGate.ExitReadLock(); }
+        }
+
+        Task DoReceive(bool isClient)
+        {
+            lock (_receiveLifecycle)
+            {
+                ArmReceive(isClient);
+            }
+            return Task.CompletedTask;
+        }
+
+        void ArmReceive(bool isClient)
         {
             int idx = isClient ? RecvClient : RecvServer;
 
@@ -385,9 +433,18 @@ namespace Module.Networking
                     await HandleReceivedData(bytesReceived, isClient);
                 }
             }
+            catch (Exception ex)
+            {
+                Custom.WriteLine($"Packet processing failed for client {ClientId}: {ex}", ConsoleColor.Red);
+                HandleDisconnection();
+            }
             finally
             {
-                Interlocked.Exchange(ref _receiving[idx], 0);
+                lock (_receiveLifecycle)
+                {
+                    Interlocked.Exchange(ref _receiving[idx], 0);
+                    if (Volatile.Read(ref _disconnecting) != 0) ReturnBuffer(idx);
+                }
             }
         }
 
@@ -410,14 +467,15 @@ namespace Module.Networking
 
             int count = outgoing.Count;
 
-            // One TCP write per Silkroad packet — the wire format the client
-            // (and server) actually expect. No coalescing.
+            // TCP may accept only part of a frame. Preserve its order and slice.
             for (int i = 0; i < count; i++)
             {
                 try
                 {
                     var packet = outgoing[i];
-                    await socket.SendAsync(packet.Key.Buffer);
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    await SocketIO.SendAllAsync(socket,
+                        packet.Key.Buffer.AsMemory(packet.Key.Offset, packet.Key.Size), timeout.Token);
                 }
                 catch (ObjectDisposedException)
                 {
@@ -439,24 +497,12 @@ namespace Module.Networking
             }
         }
 
-        private void HandleClientFlooding()
+        internal void Stop() => HandleDisconnection();
+
+        private void ReturnBuffer(int direction)
         {
-            double bytesPerSecond = GetBytesPerSecondFromClient();
-
-            if (bytesPerSecond <= 100000)
-                return;
-
-            Custom.WriteLine($"Client({_client.PlayerInfo.IpInfo.Ip}) disconnected for flooding.", ConsoleColor.Yellow);
-
-            HandleDisconnection();
-        }
-
-        private double GetBytesPerSecondFromClient()
-        {
-            var elapsedTime = DateTime.Now - _startTime;
-            return elapsedTime.TotalSeconds < 1.0
-                ? _bytesReceivedFromClient
-                : Math.Round(_bytesReceivedFromClient / elapsedTime.TotalSeconds, 2);
+            if (Interlocked.Exchange(ref _returnedBuffers[direction], 1) == 0)
+                ArrayPool<byte>.Shared.Return(direction == RecvClient ? _localBuffer : _remoteBuffer);
         }
 
         private void HandleDisconnection()
@@ -500,6 +546,11 @@ namespace Module.Networking
             finally
             {
                 _clientSocket = null!;
+            }
+            lock (_receiveLifecycle)
+            {
+                for (int i = 0; i < 2; i++)
+                    if (Volatile.Read(ref _receiving[i]) == 0) ReturnBuffer(i);
             }
         }
     }

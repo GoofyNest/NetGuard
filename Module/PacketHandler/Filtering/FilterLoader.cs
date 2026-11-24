@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Module.Networking;
 using Module.Services;
@@ -190,6 +190,13 @@ namespace Module.PacketHandler.Filtering
         /// </summary>
         private void ClearAll(string reason)
         {
+            FilterRegistry.ExecutionGate.EnterWriteLock();
+            try { ClearAllUnderLock(reason); }
+            finally { FilterRegistry.ExecutionGate.ExitWriteLock(); }
+        }
+
+        private void ClearAllUnderLock(string reason)
+        {
             Custom.WriteLine($"[filters] {reason} — clearing all filters", ConsoleColor.Yellow);
 
             _hostCtor = null;
@@ -209,9 +216,6 @@ namespace Module.PacketHandler.Filtering
             if (old != null)
             {
                 try { old.Unload(); } catch { }
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
             }
         }
 
@@ -583,82 +587,87 @@ namespace Module.PacketHandler.Filtering
                     }
                 }
 
-                // 5b. Register bus plugins
-                BusRegistry.Dispatcher.Clear();
-                var busPluginCount = 0;
-
-                foreach (var type in asm.GetTypes())
+                FilterRegistry.ExecutionGate.EnterWriteLock();
+                try
                 {
-                    if (!typeof(IBusPlugin).IsAssignableFrom(type) || type.IsAbstract || type.IsInterface)
-                        continue;
+                    // 5b. Register bus plugins
+                    BusRegistry.Dispatcher.Clear();
+                    var busPluginCount = 0;
 
-                    try
+                    foreach (var type in asm.GetTypes())
                     {
-                        var plugin = (IBusPlugin)Activator.CreateInstance(type)!;
-                        plugin.Register(BusRegistry.Dispatcher);
-                        busPluginCount++;
+                        if (!typeof(IBusPlugin).IsAssignableFrom(type) || type.IsAbstract || type.IsInterface)
+                            continue;
+
+                        try
+                        {
+                            var plugin = (IBusPlugin)Activator.CreateInstance(type)!;
+                            plugin.Register(BusRegistry.Dispatcher);
+                            busPluginCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Custom.WriteLine($"[filters] bus plugin {type.Name}: {ex.Message}", ConsoleColor.Red);
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        Custom.WriteLine($"[filters] bus plugin {type.Name}: {ex.Message}", ConsoleColor.Red);
-                    }
-                }
 
-                if (busPluginCount > 0)
-                    Custom.WriteLine($"[filters] registered {busPluginCount} bus plugin(s)", ConsoleColor.Cyan);
+                    if (busPluginCount > 0)
+                        Custom.WriteLine($"[filters] registered {busPluginCount} bus plugin(s)", ConsoleColor.Cyan);
 
-                // 6. Swap
-                _hostCtor = hostCtor;
-                _attach = attach;
-                _sync = sync;
-                _migrate = migrate;
+                    // 6. Swap
+                    _hostCtor = hostCtor;
+                    _attach = attach;
+                    _sync = sync;
+                    _migrate = migrate;
 
-                FilterRegistry.ClearLandings();
-                foreach (var kvp in newLandings)
-                    FilterRegistry.SetLanding(kvp.Key, kvp.Value);
-
-                // Build array form of the new filters (one array per context, indexed by opcode)
-                var newArray = new IFilter?[4][];
-                for (int c = 0; c < 4; c++)
-                    newArray[c] = new IFilter?[65536];
-
-                foreach (var kvp in newFilters)
-                    newArray[(int)kvp.Key.Item1][kvp.Key.Item2] = kvp.Value;
-
-                var oldAlc = _alc;
-
-                // Atomic publish — readers see either the old array or the new one, never a half-built one
-                Volatile.Write(ref _filters, newArray);
-
-                _alc = newAlc;
-
-                if (newLandings.Count > 0)
+                    FilterRegistry.ClearLandings();
                     foreach (var kvp in newLandings)
-                        Custom.WriteLine($"[landing] {kvp.Key}: {kvp.Value.GetType().Name}", ConsoleColor.Cyan);
+                        FilterRegistry.SetLanding(kvp.Key, kvp.Value);
 
-                // Re-attach live sessions to the new assembly
-                foreach (var s in FilterRegistry.LiveSessions.Values)
-                {
-                    try
-                    {
-                        var oldHost = s.Host;
-                        _attach?.Invoke(s);              // creates new SessionHost
-                        _migrate?.Invoke(oldHost, s.Host); // copies preserved fields
-                        _sync?.Invoke(s);                // shell <-> host
-                    }
-                    catch (Exception ex)
-                    {
-                        Custom.WriteLine($"[filters] reattach session failed: {ex.Message}", ConsoleColor.Red);
-                    }
-                }
+                    // Build array form of the new filters (one array per context, indexed by opcode)
+                    var newArray = new IFilter?[4][];
+                    for (int c = 0; c < 4; c++)
+                        newArray[c] = new IFilter?[65536];
 
-                if (oldAlc != null)
-                {
-                    try { oldAlc.Unload(); } catch { }
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
-                    GC.Collect();
+                    foreach (var kvp in newFilters)
+                        newArray[(int)kvp.Key.Item1][kvp.Key.Item2] = kvp.Value;
+
+                    var oldAlc = _alc;
+
+                    // Atomic publish — readers see either the old array or the new one, never a half-built one
+                    Volatile.Write(ref _filters, newArray);
+
+                    _alc = newAlc;
+
+                    if (newLandings.Count > 0)
+                        foreach (var kvp in newLandings)
+                            Custom.WriteLine($"[landing] {kvp.Key}: {kvp.Value.GetType().Name}", ConsoleColor.Cyan);
+
+                    // Re-attach live sessions to the new assembly
+                    foreach (var s in FilterRegistry.LiveSessions.Values)
+                    {
+                        try
+                        {
+                            s.FilterStateValid = false;
+                            var oldHost = s.Host;
+                            _attach?.Invoke(s);              // creates new SessionHost
+                            _migrate?.Invoke(oldHost, s.Host); // copies preserved fields
+                            _sync?.Invoke(s);                // shell <-> host
+                            s.FilterStateValid = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            Custom.WriteLine($"[filters] reattach session failed: {ex.Message}", ConsoleColor.Red);
+                        }
+                    }
+
+                    if (oldAlc != null)
+                    {
+                        try { oldAlc.Unload(); } catch { }
+                    }
+
                 }
+                finally { FilterRegistry.ExecutionGate.ExitWriteLock(); }
 
                 foreach (var kvp in perContext)
                     Custom.WriteLine($"[filters]   {kvp.Key}: {kvp.Value} filter(s)", ConsoleColor.Cyan);
