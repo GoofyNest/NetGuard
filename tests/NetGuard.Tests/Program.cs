@@ -13,6 +13,7 @@ using App = Module.Main;
 var work = Path.Combine(Path.GetTempPath(), "NetGuardReviewTests-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(work);
 int passed = 0;
+passed += await NetworkPerformanceTests.Run();
 void Check(bool ok, string message)
 {
     if (!ok) throw new Exception(message);
@@ -164,6 +165,49 @@ try
     await Inject(gameServerSecurity, false);
     Check((await ReceivePeer(gameClientSocket, gameClientSecurity, 0x7778)).ReadUInt32() == 0x87654321,
         "Encrypted server packet forwarded after both handshakes");
+
+    FilterRegistry.SetLanding(FilterContext.AgentClient, new RoutingLanding());
+    for (uint i = 1; i <= 3; i++)
+    {
+        var mixed = new Packet(i == 2 ? (ushort)0x7779 : (ushort)0x7777, true);
+        mixed.WriteUInt32(i); gameClientSecurity.Send(mixed);
+    }
+    var combined = gameClientSecurity.TransferOutgoing().SelectMany(f => f.Key.Buffer.AsSpan(f.Key.Offset, f.Key.Size).ToArray()).ToArray();
+    combined.CopyTo((byte[])Private("_localBuffer"), 0);
+    await (Task)receiveMethod.Invoke(handshakeProxy, [combined.Length, true])!;
+    var ordered = new List<Packet>();
+    using (var orderDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+    {
+        byte[] readBuffer = new byte[8192];
+        while (ordered.Count < 3)
+        {
+            int length = await gameServerSocket.ReceiveAsync(readBuffer, SocketFlags.None, orderDeadline.Token);
+            if (length == 0) throw new Exception("Unexpected EOF in routing test");
+            gameServerSecurity.Recv(readBuffer, 0, length);
+            ordered.AddRange(gameServerSecurity.TransferIncoming());
+        }
+    }
+    Check(ordered.Select(p => p.Opcode).SequenceEqual(new ushort[] { 0x7777, 0x7780, 0x7777 })
+        && ordered.Select(p => p.ReadUInt32()).SequenceEqual(new uint[] { 1, 2, 3 }),
+        "Ordinary and replacement packets retain upstream order in the same receive batch");
+    Check((await ReceivePeer(gameClientSocket, gameClientSecurity, 0x7781)).ReadUInt32() == 2,
+        "Explicit LocalSecurity replacement goes to client independently of SendImmediately");
+    FilterRegistry.ClearLandings();
+
+    frontProxySocket.SendBufferSize = 1024;
+    gameClientSocket.ReceiveBufferSize = 1024;
+    for (int i = 0; i < 128; i++)
+    {
+        var flood = new Packet(0x7778, true); flood.WriteUInt8Array(new byte[7000]);
+        gameServerSecurity.Send(flood);
+    }
+    // Intentionally stop reading the client socket. This must not hold the
+    // processing gate or prevent a client request from reaching the server.
+    await Inject(gameServerSecurity, false);
+    var whileSlow = new Packet(0x7777, true); whileSlow.WriteUInt32(999); gameClientSecurity.Send(whileSlow);
+    await Inject(gameClientSecurity, true);
+    Check((await ReceivePeer(gameServerSocket, gameServerSecurity, 0x7777)).ReadUInt32() == 999,
+        "Slow client does not block opposite-direction packet processing");
 }
 finally { FilterRegistry.ClearLandings(); handshakeProxy.Stop(); }
 
@@ -320,6 +364,21 @@ sealed class ThrowingLanding : ILanding
 sealed class PassingLanding : ILanding
 {
     public PacketHandlingResult? Handle(Packet packet, SessionData client, SessionContext ctx) => new();
+}
+
+sealed class RoutingLanding : ILanding
+{
+    public PacketHandlingResult? Handle(Packet packet, SessionData client, SessionContext ctx)
+    {
+        if (packet.Opcode != 0x7779) return null;
+        var result = new PacketHandlingResult();
+        uint value = packet.ReadUInt32();
+        var upstream = new Packet(0x7780, true); upstream.WriteUInt32(value);
+        var downstream = new Packet(0x7781, true); downstream.WriteUInt32(value);
+        result.ModifiedPackets.Add(new PacketList { Packet = upstream, SecurityType = SecurityType.RemoteSecurity, SendImmediately = false });
+        result.ModifiedPackets.Add(new PacketList { Packet = downstream, SecurityType = SecurityType.LocalSecurity, SendImmediately = true });
+        return result;
+    }
 }
 
 sealed class BlockingWriter : TextWriter

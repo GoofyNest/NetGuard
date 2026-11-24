@@ -31,6 +31,7 @@ namespace Module.Networking
 
         private readonly ByteRateLimiter _clientRate = new(100_000, 200_000);
         private readonly SemaphoreSlim _processingGate = new(1, 1);
+        private readonly OrderedSocketSender?[] _senders = new OrderedSocketSender?[2];
         private readonly object _receiveLifecycle = new();
         private readonly int[] _returnedBuffers = new int[2];
 
@@ -174,6 +175,8 @@ namespace Module.Networking
             try
             {
                 await HandleReceivedDataInner(nReceived, isClient);
+                await Send(true);
+                await Send(false);
                 await DrainOutboundAsync();
             }
             finally { _processingGate.Release(); }
@@ -267,12 +270,12 @@ namespace Module.Networking
                             {
                                 case SecurityType.RemoteSecurity:
                                     _remoteSecurity.Send(modifiedPacket.Packet);
-                                    await Send(modifiedPacket.SendImmediately);
+                                    await Send(true);
                                     break;
 
                                 case SecurityType.LocalSecurity:
                                     _localSecurity.Send(modifiedPacket.Packet);
-                                    await Send(modifiedPacket.SendImmediately);
+                                    await Send(false);
                                     break;
 
                                 case SecurityType.Default:
@@ -301,7 +304,9 @@ namespace Module.Networking
                     _localSecurity.Send(packet);
                 }
 
-                await Send(isClient);
+                // Flush bounded groups already received together, without a timer
+                // delay. The final group is flushed before releasing the gate.
+                if ((i + 1) % 32 == 0) await Send(isClient);
             }
         }
 
@@ -423,7 +428,15 @@ namespace Module.Networking
                     // 0 = remote sent FIN.
                     if (bytesReceived == 0)
                     {
-                        HandleDisconnection();
+                        // A clean FIN must not discard frames accepted just
+                        // before it. Freeze producers and drain both writers.
+                        await _processingGate.WaitAsync();
+                        try
+                        {
+                            await Task.WhenAll(_senders.Where(s => s != null).Select(s => s!.FinishAsync()));
+                            HandleDisconnection();
+                        }
+                        finally { _processingGate.Release(); }
                         return;
                     }
 
@@ -448,55 +461,43 @@ namespace Module.Networking
             }
         }
 
-        async Task Send(bool toHost)
+        Task Send(bool toHost)
         {
-            if (Volatile.Read(ref _disconnecting) == 1)
-                return;
-
+            if (Volatile.Read(ref _disconnecting) == 1) return Task.CompletedTask;
             var security = toHost ? _remoteSecurity : _localSecurity;
-            if (security == null)
-                return;
-
             var socket = toHost ? ModuleSocket : _clientSocket;
-            if (socket == null || !socket.Connected)
-                return;
+            if (socket == null || !socket.Connected) return Task.CompletedTask;
 
             var outgoing = security.TransferOutgoing();
-            if (outgoing == null)
-                return;
-
-            int count = outgoing.Count;
-
-            // TCP may accept only part of a frame. Preserve its order and slice.
-            for (int i = 0; i < count; i++)
+            if (outgoing.Count == 0) return Task.CompletedTask;
+            int direction = toHost ? 1 : 0;
+            var sender = _senders[direction] ??= new OrderedSocketSender(socket, ex =>
             {
-                try
+                Custom.WriteLine($"Socket writer failed for client {ClientId}: {ex.Message}", ConsoleColor.Red);
+                HandleDisconnection();
+            });
+            if (Volatile.Read(ref _disconnecting) != 0)
+            {
+                sender.Stop();
+                return Task.CompletedTask;
+            }
+            foreach (var frame in outgoing)
+            {
+                var bytes = frame.Key.Buffer.AsMemory(frame.Key.Offset, frame.Key.Size);
+                while (!bytes.IsEmpty)
                 {
-                    var packet = outgoing[i];
-                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                    await SocketIO.SendAllAsync(socket,
-                        packet.Key.Buffer.AsMemory(packet.Key.Offset, packet.Key.Size), timeout.Token);
-                }
-                catch (ObjectDisposedException)
-                {
-                    HandleDisconnection();
-                    return;
-                }
-                catch (SocketException ex)
-                {
-                    Custom.WriteLine($"SocketException in Send: {ex.SocketErrorCode}", ConsoleColor.Yellow);
-                    HandleDisconnection();
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    Custom.WriteLine($"Exception in Send: {ex}", ConsoleColor.Red);
-                    HandleDisconnection();
-                    return;
+                    int size = Math.Min(bytes.Length, OrderedSocketSender.BatchBytes);
+                    if (!sender.TryEnqueue(bytes[..size]))
+                    {
+                        Custom.WriteLine($"Client {ClientId} disconnected: outbound queue limit exceeded.", ConsoleColor.Yellow);
+                        HandleDisconnection();
+                        return Task.CompletedTask;
+                    }
+                    bytes = bytes[size..];
                 }
             }
+            return Task.CompletedTask;
         }
-
         internal void Stop() => HandleDisconnection();
 
         private void ReturnBuffer(int direction)
@@ -509,6 +510,8 @@ namespace Module.Networking
         {
             if (Interlocked.Exchange(ref _disconnecting, 1) == 1)
                 return;
+
+            foreach (var sender in _senders) sender?.Stop();
 
             FilterRegistry.LiveSessions.TryRemove(ClientId, out _);
             SessionBus.Unregister(_client);

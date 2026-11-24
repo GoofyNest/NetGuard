@@ -21,6 +21,8 @@ public sealed class Packet
     private PacketWriter? _writer;
     private PacketReader _reader;
     private byte[]? _readerBytes;
+    private bool _readerBytesShared;
+    private bool _readerBytesExposed;
 
     public ushort Opcode { get; }
     public bool Encrypted { get; }
@@ -76,8 +78,16 @@ public sealed class Packet
         _isReadOnly = packet._isReadOnly;
         if (_isReadOnly)
         {
-            _readerBytes = [.. packet._readerBytes!];
-            _reader = new PacketReader(_readerBytes);
+            // GetBytes historically exposes a mutable array. Only share buffers
+            // which have never escaped, and detach before exposing a shared one.
+            if (packet._readerBytesExposed)
+                _readerBytes = [.. packet._readerBytes!];
+            else
+            {
+                _readerBytes = packet._readerBytes;
+                _readerBytesShared = packet._readerBytesShared = true;
+            }
+            _reader = new PacketReader(_readerBytes!);
         }
         else
         {
@@ -91,7 +101,19 @@ public sealed class Packet
 
     public byte[] GetBytes()
     {
-        if (_isReadOnly) return _readerBytes!;
+        if (_isReadOnly)
+        {
+            if (_readerBytesShared)
+            {
+                int position = _reader.Position;
+                _readerBytes = [.. _readerBytes!];
+                _reader = new PacketReader(_readerBytes);
+                _reader.ReadBytes(position);
+                _readerBytesShared = false;
+            }
+            _readerBytesExposed = true;
+            return _readerBytes!;
+        }
         return _writer!.ToArray();
     }
 
@@ -336,6 +358,18 @@ public sealed class Packet
     }
 
     // -- Internal bridge for Security.cs ------------------------------------
+
+    private Packet(ushort opcode, bool encrypted, byte[] ownedPayload)
+    {
+        Opcode = opcode;
+        Encrypted = encrypted;
+        _readerBytes = ownedPayload;
+        _reader = new PacketReader(ownedPayload);
+        _isReadOnly = true;
+    }
+
+    internal static Packet FromReceived(ushort opcode, bool encrypted, ReadOnlySpan<byte> payload)
+        => new(opcode, encrypted, payload.ToArray());
 
     /// <summary>
     /// View of the packet's current payload.

@@ -119,6 +119,7 @@ public sealed class Security
 
     private List<Packet> _incomingPackets = [];
     private readonly List<Packet> _outgoingPackets = [];
+    private int _outgoingHead;
 
     private readonly List<ushort> _encryptedOpcodes;
     private readonly Blowfish _blowfish = new();
@@ -150,7 +151,7 @@ public sealed class Security
             0x6107,
         ];
 
-        _recvBuffer = new TransferBuffer(8192);
+        _recvBuffer = new TransferBuffer(2);
     }
 
     public void ChangeIdentity(string name, byte flag)
@@ -492,7 +493,7 @@ public sealed class Security
             response.WriteUInt32(_valueB);
             response.WriteUInt64(_clientKey);
 
-            _outgoingPackets.Insert(0, new Packet(0x5000, false, false, response.Span));
+            _outgoingPackets.Insert(_outgoingHead, new Packet(0x5000, false, false, response.Span));
             _startedHandshake = true;
         }
         else
@@ -506,8 +507,8 @@ public sealed class Security
             response2.WriteAscii(_identityName);
             response2.WriteUInt8(_identityFlag);
 
-            _outgoingPackets.Insert(0, response2);
-            _outgoingPackets.Insert(0, response1);
+            _outgoingPackets.Insert(_outgoingHead, response2);
+            _outgoingPackets.Insert(_outgoingHead, response1);
 
             _startedHandshake = true;
             _acceptedHandshake = true;
@@ -567,20 +568,20 @@ public sealed class Security
 
     private bool HasPacketToSend()
     {
-        if (_outgoingPackets.Count == 0) return false;
+        if (_outgoingHead == _outgoingPackets.Count) return false;
         if (_acceptedHandshake) return true;
 
-        var first = _outgoingPackets[0];
+        var first = _outgoingPackets[_outgoingHead];
         return first.Opcode is 0x5000 or 0x9000;
     }
 
     private KeyValuePair<TransferBuffer, Packet> GetPacketToSend()
     {
-        if (_outgoingPackets.Count == 0)
+        if (_outgoingHead == _outgoingPackets.Count)
             throw new SecurityException("[Security::GetPacketToSend] No packets available.");
 
-        var packet = _outgoingPackets[0];
-        _outgoingPackets.RemoveAt(0);
+        var packet = _outgoingPackets[_outgoingHead];
+        _outgoingPackets[_outgoingHead++] = null!;
 
         if (packet.Massive)
             return BuildMassivePacket(packet);
@@ -599,39 +600,49 @@ public sealed class Security
     {
         const int MaxChunk = 4089;
 
-        byte[] input = packet.GetBytes();
-        ushort parts = 0;
-
-        using var finalData = new PacketWriter(input.Length + 16);
+        ReadOnlySpan<byte> input = packet.PayloadSpan;
+        int parts = (input.Length + MaxChunk - 1) / MaxChunk;
+        if (parts > ushort.MaxValue)
+            throw new SecurityException("[Security::BuildMassivePacket] Too many fragments.");
+        // Header frame: 6 + 5 bytes. Each data frame adds 6 + 1 bytes.
+        byte[] raw = new byte[checked(11 + input.Length + parts * 7)];
+        int outputOffset = 11;
         int offset = 0;
         while (offset < input.Length)
         {
             int cur = Math.Min(MaxChunk, input.Length - offset);
 
-            using var part = new PacketWriter(cur + 1);
-            part.WriteByte(0); // data flag
-            part.Write(input.AsSpan(offset, cur));
-
-            byte[] formatted = FormatPacket(0x600D, part.Span, encrypted: false);
-            finalData.Write(formatted);
+            var frame = raw.AsSpan(outputOffset, cur + 7);
+            frame[6] = 0; // data flag
+            input.Slice(offset, cur).CopyTo(frame[7..]);
+            FormatMassiveFrame(frame);
 
             offset += cur;
-            parts++;
+            outputOffset += frame.Length;
         }
 
-        using var header = new PacketWriter(5);
-        header.WriteByte(1);
-        header.WriteUInt16(parts);
-        header.WriteUInt16(packet.Opcode);
-
-        using var final = new PacketWriter(input.Length + 32);
-        final.Write(FormatPacket(0x600D, header.Span, encrypted: false));
-        final.Write(finalData.Span);
-
-        byte[] raw = final.ToArray();
+        var header = raw.AsSpan(0, 11);
+        header[6] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(header[7..], (ushort)parts);
+        BinaryPrimitives.WriteUInt16LittleEndian(header[9..], packet.Opcode);
+        // Preserve the existing security-counter generation order: data first,
+        // header last, even though the header is transmitted first.
+        FormatMassiveFrame(header);
         packet.Lock();
         return new KeyValuePair<TransferBuffer, Packet>(
             new TransferBuffer(raw, 0, raw.Length, assign: true), packet);
+    }
+
+    private void FormatMassiveFrame(Span<byte> frame)
+    {
+        BinaryPrimitives.WriteUInt16LittleEndian(frame, (ushort)(frame.Length - 6));
+        BinaryPrimitives.WriteUInt16LittleEndian(frame[2..], 0x600D);
+        frame[4] = frame[5] = 0;
+        if (!_clientSecurity && _securityFlags.HasFlag(SecurityFlag.SecurityBytes))
+        {
+            frame[4] = GenerateCountByte(true);
+            frame[5] = GenerateCheckByte(frame);
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -647,7 +658,11 @@ public sealed class Security
     }
 
     public void Recv(byte[] buffer, int offset, int length)
-        => Recv(new TransferBuffer(buffer, offset, length, assign: true));
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        _ = buffer.AsSpan(offset, length); // Validate the caller's slice.
+        Recv(new TransferBuffer(buffer, offset, checked(offset + length), assign: true));
+    }
 
     public void Recv(TransferBuffer rawBuffer)
     {
@@ -811,9 +826,7 @@ public sealed class Security
         if (opcode is 0x5000 or 0x9000)
         {
             Handshake(opcode, ref reader, packetEncrypted);
-            var hsPacket = new Packet(opcode, packetEncrypted, false,
-                                      buffer.Buffer, 6, packetSize);
-            hsPacket.Lock();
+            var hsPacket = Packet.FromReceived(opcode, packetEncrypted, buffer.Buffer.AsSpan(6, packetSize));
             _incomingPackets.Add(hsPacket);
             return;
         }
@@ -847,8 +860,7 @@ public sealed class Security
             return;
         }
 
-        var pkt = new Packet(opcode, packetEncrypted, false, buffer.Buffer, 6, packetSize);
-        pkt.Lock();
+        var pkt = Packet.FromReceived(opcode, packetEncrypted, buffer.Buffer.AsSpan(6, packetSize));
         _incomingPackets.Add(pkt);
     }
 
@@ -857,6 +869,11 @@ public sealed class Security
         var buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
         while (HasPacketToSend())
             buffers.Add(GetPacketToSend());
+        if (_outgoingHead == _outgoingPackets.Count)
+        {
+            _outgoingPackets.Clear();
+            _outgoingHead = 0;
+        }
         return buffers;
     }
 
