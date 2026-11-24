@@ -11,11 +11,13 @@
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
-  <!-- NEW: GC tuning for high-throughput server workloads -->
-  <ServerGarbageCollection>true</ServerGarbageCollection>
-  <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
-  <TieredPGO>true</TieredPGO>
 </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <Optimize>true</Optimize>
+    <DebugType>portable</DebugType>
+    <!-- Process-wide GC/JIT settings belong to NetGuardLoader.csproj. -->
+  </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="bin\**" />
