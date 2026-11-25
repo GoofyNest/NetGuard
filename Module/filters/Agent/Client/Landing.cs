@@ -12,15 +12,6 @@ namespace Module.PacketHandler.Filtering.Agent.Client
     {
         public PacketHandlingResult? Handle(Packet packet, SessionData client, SessionContext ctx)
         {
-            // Permit the loading acknowledgements and keepalive; reject gameplay
-            // until the server reports that teleport has completed.
-            if (client.Host()!.Agent.IsTeleporting && packet.Opcode is not (0x34B6 or 0x3012 or 0x3014 or 0x2002))
-            {
-                Custom.WriteLine(
-                    $"[Teleport] Blocked C->S opcode=0x{packet.Opcode:X4} character={client.PlayerInfo.CurrentCharName}");
-                return new PacketHandlingResult { ResultType = PacketResultType.Block };
-            }
-
             // ---- Offline / char-selection state machine ----
             if (!client.Agent.IsIngame)
             {
@@ -103,6 +94,15 @@ namespace Module.PacketHandler.Filtering.Agent.Client
                         return new PacketHandlingResult { ResultType = PacketResultType.Block };
                     }
                     return new PacketHandlingResult { };
+            }
+
+            // Permit the loading acknowledgements and keepalive; reject gameplay
+            // until the server reports that teleport has completed.
+            if (client.Host()!.Agent.IsTeleporting && packet.Opcode is not (0x34B6 or 0x3012 or 0x3014 or 0x2002))
+            {
+                Custom.WriteLine(
+                    $"[Teleport] Blocked C->S opcode=0x{packet.Opcode:X4} character={client.PlayerInfo.CurrentCharName}");
+                return new PacketHandlingResult { ResultType = PacketResultType.Block };
             }
 
             // ---- Exchange window ----
