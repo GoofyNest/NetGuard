@@ -27,6 +27,7 @@ public sealed class Packet
     public ushort Opcode { get; }
     public bool Encrypted { get; }
     public bool Massive { get; }
+    public int PayloadLength => _isReadOnly ? _readerBytes!.Length : _writer!.Length;
 
     // -- Constructors -------------------------------------------------------
 
@@ -98,6 +99,14 @@ public sealed class Packet
     }
 
     // -- Lifecycle ----------------------------------------------------------
+
+    /// <summary>Copy payload without changing the cursor or exposing shared buffers.</summary>
+    public byte[] CopyPayload(int maximumLength)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumLength);
+        var payload = PayloadSpan;
+        return payload[..Math.Min(payload.Length, maximumLength)].ToArray();
+    }
 
     public byte[] GetBytes()
     {

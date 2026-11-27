@@ -19,10 +19,11 @@ namespace NetGuard.Filters.Agent.Server
         {
             try
             {
-                NetGuard.Hot.InventoryTracking.Apply(packet, client);
-                var h = client.Host()!;
+
                 var response = new PacketHandlingResult();
+
                 client.Agent.InExchange = true;
+
                 return response;
             }
             catch (Exception ex)

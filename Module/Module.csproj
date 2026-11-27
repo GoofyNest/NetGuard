@@ -34,6 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../Shared/DesktopProtocol.cs" Link="DesktopProtocol.cs" />
     <ProjectReference Include="..\SilkroadSecurityAPI\SilkroadSecurityAPI.csproj" />
   </ItemGroup>
 

@@ -38,8 +38,6 @@ public sealed class CharState
     public Queue<int> PendingItemUses { get; set; } = new();
 
     public Inventory Inventory { get; set; } = new();
-    public string SelectedNpcCode { get; set; } = "";
-    public uint SelectedNpcUniqueID { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 

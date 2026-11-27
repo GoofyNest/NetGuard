@@ -24,8 +24,10 @@ namespace NetGuard.Filters.Agent.Server
                     var h = client.Host()!;
                     var Settings = Main.Settings;
                     var charInfo = client.CurrentChar();
+
                     if (charInfo == null)
                         return response;
+
                     var adminIndex = Settings.Agent.GameMasterConfig.GMs.FindIndex(m => m.Username == client.PlayerInfo.Username);
                     if (adminIndex == -1 && Settings.Agent.GameMasterConfig.Misc.SpawnVisible)
                     {

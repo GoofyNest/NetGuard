@@ -37,7 +37,10 @@ namespace NetGuard.Filters.Agent.Server
                 var response = new PacketHandlingResult();
                 byte errorCode = packet.ReadUInt8();
                 if (errorCode == 0x01)
+                {
+                    ctx?.MarkLoginCompleted();
                     client.Agent.InCharSelectionScreen = true;
+                }
                 Custom.WriteLine($"SERVER_AGENT_AUTH_RESPONSE {errorCode}", ConsoleColor.Cyan);
                 return response;
             }

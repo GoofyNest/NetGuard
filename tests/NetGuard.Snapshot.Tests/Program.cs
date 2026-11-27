@@ -1,0 +1,55 @@
+using NetGuard.Hot;
+using Module.Helpers.ClientData;
+using System.Reflection;
+using App = Module.Main;
+int passed=0;
+void Check(bool ok,string name){if(!ok)throw new Exception(name);passed++;}
+Packet Make(ushort opcode,Action<Packet> write){var p=new Packet(opcode);write(p);p.Lock();return p;}
+var session=new SessionData(); SessionBridge.Attach(session);session.PlayerInfo.CurrentCharName="test";
+var host=session.Host()!;var character=host.Agent.EnsureCurrent("test");
+App.Items[100]=new ItemData{ID=100,CodeName128="ATTACK",TypeID2=2,TypeID3=1,TypeID4=1};
+App.Items[101]=new ItemData{ID=101,CodeName128="GRAB",TypeID2=2,TypeID3=1,TypeID4=2};
+App.Chars[900]=new CharData{ID=900,TypeID1=1,TypeID2=2,TypeID3=3,TypeID4=3};
+App.Chars[901]=new CharData{ID=901,TypeID1=1,TypeID2=2,TypeID3=3,TypeID4=4};
+var data=Make(0x3013,p=>{
+ p.WriteUInt8(40);p.WriteUInt8(2);
+ p.WriteUInt8(13);p.WriteUInt32(100);p.WriteUInt8(2);p.WriteUInt32(900);p.WriteAscii("attack");
+ p.WriteUInt8(14);p.WriteUInt32(101);p.WriteUInt8(2);p.WriteUInt32(901);p.WriteAscii("grab");p.WriteUInt32(0);
+});
+var parser=new NetGuard.Filters.Agent.Server.CharacterDataEndResponse();
+object?[] arguments={character,data,false,null};
+var parsed=(bool)parser.GetType().GetMethod("HandleItems",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(parser,arguments)!;
+Check(parsed && data.RemainingRead()==0,"Existing CharData item parser consumes complete snapshot: "+arguments[3]);
+Check(character.Inventory.Items.Count==2 && character.Inventory.ItemCount==2,"CharData populates inventory");
+var use=new NetGuard.Filters.Agent.Client.InventoryItemUseRequest();
+PacketHandlingResult Use(ushort type)=>use.Handle(Make(0x704C,p=>{p.WriteUInt8(13);p.WriteUInt16(type);}),session,null!);
+foreach(ushort type in new ushort[]{0x08CC,0x08CD,0x10CC,0x10CD})
+ Check(Use(type).ResultType==PacketResultType.Block,"Already summoned pet type blocked "+type);
+var spawned=new NetGuard.Filters.Agent.Server.CosDataResponse();
+var destroyed=new NetGuard.Filters.Agent.Server.CosUpdateResponse();
+void Spawn(uint unique,uint reference)=>spawned.Handle(Make(0x30C8,p=>{p.WriteUInt32(unique);p.WriteUInt32(reference);}),session,null!);
+void Destroy(uint unique)=>destroyed.Handle(Make(0x30C9,p=>{p.WriteUInt32(unique);p.WriteUInt8(1);}),session,null!);
+Spawn(1,900);Spawn(2,901);Destroy(1);Destroy(2);
+var before=character.Inventory;
+Check(Use(0x08CC).ResultType==PacketResultType.None,"First attack summon allowed");
+Check(Use(0x08CD).ResultType==PacketResultType.Block,"Pending attack summon blocks another");
+Check(Use(0x10CC).ResultType==PacketResultType.None,"One grab pet allowed alongside attack");
+Check(Use(0x10CD).ResultType==PacketResultType.Block,"Pending grab summon blocks another");
+var response=new NetGuard.Filters.Agent.Server.InventoryItemUseResponse();
+response.Handle(Make(0xB04C,p=>p.WriteUInt8(2)),session,null!);
+Check(!character.AttackPetPending && character.GrabPetPending,"Failed attack summon releases only attack reservation");
+Check(Use(0x08CC).ResultType==PacketResultType.None,"Attack summon can retry after failure");
+host.Agent.IsTeleporting=true;host.Agent.SpawnedPets.Add(7);host.Agent.CharData=Make(0x3013,p=>p.WriteUInt8(42));host.Agent.CharDataProcess=1;
+host.UseItem.DispelTime=DateTime.UtcNow;character.ScudDispelBlockedUntil=DateTime.UtcNow.AddSeconds(15);
+var migrated=new SessionHost();SessionBridge.Migrate(host,migrated);session.Host=migrated;
+var next=session.CurrentChar()!;
+Check(next.Inventory.Items.Count==0 && next.Inventory.ItemCount==0 && next.Inventory.Size==0,"Reload never populates inventory outside CharData");
+Check(next.PetStateReady && next.AttackPetPending && next.GrabPetPending && next.PendingItemUses.SequenceEqual(character.PendingItemUses),"Pet flags and pending order survive reload");
+Check(next.Pets.Count==2 && next.Pets[0].UniqueID==1 && next.Pets[1].UniqueID==2,"Pet records survive reload");
+Check(migrated.Agent.IsTeleporting && migrated.Agent.SpawnedPets.SequenceEqual(new uint[]{7}) && migrated.Agent.CharData!.ReadUInt8()==42 && migrated.Agent.CharDataProcess==1,"Agent flags and in-progress CharData survive reload");
+Check(migrated.UseItem.DispelTime==host.UseItem.DispelTime && next.ScudDispelBlockedUntil==character.ScudDispelBlockedUntil,"Cooldowns survive reload");
+Check(Use(0x08CC).ResultType==PacketResultType.Block && Use(0x10CC).ResultType==PacketResultType.Block,"Both pet limits remain enforced after reload");
+Spawn(3,900);Spawn(4,901);
+Check(Use(0x08CC).ResultType==PacketResultType.Block && Use(0x10CC).ResultType==PacketResultType.Block,"Confirmed spawns keep both pet limits enforced");
+Check(next.Inventory.Items.Count==0 && ReferenceEquals(before,character.Inventory) && before.Items.Count==2,"Pet request, result, spawn and destroy do not modify inventory");
+Console.WriteLine($"PASS: {passed} CharData-only inventory, pet-limit and migration checks.");

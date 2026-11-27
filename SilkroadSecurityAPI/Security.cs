@@ -121,6 +121,23 @@ public sealed class Security
     private List<Packet> _incomingPackets = [];
     private readonly List<Packet> _outgoingPackets = [];
     private int _outgoingHead;
+    public const int MaxPendingSendBytes = 8 * 1024 * 1024;
+    public const int MaxPendingSendPackets = 4096;
+    private long _pendingSendBytes;
+    public long PendingSendBytes => _pendingSendBytes;
+    public int PendingSendPackets => _outgoingPackets.Count - _outgoingHead;
+
+    private static long SendCost(Packet packet) => packet.Massive
+        ? packet.PayloadLength + 11L + ((packet.PayloadLength + 4088L) / 4089) * 7 + 64
+        : packet.PayloadLength + 14L + 64;
+
+    private void QueueOutgoing(Packet packet, bool priority = false)
+    {
+        packet.Lock();
+        _pendingSendBytes += SendCost(packet);
+        if (priority) _outgoingPackets.Insert(_outgoingHead, packet);
+        else _outgoingPackets.Add(packet);
+    }
 
     private readonly List<ushort> _encryptedOpcodes;
     private readonly Blowfish _blowfish = new();
@@ -330,7 +347,7 @@ public sealed class Security
             response.WriteUInt32(_valueA);
         }
 
-        _outgoingPackets.Add(new Packet(0x5000, false, false, response.Span));
+        QueueOutgoing(new Packet(0x5000, false, false, response.Span));
     }
 
     private void Handshake(ushort opcode, ref PacketReader reader, bool encrypted)
@@ -420,7 +437,7 @@ public sealed class Security
         response.WriteByte((byte)SecurityFlag.HandshakeResponse);
         response.WriteUInt64(_challengeKey);
 
-        _outgoingPackets.Add(new Packet(0x5000, false, false, response.Span));
+        QueueOutgoing(new Packet(0x5000, false, false, response.Span));
     }
 
     private void ServerHandshake(ushort opcode, ref PacketReader reader)
@@ -507,7 +524,7 @@ public sealed class Security
             response.WriteUInt32(_valueB);
             response.WriteUInt64(_clientKey);
 
-            _outgoingPackets.Insert(_outgoingHead, new Packet(0x5000, false, false, response.Span));
+            QueueOutgoing(new Packet(0x5000, false, false, response.Span), priority: true);
             _startedHandshake = true;
         }
         else
@@ -521,8 +538,8 @@ public sealed class Security
             response2.WriteAscii(_identityName);
             response2.WriteUInt8(_identityFlag);
 
-            _outgoingPackets.Insert(_outgoingHead, response2);
-            _outgoingPackets.Insert(_outgoingHead, response1);
+            QueueOutgoing(response2, priority: true);
+            QueueOutgoing(response1, priority: true);
 
             _startedHandshake = true;
             _acceptedHandshake = true;
@@ -596,6 +613,7 @@ public sealed class Security
 
         var packet = _outgoingPackets[_outgoingHead];
         _outgoingPackets[_outgoingHead++] = null!;
+        _pendingSendBytes -= SendCost(packet);
 
         if (packet.Massive)
             return BuildMassivePacket(packet);
@@ -668,7 +686,14 @@ public sealed class Security
         ArgumentNullException.ThrowIfNull(packet);
         if (packet.Opcode is 0x5000 or 0x9000)
             throw new SecurityException("[Security::Send] Handshake packets cannot be sent here.");
-        _outgoingPackets.Add(packet);
+        if (!packet.Massive && packet.PayloadLength >= 0x8000)
+            throw new SecurityException("[Security::Send] Payload too large.");
+        if (packet.Massive && packet.PayloadLength == 0)
+            throw new SecurityException("[Security::Send] Empty massive packet.");
+        if (PendingSendPackets >= MaxPendingSendPackets || _pendingSendBytes + SendCost(packet) > MaxPendingSendBytes)
+            throw new SecurityException("[Security::Send] Pending packet queue limit exceeded.");
+        // Freeze an independent snapshot so callers cannot invalidate accounting.
+        QueueOutgoing(new Packet(packet));
     }
 
     public void Recv(byte[] buffer, int offset, int length)
@@ -892,13 +917,31 @@ public sealed class Security
     }
 
     public List<KeyValuePair<TransferBuffer, Packet>> TransferOutgoing()
+        => TransferOutgoing(int.MaxValue, int.MaxValue);
+
+    // A massive packet remains indivisible; it can exceed the batch target,
+    // but Send already caps its size. Counter generation order is unchanged.
+    public List<KeyValuePair<TransferBuffer, Packet>> TransferOutgoing(int maxPackets, int maxBytes)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPackets);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
         var buffers = new List<KeyValuePair<TransferBuffer, Packet>>();
-        while (HasPacketToSend())
-            buffers.Add(GetPacketToSend());
+        long bytes = 0;
+        while (HasPacketToSend() && buffers.Count < maxPackets)
+        {
+            if (buffers.Count != 0 && bytes + SendCost(_outgoingPackets[_outgoingHead]) > maxBytes) break;
+            var frame = GetPacketToSend();
+            buffers.Add(frame);
+            bytes += frame.Key.Size;
+        }
         if (_outgoingHead == _outgoingPackets.Count)
         {
             _outgoingPackets.Clear();
+            _outgoingHead = 0;
+        }
+        else if (_outgoingHead >= 1024)
+        {
+            _outgoingPackets.RemoveRange(0, _outgoingHead);
             _outgoingHead = 0;
         }
         return buffers;

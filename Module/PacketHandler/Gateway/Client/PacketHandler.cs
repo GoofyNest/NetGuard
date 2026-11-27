@@ -13,15 +13,15 @@ namespace Module.PacketHandler.Gateway.Client
             //    Empty results allow opcode dispatch; explicit actions stop it.
             var landing = FilterRegistry.RunLanding(FilterContext.GatewayClient, packet, client, ctx);
             if (FilterRegistry.StopsDispatch(landing))
-                return new StaticResultHandler(landing);
+                return landing;
 
             // 2. Opcode filter — if one exists, let it run.
             var filter = FilterRegistry.Resolve(FilterContext.GatewayClient, packet.Opcode);
             if (filter != null)
-                return new DynamicFilterAdapter(filter);
+                return DynamicFilterAdapter.For(filter);
 
             // 3. No filter registered → block (unchanged behavior).
-            return landing != null ? new StaticResultHandler(landing) : new Default();
+            return landing != null ? landing : new Default();
         }
     }
 }

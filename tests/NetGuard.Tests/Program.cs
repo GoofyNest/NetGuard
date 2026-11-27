@@ -13,8 +13,18 @@ using App = Module.Main;
 var work = Path.Combine(Path.GetTempPath(), "NetGuardReviewTests-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(work);
 int passed = 0;
+passed += await DesktopDiagnosticsTests.Run();
+passed += await ScriptedPacketSequenceTests.Run();
+passed += await ScriptSequenceProxyTests.Run();
+if (args is ["--sequences-only"])
+{
+    passed += await NetworkPerformanceTests.Run();
+    Console.WriteLine($"PASS: {passed} sequence and security checks.");
+    return;
+}
 passed += await NetworkPerformanceTests.Run();
 passed += await ReliabilityTests.Run(work);
+passed += await ConnectionLifecycleTests.Run();
 void Check(bool ok, string message)
 {
     if (!ok) throw new Exception(message);
@@ -217,7 +227,7 @@ finally { FilterRegistry.ClearLandings(); handshakeProxy.Stop(); }
 if (args.Length > 1)
 {
     passed += await LoginDispatchTests.Run(args[1], work);
-    string source = Path.Combine(args[1], "Module", "filters");
+    string source = Path.Combine(args[1], "build", "Debug", "filters");
     string staged = Path.Combine(work, "filters");
     foreach (var file in Directory.GetFiles(source, "*.cs", SearchOption.AllDirectories))
     {
@@ -264,7 +274,7 @@ if (args.Length > 1)
         var newAgent = Get(session.Host!,"Agent");
         var copied = ((System.Collections.IList)Get(newAgent,"Chars"))[0]!;
         Check((uint)Get(copied,"UniqueID")==123 && (ushort)Get(copied,"LastUseItem")==0x08CD, "Character scalar migration");
-        Check(((System.Collections.IList)Get(Get(copied,"Inventory"),"Items")).Count==1, "Inventory entries migrated");
+        Check(((System.Collections.IList)Get(Get(copied,"Inventory"),"Items")).Count==0, "Inventory remains CharData-only after migration");
         Check(((System.Collections.IList)Get(copied,"Pets")).Count==1
             && ((Queue<int>)Get(copied,"PendingItemUses")).Peek()==1
             && (bool)Get(copied,"AttackPetPending"), "Pet guards migrated");
@@ -310,6 +320,23 @@ try
         new object[]{"127.0.0.1",busPort,SessionBus.ApiPassword,new BusMessage("test-message", new { Index=i })})!).ToArray();
     await Task.WhenAll(sends).WaitAsync(TimeSpan.FromSeconds(10));
     Check(SpinWait.SpinUntil(()=>Volatile.Read(ref delivered)==24,5000), "Concurrent bus frames delivered intact");
+    // Idle time between authenticated frames is not a partial-frame timeout.
+    await Task.Delay(TimeSpan.FromSeconds(11));
+    await ((Task)sendMethod.Invoke(null, new object[]{"127.0.0.1",busPort,SessionBus.ApiPassword,
+        new BusMessage("test-message", new { Index=24 })})!).WaitAsync(TimeSpan.FromSeconds(3));
+    Check(Volatile.Read(ref delivered)==25, "Authenticated bus connection survives idle period and acknowledges delivery");
+    using var entered = new ManualResetEventSlim();
+    using var release = new ManualResetEventSlim();
+    BusRegistry.Dispatcher.On("receipt-test", (_,_) => { entered.Set(); release.Wait(TimeSpan.FromSeconds(3)); });
+    var receiptSend = (Task)sendMethod.Invoke(null, new object[]{"127.0.0.1",busPort,SessionBus.ApiPassword,
+        new BusMessage("receipt-test", null)})!;
+    try
+    {
+        Check(entered.Wait(3000), "Bus handler begins dispatch");
+        Check(!receiptSend.IsCompleted, "Bus send awaits dispatch acknowledgement");
+    }
+    finally { release.Set(); }
+    await receiptSend.WaitAsync(TimeSpan.FromSeconds(3));
     using var unauthorized = new Socket(AddressFamily.InterNetwork,SocketType.Stream,ProtocolType.Tcp);
     await unauthorized.ConnectAsync(IPAddress.Loopback,busPort);
     await SocketIO.SendAllAsync(unauthorized,new byte[]{1,0,(byte)'x',0,0,32,0}); // 2 MB > limit

@@ -70,15 +70,16 @@ namespace NetGuard.Filters.Agent.Server
         {
             try
             {
-                NetGuard.Hot.InventoryTracking.Apply(packet, client);
                 var response = new PacketHandlingResult();
                 try
                 {
                     var h = client.Host()!;
                     byte status = packet.ReadUInt8();
                     var character = client.CurrentChar();
+                    
                     if (character != null)
                         PetTracking.UseResult(character, status == 0x01);
+                        
                     if (status == 0x01)
                     {
                         byte Slot = packet.ReadUInt8();

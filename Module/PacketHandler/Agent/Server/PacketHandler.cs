@@ -10,11 +10,11 @@ namespace Module.PacketHandler.Agent.Server
         {
             var landing = FilterRegistry.RunLanding(FilterContext.AgentServer, packet, client, ctx);
             if (FilterRegistry.StopsDispatch(landing))
-                return new StaticResultHandler(landing);
+                return landing;
 
             var filter = FilterRegistry.Resolve(FilterContext.AgentServer, packet.Opcode);
-            return filter != null ? new DynamicFilterAdapter(filter)
-                : landing != null ? new StaticResultHandler(landing) : null!;
+            return filter != null ? DynamicFilterAdapter.For(filter)
+                : landing != null ? landing : null!;
         }
     }
 }

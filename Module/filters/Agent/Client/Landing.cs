@@ -56,7 +56,7 @@ namespace Module.PacketHandler.Filtering.Agent.Client
             if (PacketType.BadOpcodes.Contains(packet.Opcode))
                 return new PacketHandlingResult { ResultType = PacketResultType.Block };
 
-            if (!PacketType.GoodOpcodes.Contains(packet.Opcode))
+            if (PacketDiagnostics.Enabled && !PacketType.GoodOpcodes.Contains(packet.Opcode))
             {
                 Custom.WriteLine(
                     $"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]" +

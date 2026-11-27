@@ -29,13 +29,23 @@ namespace Module
 
         private static SettingsReloader? _settingsWatcher;
         private static AsyncServer? _server;
+        private static LiveNetworkStats? _liveStats;
 
         static void ConsolePoolThread()
         {
             while (true)
             {
                 string? cmd = Console.ReadLine();
-                if (cmd == null) return;
+                if (cmd == null)
+                {
+                    if (DesktopDiagnostics.Current != null) Environment.Exit(0);
+                    return;
+                }
+                if (cmd.StartsWith(NetGuard.DesktopProtocol.Protocol.Prefix, StringComparison.Ordinal))
+                {
+                    DesktopDiagnostics.Current?.HandleCommandAsync(cmd[NetGuard.DesktopProtocol.Protocol.Prefix.Length..]).GetAwaiter().GetResult();
+                    continue;
+                }
 
                 switch (cmd.Trim().ToLowerInvariant())
                 {
@@ -48,7 +58,7 @@ namespace Module
                         break;
                     case "stats":
                         Custom.WriteLine(
-                            $"[console] live={FilterRegistry.LiveSessions.Count}",
+                            $"[console] live={FilterRegistry.LiveSessions.Count} {NetworkMetrics.Snapshot()}",
                             ConsoleColor.Cyan);
                         break;
                     case "exit":
@@ -111,11 +121,20 @@ namespace Module
             {
                 try { _settingsWatcher?.Dispose(); } catch { }
                 try { Reader.Shutdown(); } catch { }
-                try { _server?.Dispose(); } catch { }
+                try
+                {
+                    if (_server != null && !_server.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(5)))
+                        Custom.WriteLine("[shutdown] connection cleanup exceeded exit deadline", ConsoleColor.Yellow);
+                }
+                catch { }
+                try { _liveStats?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)); } catch { }
                 try { SessionBus.Stop(); } catch { }
                 try { Custom.WriteLine("[shutdown] exiting", ConsoleColor.Yellow); } catch { }
                 try { Custom.FlushAndStop(); } catch { }
             };
+
+            if (Environment.GetEnvironmentVariable("NETGUARD_DESKTOP") == "1")
+                DesktopDiagnostics.Current = new DesktopDiagnostics(moduleIndex, Console.Out);
 
             // 2. Start the logger
             Custom.StartDrain();
@@ -131,7 +150,7 @@ namespace Module
 
             Module = Config.ModuleBinding[moduleIndex];
 
-            Console.Title = $"NetGuard | {Module.Name}";
+            if (DesktopDiagnostics.Current == null) Console.Title = $"NetGuard | {Module.Name}";
 
             Config.LogFile = Path.Combine(Config.LogFolder, Module.Name + ".txt");
             Directory.CreateDirectory(Config.LogFolder);
@@ -188,6 +207,10 @@ namespace Module
                     Environment.Exit(1);
                 }
             });
+
+            string liveStatsPath = Path.Combine(Config.LogFolder, $"network-{moduleIndex}.stats.txt");
+            _liveStats = new LiveNetworkStats(liveStatsPath);
+            Custom.WriteLine($"[stats] Live snapshot every 10 seconds: {Path.GetFullPath(liveStatsPath)}", ConsoleColor.Cyan);
 
             // 8. Console command thread (background, so it doesn't block shutdown)
             new Thread(ConsolePoolThread) { IsBackground = true, Name = "console" }.Start();

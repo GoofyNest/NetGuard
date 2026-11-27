@@ -82,8 +82,77 @@ namespace NetGuard.Filters.Gateway.Server
         {
             try
             {
+                var response = new PacketHandlingResult();
+
+                //Custom.WriteLine($"[S->C] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
                 client.Gateway.SentShardListResponse = true;
-                return new PacketHandlingResult();
+
+                var modified = new Packet(0xA101);
+
+                // Read original farm list
+                while (packet.ReadUInt8() != 0)
+                {
+                    packet.ReadUInt8(); // Farm ID
+                    packet.ReadAscii(); // Farm name
+                }
+
+                // Read original shard
+                packet.ReadUInt8();  // hasNext
+
+                ushort shardId = packet.ReadUInt16();
+                string originalName = packet.ReadAscii();
+                ushort currentCapacity = packet.ReadUInt16();
+                ushort maxCapacity = packet.ReadUInt16();
+                byte status = packet.ReadUInt8();
+
+                // Farm list
+                modified.WriteUInt8(1);
+                modified.WriteUInt8(20);
+                modified.WriteAscii("Netguard");
+                modified.WriteUInt8(0);
+
+                string[] serverNames =
+                {
+                    "Troy",
+                    "Aege",
+                    "Babel",
+                    "Athens",
+                    "Oasis",
+                    "Xian",
+                    "Venice"
+                };
+
+                // Shard list
+                for (int i = 0; i < serverNames.Length; i++)
+                {
+                    int count = serverNames.Length - i;
+
+                    modified.WriteUInt8(1);
+                    modified.WriteUInt16(shardId);
+                    modified.WriteAscii(serverNames[i]);
+                    modified.WriteUInt16(currentCapacity);
+                    modified.WriteUInt16(maxCapacity);
+                    modified.WriteUInt8(status);
+                }
+
+                modified.WriteUInt8(20);
+                modified.WriteUInt8(0);
+
+                Custom.WriteLine(
+                    $"Modified packet: {modified.GetBytes().Length} bytes" +
+                    Environment.NewLine +
+                    Utility.HexDump(modified.GetBytes()),
+                    ConsoleColor.Green
+                );
+
+                response.ModifiedPackets.Add(new PacketList
+                {
+                    Packet = modified,
+                    SendImmediately = false,
+                    SecurityType = SecurityType.LocalSecurity
+                });
+
+                return response;
             }
             catch (Exception ex)
             {

@@ -5,6 +5,8 @@ namespace Module.PacketHandler.Filtering
 {
     internal sealed class DynamicFilterAdapter(IFilter inner) : IPacketHandler
     {
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IFilter, DynamicFilterAdapter> Cache = new();
+        internal static DynamicFilterAdapter For(IFilter filter) => Cache.GetValue(filter, static f => new(f));
         private readonly IFilter _inner = inner;
 
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)

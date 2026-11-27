@@ -24,9 +24,10 @@ namespace NetGuard.Filters.Agent.Server
         {
             try
             {
-                var h = client.Host()!;
                 var response = new PacketHandlingResult();
+
                 client.Agent.InExchange = true;
+                
                 return response;
             }
             catch (Exception ex)

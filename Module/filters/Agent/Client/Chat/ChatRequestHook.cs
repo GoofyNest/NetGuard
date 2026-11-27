@@ -123,6 +123,8 @@ namespace NetGuard.Filters.Agent.Client
 
             string message = packet.ReadAscii();
 
+            var agent = client.Host()!.Agent;
+
             var username = client.PlayerInfo.Username;
             var adminIndex = Settings.GameMasterConfig.GMs.FindIndex(m => m.Username == username);
 

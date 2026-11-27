@@ -10,6 +10,11 @@ public sealed class AgentState : ISessionState
     public int CharDataProcess { get; set; }
     public bool IsTeleporting { get; set; }
 
+    public bool sent_3015 { get; set; } = false;
+    public bool sent_30c8 { get; set; } = false;
+
+    public List<uint> SpawnedPets { get; set; } = new();
+
     public CharState? Current(string name)
         => Chars.FirstOrDefault(c => c.Charname == name);
 

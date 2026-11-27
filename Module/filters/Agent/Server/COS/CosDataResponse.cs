@@ -752,9 +752,11 @@ namespace NetGuard.Filters.Agent.Server
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
+            var agent = client.Host()!.Agent;
+
+            agent.sent_30c8 = true;
             try
             {
-                NetGuard.Hot.InventoryTracking.Apply(packet, client);
                 try
                 {
                     if (packet.RemainingRead() >= 8 && client.CurrentChar()is { } character)
@@ -764,8 +766,9 @@ namespace NetGuard.Filters.Agent.Server
                         PetTracking.Spawn(character, uniqueId, objectId);
                     }
                 }
-                catch
+                catch(Exception ex)
                 {
+                    Custom.WriteLine("[S->C] 0x30C8 handler error: " + ex.Message, ConsoleColor.Red);
                 }
         
                 return new PacketHandlingResult();

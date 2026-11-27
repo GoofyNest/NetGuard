@@ -16,6 +16,7 @@ namespace Module.Networking
         public delegate void DelClientDisconnect(int clientId, ref Socket clientSocket, ModuleType handlerType);
 
         private readonly ConcurrentDictionary<int, Module> _activeClients = new();
+        private readonly ConcurrentDictionary<int, Task> _connectionTasks = new();
         private long _clientIdCounter = 0;
         private long _activeCount = 0;
         private int _disposed;
@@ -23,6 +24,7 @@ namespace Module.Networking
 
         public async Task StartAsync(string bindAddr, int port, ModuleType servType)
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (_listenerSocket != null)
             {
                 throw new Exception("Trying to start server on socket which is already in use");
@@ -48,28 +50,32 @@ namespace Module.Networking
             }
         }
 
+        internal static TimeSpan AcceptRetryDelay(int failures)
+            => TimeSpan.FromMilliseconds(100 * (1 << Math.Clamp(failures - 1, 0, 5)));
+
         private async Task AcceptConnectionsAsync(CancellationToken cancellationToken)
         {
+            int failures = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
+                Socket? accepted = null;
                 try
                 {
-                    var clientSocket = await _listenerSocket.AcceptAsync(cancellationToken);
-                    clientSocket.NoDelay = true;
-                    var ip = ((IPEndPoint)clientSocket.RemoteEndPoint!).Address.ToString();
+                    accepted = await _listenerSocket.AcceptAsync(cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    accepted.NoDelay = true;
+                    var ip = ((IPEndPoint)accepted.RemoteEndPoint!).Address.ToString();
                     if (!_admission.TryAcquire(ip))
                     {
-                        clientSocket.Dispose();
+                        failures = 0;
                         continue;
                     }
-
-                    // If Module constructor does async work, ensure it’s handled asynchronously
                     int clientId = (int)Interlocked.Increment(ref _clientIdCounter) & int.MaxValue;
                     int released = 0;
                     Module module;
                     try
                     {
-                        module = new Module(clientId, clientSocket,
+                        module = new Module(clientId, accepted,
                             (int id, ref Socket socket, ModuleType type) =>
                             {
                                 if (Interlocked.Exchange(ref released, 1) == 0) _admission.Release(ip);
@@ -79,30 +85,48 @@ namespace Module.Networking
                     catch
                     {
                         if (Interlocked.Exchange(ref released, 1) == 0) _admission.Release(ip);
-                        clientSocket.Dispose();
                         throw;
                     }
-
-                    if (_activeClients.TryAdd(clientId, module))
-                    {
-                        Interlocked.Increment(ref _activeCount);
-                        Custom.WriteLine($"Client {clientId} connected. Total connections: {GetActiveConnections()}", ConsoleColor.Cyan);
-                    }
-                    else { module.Stop(); continue; }
-
-                    // Use the cancellation token directly here
-                    _ = HandleClientAsync(module, cancellationToken);
+                    accepted = null; // Module now owns the accepted socket.
+                    if (!_activeClients.TryAdd(clientId, module)) { module.Stop(); continue; }
+                    Interlocked.Increment(ref _activeCount);
+                    var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _connectionTasks[clientId] = completion.Task;
+                    _ = RunClientLifetimeAsync(module, completion, cancellationToken);
+                    failures = 0;
                 }
-                catch (SocketException) when (cancellationToken.IsCancellationRequested)
-                {
-                    Custom.WriteLine("Server shutting down gracefully.", ConsoleColor.Yellow);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
-                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested) { break; }
+                catch (Exception ex) when (cancellationToken.IsCancellationRequested
+                    && ex is SocketException or OperationCanceledException or ObjectDisposedException) { break; }
                 catch (Exception ex)
                 {
                     Custom.WriteLine($"Exception in AcceptConnectionsAsync: {ex}", ConsoleColor.Red);
+                    // Close an unowned socket before waiting, even if option setup failed.
+                    accepted?.Dispose();
+                    accepted = null;
+                    failures = Math.Min(failures + 1, 6);
+                    try { await Task.Delay(AcceptRetryDelay(failures), cancellationToken); }
+                    catch (OperationCanceledException) { break; }
                 }
+                finally { accepted?.Dispose(); }
+            }
+        }
+
+        private async Task RunClientLifetimeAsync(Module module, TaskCompletionSource completion, CancellationToken token)
+        {
+            try
+            {
+                await HandleClientAsync(module, token);
+                await module.WaitForShutdownAsync();
+            }
+            catch (Exception ex)
+            {
+                module.Stop();
+                Custom.WriteLine($"Client {module.ClientId} shutdown failed: {ex}", ConsoleColor.Red);
+            }
+            finally
+            {
+                completion.TrySetResult();
+                _connectionTasks.TryRemove(module.ClientId, out _);
             }
         }
 
@@ -176,6 +200,7 @@ namespace Module.Networking
                 }
                 finally
                 {
+                    clientSocket?.Dispose();
                     clientSocket = null!;
                 }
             }
@@ -194,6 +219,9 @@ namespace Module.Networking
             Dispose();
             try { await _acceptTask; }
             catch (OperationCanceledException) { }
+            // Acceptance has stopped; no new lifetime tasks can now be added.
+            foreach (var module in _activeClients.Values) module.Stop();
+            await Task.WhenAll(_connectionTasks.Values);
         }
     }
 }

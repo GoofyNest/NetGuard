@@ -26,6 +26,10 @@ namespace NetGuard.Filters.Agent.Client
     {
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
+            uint UniqueID = packet.ReadUInt32();
+
+            Custom.WriteLine($"0x7116 {UniqueID}");
+
             return new PacketHandlingResult();
         }
     }

@@ -11,8 +11,20 @@ namespace NetGuardLoader
 
         public static string module = "";
         public static int moduleIndex = -1;
+        private static bool _loaded;
 
         private static void LoadSettings()
+        {
+            string name = "Local\\NetGuard.Config." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(Config.BindingsPath))))[..16];
+            using var guard = new Mutex(false, name);
+            bool entered;
+            try { entered = guard.WaitOne(TimeSpan.FromSeconds(10)); } catch (AbandonedMutexException) { entered = true; }
+            if (!entered) throw new IOException("Another module is updating network configuration.");
+            try { LoadSettingsCore(); } finally { guard.ReleaseMutex(); }
+        }
+
+        private static void LoadSettingsCore()
         {
             if (File.Exists(Config.BindingsPath))
             {
@@ -60,7 +72,18 @@ namespace NetGuardLoader
                     }
                 }
 
-                File.WriteAllText(Config.BindingsPath, JsonConvert.SerializeObject(Config, Formatting.Indented));
+                // Preserve settings owned by Module which are not represented in the loader DTO.
+                var document = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Config.BindingsPath));
+                bool changed = false;
+                if (document["ModuleBinding"] is Newtonsoft.Json.Linq.JArray bindings)
+                    for (int i = 0; i < Math.Min(bindings.Count, Config.ModuleBinding.Count); i++)
+                    {
+                        changed |= (int?)bindings[i]["ApiPort"] != Config.ModuleBinding[i].ApiPort
+                            || (string?)bindings[i]["ApiPassword"] != Config.ModuleBinding[i].ApiPassword;
+                        bindings[i]["ApiPort"] = Config.ModuleBinding[i].ApiPort;
+                        bindings[i]["ApiPassword"] = Config.ModuleBinding[i].ApiPassword;
+                    }
+                if (changed) File.WriteAllText(Config.BindingsPath, document.ToString(Formatting.Indented));
             }
             else
             {
@@ -90,24 +113,6 @@ namespace NetGuardLoader
 
         private static void LoadDll(string[] args)
         {
-            if (args.Length <= 0)
-            {
-                Custom.WriteLine("You need to start the loader with arguments", ConsoleColor.Cyan);
-                Custom.WriteLine("Example below:", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardLoader.exe <moduleIndex>", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardLoader.exe 0", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardLoader.exe 1", ConsoleColor.Cyan);
-                Custom.WriteLine("start NetGuardLoader.exe 2", ConsoleColor.Cyan);
-
-                if (!File.Exists("example_gateway.bat"))
-                    File.WriteAllText("example_gateway.bat", "@echo on\ncmd /k \"NetGuardLoader.exe 0\"\npause");
-
-                if (!File.Exists("example_agent.bat"))
-                    File.WriteAllText("example_agent.bat", "@echo on\ncmd /k \"NetGuardLoader.exe 1\"\npause");
-
-                return;
-            }
-
             module = args[0];
 
             if (!int.TryParse(args[0], out moduleIndex))
@@ -175,6 +180,7 @@ namespace NetGuardLoader
 
                 var instance = Activator.CreateInstance(targetType);
                 method.Invoke(instance, [moduleIndex]);
+                _loaded = true;
 
                 // Do NOT call alc.Unload() — the module runs background threads and
                 // keeps running after StartProgram returns. Keeping the ALC alive for
@@ -189,6 +195,23 @@ namespace NetGuardLoader
 
         static void Main(string[] args)
         {
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+            if (args.Length == 0)
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "NetGuard.exe")) { UseShellExecute = true });
+                return;
+            }
+            bool desktop = args[0] == "--desktop";
+            if (desktop)
+            {
+                args = args.Skip(1).ToArray();
+                Environment.SetEnvironmentVariable("NETGUARD_DESKTOP", "1");
+                Console.InputEncoding = System.Text.Encoding.UTF8;
+                Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+            }
+            if (args.Length != 1) { Environment.ExitCode = 1; return; }
+            if (!desktop)
+            {
             ConsoleHelper.EnableQuickEdit();
 
             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -213,12 +236,14 @@ namespace NetGuardLoader
             Console.WriteLine();
             Console.WriteLine();
 
+            }
             Directory.CreateDirectory("config");
 
             LoadSettings();
 
             // In Program.Main, after LoadDll(args):
             LoadDll(args);
+            if (!_loaded) { Environment.ExitCode = 1; return; }
 
             // Block Main forever. The process exits when someone calls Environment.Exit
             // or Ctrl+C is pressed.

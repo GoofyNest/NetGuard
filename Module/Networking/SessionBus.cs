@@ -15,6 +15,7 @@ public static class SessionBus
     public static string ApiPassword { get; set; } = "";
     public static string ListenAddress { get; set; } = "127.0.0.1";
     private const int MaxPayload = 1024 * 1024;
+    private static readonly SemaphoreSlim OutgoingSlots = new(32, 32);
     private static readonly TimeSpan FrameTimeout = TimeSpan.FromSeconds(10);
     private static readonly ConcurrentDictionary<SessionData, byte> _sessions = new();
     private static readonly ConcurrentDictionary<(string Host, int Port), Peer> _peers = new();
@@ -22,6 +23,20 @@ public static class SessionBus
     private static readonly SemaphoreSlim _incomingSlots = new(64, 64);
     private static readonly CancellationTokenSource _stop = new();
     private static TcpListener? _listener;
+
+    private sealed class LimitedPayloadStream : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            if (Length + count > MaxPayload) throw new InvalidOperationException("Bus payload exceeds frame limits.");
+            base.Write(buffer, offset, count);
+        }
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            if (Length + buffer.Length > MaxPayload) throw new InvalidOperationException("Bus payload exceeds frame limits.");
+            base.Write(buffer);
+        }
+    }
 
     private sealed class Peer
     {
@@ -78,10 +93,19 @@ public static class SessionBus
 
     private static async Task SendToAsync(string host, int port, string key, BusMessage msg)
     {
+        if (!OutgoingSlots.Wait(0))
+        {
+            Custom.WriteLine($"[bus] rejected send to {host}:{port}: outgoing queue full.", ConsoleColor.Yellow);
+            return;
+        }
         try
         {
+            if (Encoding.UTF8.GetByteCount(msg.Kind) is 0 or > 4096)
+                throw new InvalidOperationException("Bus message kind exceeds frame limits.");
             var kind = Encoding.UTF8.GetBytes(msg.Kind);
-            var payload = msg.Payload == null ? Array.Empty<byte>() : JsonSerializer.SerializeToUtf8Bytes(msg.Payload);
+            using var payloadStream = new LimitedPayloadStream();
+            if (msg.Payload != null) JsonSerializer.Serialize(payloadStream, msg.Payload);
+            var payload = payloadStream.ToArray();
             if (kind.Length is 0 or > 4096 || payload.Length > MaxPayload)
                 throw new InvalidOperationException("Bus message exceeds the frame limits.");
             var mac = ComputeMac(key, kind, payload);
@@ -100,6 +124,7 @@ public static class SessionBus
             await peer.Gate.WaitAsync(deadline.Token);
             try
             {
+                bool sendStarted = false;
                 for (int attempt = 0; ; attempt++)
                 {
                     try
@@ -110,14 +135,22 @@ public static class SessionBus
                             { NoDelay = true };
                             await peer.Socket.ConnectAsync(host, port, deadline.Token);
                         }
+                        sendStarted = true;
                         await SocketIO.SendAllAsync(peer.Socket, frame, deadline.Token);
+                        // Echo the authenticated frame MAC only after dispatch. Never retry
+                        // an uncertain delivery: doing so could execute an action twice.
+                        using var stream = new NetworkStream(peer.Socket, ownsSocket: false);
+                        var acknowledgement = new byte[mac.Length];
+                        if (!await ReadExact(stream, acknowledgement, deadline.Token)
+                            || !CryptographicOperations.FixedTimeEquals(mac, acknowledgement))
+                            throw new IOException("Session bus delivery was not acknowledged.");
                         break;
                     }
                     catch
                     {
                         peer.Socket?.Dispose();
                         peer.Socket = null;
-                        if (attempt != 0 || deadline.IsCancellationRequested) throw;
+                        if (sendStarted || attempt != 0 || deadline.IsCancellationRequested) throw;
                     }
                 }
             }
@@ -128,6 +161,7 @@ public static class SessionBus
             if (!_stop.IsCancellationRequested)
                 Custom.WriteLine($"[bus] send to {host}:{port}: {ex.Message}", ConsoleColor.Yellow);
         }
+        finally { OutgoingSlots.Release(); }
     }
 
     private static async Task HandleIncoming(Socket socket)
@@ -139,13 +173,19 @@ public static class SessionBus
             {
                 socket.NoDelay = true;
                 var header = new byte[4];
+                bool authenticated = false;
                 while (!_stop.IsCancellationRequested)
                 {
-                    // One deadline covers the entire frame, including slow senders.
+                    // Authenticated peers may remain idle. Unauthenticated peers still
+                    // have a deadline so they cannot occupy all incoming slots forever.
+                    using var idle = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
+                    if (!authenticated) idle.CancelAfter(FrameTimeout);
+                    if (!await ReadExact(stream, header.AsMemory(0, 1), idle.Token)) return;
+                    // Once a frame starts, all remaining bytes share one deadline.
                     using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
                     deadline.CancelAfter(FrameTimeout);
                     var token = deadline.Token;
-                    if (!await ReadExact(stream, header.AsMemory(0, 2), token)) return;
+                    if (!await ReadExact(stream, header.AsMemory(1, 1), token)) return;
                     int kindLength = BitConverter.ToUInt16(header);
                     if (kindLength is 0 or > 4096) return;
                     var kind = new byte[kindLength];
@@ -161,10 +201,12 @@ public static class SessionBus
                     if (!await ReadExact(stream, mac, token)) return;
                     if (!CryptographicOperations.FixedTimeEquals(ComputeMac(ApiPassword, kind, payload), mac))
                         return;
+                    authenticated = true;
                     object? body = payload.Length == 0 ? null : JsonSerializer.Deserialize<JsonElement>(payload);
                     var msg = new BusMessage(Encoding.UTF8.GetString(kind), body);
                     foreach (var session in _sessions.Keys)
                         BusRegistry.Dispatcher.Dispatch(session, msg);
+                    await SocketIO.SendAllAsync(socket, mac, token);
                 }
             }
         }

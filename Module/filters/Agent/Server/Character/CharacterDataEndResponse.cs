@@ -1385,7 +1385,7 @@ namespace NetGuard.Filters.Agent.Server
                 //Custom.WriteLine($"[0x34A6] Items started, {charData.RemainingRead()} bytes remaining.");
                 if (!HandleItems(_char, charData, vSRO, out var itemsError))
                 {
-                    InventoryTracking.SnapshotFailed(_char.Inventory, _char.Charname, itemsError);
+                    Custom.WriteLine($"[0x34A6] {itemsError}");
                     return response;
                 }
                 //Custom.WriteLine($"[0x34A6] Items OK, {charData.RemainingRead()} bytes remaining.");
@@ -1472,7 +1472,6 @@ namespace NetGuard.Filters.Agent.Server
             var pets = new List<CosState>();
             _char.Inventory = new();
             var Inventory = _char.Inventory;
-            Inventory.IsSynchronized = false;
 
             try
             {
@@ -1618,7 +1617,6 @@ namespace NetGuard.Filters.Agent.Server
                 }
 
                 PetTracking.CompleteSnapshot(_char, pets);
-                Inventory.IsSynchronized = true;
                 return true;
             }
             catch (SecurityException ex)

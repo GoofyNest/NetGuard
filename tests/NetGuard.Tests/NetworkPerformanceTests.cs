@@ -16,6 +16,17 @@ internal static class NetworkPerformanceTests
             packet.Lock();
             return packet;
         }
+        var queue = new BoundedPacketQueue();
+        var mutable = new Packet(0x7777); mutable.WriteUInt8(1);
+        Check(queue.TryEnqueue(mutable), "Context queue accepts packet");
+        mutable.WriteUInt8(2);
+        Check(queue.TryDequeue(out var frozen) && frozen.PayloadLength == 1 && frozen.ReadUInt8() == 1,
+            "Context queue snapshots mutable packets");
+        var oversized = new Packet(0x7777, false, true, new byte[BoundedPacketQueue.MaxBytes]);
+        Check(!queue.TryEnqueue(oversized), "Context queue rejects oversized packet before cloning");
+        for (int i = 0; i < 4096; i++) if (!queue.TryEnqueue(new Packet(1))) throw new Exception("Context queue prematurely full");
+        Check(!queue.TryEnqueue(new Packet(1)), "Context queue bounds empty packets too");
+        Check(queue.TryDequeue(out _) && queue.TryEnqueue(new Packet(1)), "Dequeue releases queue capacity");
         var source = Make(0x01020304);
         var copy = new Packet(source);
         Check(copy.ReadUInt8() == 4 && source.ReadUInt8() == 4, "Shared clones have independent cursors");
@@ -73,6 +84,46 @@ internal static class NetworkPerformanceTests
                 "Massive fragments reconstruct exactly before following encrypted packet");
         }
 
+        var saturated = new Security();
+        for (uint i = 0; i < Security.MaxPendingSendPackets; i++) saturated.Send(Make(i));
+        bool rejected = false;
+        try { saturated.Send(Make(99)); } catch (SilkroadSecurityAPI.SecurityException) { rejected = true; }
+        Check(rejected && saturated.PendingSendPackets == Security.MaxPendingSendPackets,
+            "Security rejects packet-count overflow before handshake");
+        Check(saturated.TransferOutgoing(17, 1024).Count == 0, "Full gameplay queue still waits for handshake");
+        var handshakePeer = new Security(); handshakePeer.GenerateSecurity(true, true, true);
+        var seen = new List<Packet>();
+        for (int round = 0; round < 4; round++)
+        {
+            foreach (var (from, to) in new[] { (handshakePeer, saturated), (saturated, handshakePeer) })
+            {
+                while (true)
+                {
+                    var frames = from.TransferOutgoing(17, 1024);
+                    if (frames.Count > 17 || frames.Sum(f => f.Key.Size) > 1024)
+                        throw new Exception("Security transfer exceeds batch limits");
+                    if (frames.Count == 0) break;
+                    foreach (var frame in frames) to.Recv(frame.Key.Buffer, frame.Key.Offset, frame.Key.Size);
+                    var incoming = to.TransferIncoming();
+                    if (ReferenceEquals(to, handshakePeer)) seen.AddRange(incoming);
+                }
+            }
+        }
+        Check(seen.Where(p => p.Opcode == 0x7777).Select(p => p.ReadUInt32())
+            .SequenceEqual(Enumerable.Range(0, Security.MaxPendingSendPackets).Select(i => (uint)i)),
+            "Full queue drains in order across bounded batches after handshake");
+        Check(saturated.PendingSendBytes == 0 && saturated.PendingSendPackets == 0,
+            "Security queue accounting returns to zero");
+        var byteLimited = new Security();
+        rejected = false;
+        try { byteLimited.Send(new Packet(0x7777, false, true, new byte[Security.MaxPendingSendBytes])); }
+        catch (SilkroadSecurityAPI.SecurityException) { rejected = true; }
+        Check(rejected && byteLimited.PendingSendBytes == 0, "Security rejects byte overflow without retaining payload");
+        var mutableSend = new Packet(0x7777); mutableSend.WriteUInt8(7);
+        saturated.Send(mutableSend); mutableSend.WriteUInt8(8);
+        var captured = saturated.TransferOutgoing(1, 1024);
+        Check(captured.Single().Value.PayloadLength == 1, "Security snapshots prevent caller mutation of queued packets");
+
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) { SendBufferSize = 1024 };
         var connecting = socket.ConnectAsync((IPEndPoint)listener.LocalEndpoint);
@@ -86,6 +137,7 @@ internal static class NetworkPerformanceTests
             for (int i = 0; i < expected.Length; i += 1024)
                 accepted &= sender.TryEnqueue(expected.AsMemory(i, 1024));
             Check(accepted, "Ordered sender accepts bounded burst");
+            var flushed = sender.FlushAsync();
             var finishing = sender.FinishAsync();
             byte[] actual = new byte[expected.Length];
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -97,6 +149,8 @@ internal static class NetworkPerformanceTests
                 position += count;
             }
             Check(failure == null && actual.SequenceEqual(expected), "Batched socket sender preserves every byte under backpressure");
+            await flushed.WaitAsync(TimeSpan.FromSeconds(5));
+            Check(flushed.IsCompletedSuccessfully, "Writer receipt completes after ordered bytes are written");
             await finishing.WaitAsync(TimeSpan.FromSeconds(5));
             Check(!sender.TryEnqueue(new byte[1]), "Graceful completion drains the tail and rejects new writes");
             sender.Stop();
@@ -106,10 +160,13 @@ internal static class NetworkPerformanceTests
             for (int i = 0; i < 1024; i++)
                 if (!sender.TryEnqueue(block)) { full = true; break; }
             Check(full, "Slow peer reaches bounded queue limit without silently dropping bytes");
+            var blockedReceipt = sender.FlushAsync();
             bool drainExpired = false;
             try { await OrderedSocketSender.DrainAsync(new[] { sender }, TimeSpan.FromMilliseconds(50)); }
             catch (TimeoutException) { drainExpired = true; }
             Check(drainExpired, "Overall drain deadline aborts blocked sender");
+            try { await blockedReceipt.WaitAsync(TimeSpan.FromSeconds(3)); throw new Exception("Stopped writer acknowledged unsent data"); }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException) { Check(true, "Aborted writer fails outstanding receipts"); }
         }
         finally { sender.Stop(); await sender.Completion.WaitAsync(TimeSpan.FromSeconds(5)); }
         Check(!sender.TryEnqueue(new byte[1]), "Stopped sender rejects new work");

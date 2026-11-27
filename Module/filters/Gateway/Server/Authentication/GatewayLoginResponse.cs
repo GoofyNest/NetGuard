@@ -102,6 +102,7 @@ namespace NetGuard.Filters.Gateway.Server
                 Custom.WriteLine($"SERVER_GATEWAY_LOGIN_RESPONSE {res}");
                 if (res == 1)
                 {
+                    ctx?.MarkLoginCompleted();
                     uint id = packet.ReadUInt32();
                     string host = packet.ReadAscii();
                     int port = packet.ReadUInt16();

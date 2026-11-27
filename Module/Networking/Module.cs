@@ -4,6 +4,7 @@ using Module.PacketHandler.Filtering;
 using Module.Services;
 using SilkroadSecurityAPI;
 using System.Buffers;
+using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -49,16 +50,19 @@ namespace Module.Networking
         // Per-direction "a receive is pending" flag.
         // [0] = client, [1] = server. 0 = idle (safe to arm), 1 = pending.
         private readonly int[] _receiving = new int[2];
+        private readonly Task[] _receiveTasks = [Task.CompletedTask, Task.CompletedTask];
+        private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // Outbound queues drained after each filter/landing run.
-        private readonly ConcurrentQueue<Packet> _outToClient = new();
-        private readonly ConcurrentQueue<Packet> _outToServer = new();
+        private readonly BoundedPacketQueue _outToClient = new();
+        private readonly BoundedPacketQueue _outToServer = new();
 
         // Fast-path flags: skip the async state machine when nothing is queued.
         private int _hasOutToClient = 0;
         private int _hasOutToServer = 0;
 
         private readonly SessionContext _ctx;
+        private readonly ScriptedPacketSequence _scriptedPackets;
 
         private const int RecvClient = 0;
         private const int RecvServer = 1;
@@ -70,37 +74,53 @@ namespace Module.Networking
             _clientDisconnectHandler = delDisconnect;
 
             _moduleType = moduleType;
-            ModuleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-            _client.PlayerInfo.IpInfo = new();
-
-            switch (moduleType)
-            {
-                case ModuleType.GatewayModule:
-                    _client.Gateway = new();
-                    break;
-
-                case ModuleType.AgentModule:
-                    _client.Agent = new();
-                    break;
-            }
-
-            if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
-            {
-                _client.PlayerInfo.IpInfo.Ip = endpoint.Address.ToString();
-            }
-
-            FilterRegistry.ExecutionGate.EnterReadLock();
             try
             {
-                FilterRegistry.Loader?.AttachSession(_client);
-                FilterRegistry.LiveSessions[ClientId] = _client;
-                SessionBus.Register(_client);
-            }
-            finally { FilterRegistry.ExecutionGate.ExitReadLock(); }
-            _ctx = new SessionContext(_client, this);
+                ModuleSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                _ctx = new SessionContext(_client, this);
+                _scriptedPackets = new ScriptedPacketSequence(SendScriptPacketAsync,
+                    message => Custom.WriteLine($"[Script] client={ClientId} {message}", ConsoleColor.Yellow));
+                _client.PlayerInfo.IpInfo = new();
 
-            Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
+                switch (moduleType)
+                {
+                    case ModuleType.GatewayModule:
+                        _client.Gateway = new();
+                        break;
+
+                    case ModuleType.AgentModule:
+                        _client.Agent = new();
+                        break;
+                }
+
+                if (_clientSocket.RemoteEndPoint is IPEndPoint endpoint)
+                {
+                    _client.PlayerInfo.IpInfo.Ip = endpoint.Address.ToString();
+                }
+
+                FilterRegistry.ExecutionGate.EnterReadLock();
+                try
+                {
+                    FilterRegistry.Loader?.AttachSession(_client);
+                    FilterRegistry.LiveSessions[ClientId] = _client;
+                    SessionBus.Register(_client);
+                    DesktopDiagnostics.Current?.Register(ClientId, (packet, toServer, token) => SendScriptPacketAsync(packet, toServer, () => { }, token));
+                }
+                finally { FilterRegistry.ExecutionGate.ExitReadLock(); }
+                Custom.WriteLine($"New connection {_client.PlayerInfo.IpInfo.Ip}", ConsoleColor.Cyan);
+            }
+            catch
+            {
+                _scriptedPackets?.Stop();
+                ModuleSocket?.Dispose();
+                SessionBus.Unregister(_client);
+                DesktopDiagnostics.Current?.Unregister(ClientId);
+                ((ICollection<KeyValuePair<int, SessionData>>)FilterRegistry.LiveSessions)
+                    .Remove(new(ClientId, _client));
+                ReturnBuffer(0);
+                ReturnBuffer(1);
+                throw;
+            }
         }
 
         public async Task StartAsync(CancellationToken cancellationToken = default)
@@ -136,14 +156,20 @@ namespace Module.Networking
 
         void ISessionTransport.EnqueueClient(Packet p)
         {
-            _outToClient.Enqueue(p);
+            if (!_outToClient.TryEnqueue(p)) throw new InvalidOperationException("Client packet queue limit exceeded.");
             Volatile.Write(ref _hasOutToClient, 1);
         }
 
         void ISessionTransport.EnqueueServer(Packet p)
         {
-            _outToServer.Enqueue(p);
+            if (!_outToServer.TryEnqueue(p)) throw new InvalidOperationException("Server packet queue limit exceeded.");
             Volatile.Write(ref _hasOutToServer, 1);
+        }
+
+        void ISessionTransport.MarkLoginCompleted()
+        {
+            Volatile.Write(ref _loginCompleted, 1);
+            Interlocked.Exchange(ref _loginTimer, null)?.Dispose();
         }
 
         private async Task DrainOutboundAsync()
@@ -179,7 +205,9 @@ namespace Module.Networking
 
         async Task HandleReceivedData(int nReceived, bool isClient)
         {
+            long waiting = Stopwatch.GetTimestamp();
             await _processingGate.WaitAsync();
+            NetworkMetrics.Gate(waiting);
             try
             {
                 await HandleReceivedDataInner(nReceived, isClient);
@@ -200,7 +228,7 @@ namespace Module.Networking
                 if (!_clientRate.TryConsume(nReceived))
                 {
                     Custom.WriteLine($"Client({_client.PlayerInfo.IpInfo.Ip}) disconnected for flooding.", ConsoleColor.Yellow);
-                    HandleDisconnection();
+                    HandleDisconnection("client_byte_limit");
                     return;
                 }
                 _localSecurity.Recv(_localBuffer, 0, nReceived);
@@ -225,16 +253,9 @@ namespace Module.Networking
                     return;
 
                 Packet packet = receivedPackets[i];
-
-                if (!isClient && packet.Opcode == (_moduleType == ModuleType.AgentModule ? 0xA103 : 0xA102))
-                {
-                    var loginReply = new Packet(packet);
-                    if (loginReply.RemainingRead() > 0 && loginReply.ReadUInt8() == 1)
-                    {
-                        Volatile.Write(ref _loginCompleted, 1);
-                        Interlocked.Exchange(ref _loginTimer, null)?.Dispose();
-                    }
-                }
+                NetworkMetrics.Packet();
+                DesktopDiagnostics.Current?.Capture(packet, _client.PlayerInfo.IpInfo.Ip, ClientId, isClient);
+                if (!isClient) _scriptedPackets.ObserveServerPacket(packet.Opcode);
 
                 var result = DispatchPacket(packet, isClient);
                 if (result != null)
@@ -247,12 +268,13 @@ namespace Module.Networking
 
                         case PacketResultType.Disconnect:
                             Custom.WriteLine($"Disconnected {_client.PlayerInfo.IpInfo.Ip} for sending [0x{packet.Opcode}]", ConsoleColor.Red);
-                            HandleDisconnection();
+                            HandleDisconnection("filter");
                             return;
 
                         case PacketResultType.Ban:
-                            Custom.WriteLine($"Not implemented", ConsoleColor.Red);
-                            continue;
+                            Custom.WriteLine("Ban requested: disconnecting; persistent bans are not configured.", ConsoleColor.Red);
+                            HandleDisconnection("filter");
+                            return;
 
                         case PacketResultType.SkipSending:
                             Custom.WriteLine($"SkipSending [0x{packet.Opcode:X4}]", ConsoleColor.Magenta);
@@ -282,6 +304,11 @@ namespace Module.Networking
                     var modifiedCount = result.ModifiedPackets.Count;
                     if (modifiedCount > 0)
                     {
+                        if (result.ModifiedPackets.Any(p => p.ServerReply.HasValue))
+                        {
+                            _scriptedPackets.Enqueue(result.ModifiedPackets, isClient);
+                            continue;
+                        }
                         for (var d = 0; d < modifiedCount; d++)
                         {
                             var modifiedPacket = result.ModifiedPackets[d];
@@ -330,6 +357,27 @@ namespace Module.Networking
             }
         }
 
+        private async Task SendScriptPacketAsync(Packet packet, bool toServer, Action beforeSend, CancellationToken token)
+        {
+            Task written;
+            await _processingGate.WaitAsync(token);
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                if (Volatile.Read(ref _disconnecting) != 0) throw new OperationCanceledException(token);
+                if (!(toServer ? _remoteSecurity : _localSecurity).HandshakeAccepted)
+                    throw new InvalidOperationException("Scripted packets require a completed handshake.");
+                beforeSend();
+                (toServer ? _remoteSecurity : _localSecurity).Send(packet);
+                await Send(toServer);
+                if (Volatile.Read(ref _disconnecting) != 0) throw new OperationCanceledException(token);
+                written = (_senders[toServer ? 1 : 0]
+                    ?? throw new IOException("No socket writer available.")).FlushAsync();
+            }
+            finally { _processingGate.Release(); }
+            await written.WaitAsync(token);
+        }
+
         private PacketHandlingResult? DispatchPacket(Packet packet, bool isClient)
         {
             FilterRegistry.ExecutionGate.EnterReadLock();
@@ -339,19 +387,24 @@ namespace Module.Networking
                 {
                     if (!_client.FilterStateValid)
                         return new PacketHandlingResult { ResultType = PacketResultType.Disconnect };
-                    IPacketHandler? handler = _moduleType switch
+                    long started = Stopwatch.GetTimestamp();
+                    try
                     {
-                        ModuleType.GatewayModule => isClient
-                            ? GatewayClientHandler.GetHandler(packet, _client, _ctx)
-                            : GatewayServerHandler.GetHandler(packet, _client, _ctx),
-                        ModuleType.AgentModule => isClient
-                            ? AgentClientHandler.GetHandler(packet, _client, _ctx)
-                            : AgentServerHandler.GetHandler(packet, _client, _ctx),
-                        _ => null
-                    };
-                    var result = handler?.Handle(packet, _client, _ctx);
-                    FilterRegistry.Loader?.SyncSession(_client);
-                    return result;
+                        IPacketHandler? handler = _moduleType switch
+                        {
+                            ModuleType.GatewayModule => isClient
+                                ? GatewayClientHandler.GetHandler(packet, _client, _ctx)
+                                : GatewayServerHandler.GetHandler(packet, _client, _ctx),
+                            ModuleType.AgentModule => isClient
+                                ? AgentClientHandler.GetHandler(packet, _client, _ctx)
+                                : AgentServerHandler.GetHandler(packet, _client, _ctx),
+                            _ => null
+                        };
+                        var result = handler?.Handle(packet, _client, _ctx);
+                        FilterRegistry.Loader?.SyncSession(_client);
+                        return result;
+                    }
+                    finally { NetworkMetrics.Filter(started); }
                 }
             }
             finally { FilterRegistry.ExecutionGate.ExitReadLock(); }
@@ -391,7 +444,7 @@ namespace Module.Networking
                     return;
                 }
 
-                _ = ReceiveLoopAsync(socket, buffer, isClient);
+                _receiveTasks[idx] = ReceiveLoopAsync(socket, buffer, isClient);
             }
             catch (SocketException ex)
             {
@@ -469,7 +522,7 @@ namespace Module.Networking
                             {
                                 Custom.WriteLine($"Client {ClientId}: shutdown drain deadline exceeded.", ConsoleColor.Yellow);
                             }
-                            finally { HandleDisconnection(); }
+                            finally { HandleDisconnection("peer_closed"); }
                         }
                         finally { _processingGate.Release(); }
                         return;
@@ -478,13 +531,14 @@ namespace Module.Networking
                     if (Volatile.Read(ref _disconnecting) == 1)
                         return;
 
+                    NetworkMetrics.Received(bytesReceived);
                     await HandleReceivedData(bytesReceived, isClient);
                 }
             }
             catch (Exception ex)
             {
                 Custom.WriteLine($"Packet processing failed for client {ClientId}: {ex}", ConsoleColor.Red);
-                HandleDisconnection();
+                HandleDisconnection("packet_processing_error");
             }
             finally
             {
@@ -496,6 +550,13 @@ namespace Module.Networking
             }
         }
 
+        private static List<KeyValuePair<TransferBuffer, Packet>> FormatOutgoing(Security security)
+        {
+            long started = Stopwatch.GetTimestamp();
+            try { return security.TransferOutgoing(32, OrderedSocketSender.BatchBytes); }
+            finally { NetworkMetrics.Format(started); }
+        }
+
         Task Send(bool toHost)
         {
             if (Volatile.Read(ref _disconnecting) == 1) return Task.CompletedTask;
@@ -503,37 +564,54 @@ namespace Module.Networking
             var socket = toHost ? ModuleSocket : _clientSocket;
             if (socket == null || !socket.Connected) return Task.CompletedTask;
 
-            var outgoing = security.TransferOutgoing();
+            var outgoing = FormatOutgoing(security);
             if (outgoing.Count == 0) return Task.CompletedTask;
             int direction = toHost ? 1 : 0;
             var sender = _senders[direction] ??= new OrderedSocketSender(socket, ex =>
             {
                 Custom.WriteLine($"Socket writer failed for client {ClientId}: {ex.Message}", ConsoleColor.Red);
-                HandleDisconnection();
+                HandleDisconnection("socket_write_error");
             });
             if (Volatile.Read(ref _disconnecting) != 0)
             {
                 sender.Stop();
                 return Task.CompletedTask;
             }
-            foreach (var frame in outgoing)
+            do
             {
-                var bytes = frame.Key.Buffer.AsMemory(frame.Key.Offset, frame.Key.Size);
-                while (!bytes.IsEmpty)
+                foreach (var frame in outgoing)
                 {
-                    int size = Math.Min(bytes.Length, OrderedSocketSender.BatchBytes);
-                    if (!sender.TryEnqueue(bytes[..size]))
+                    var bytes = frame.Key.Buffer.AsMemory(frame.Key.Offset, frame.Key.Size);
+                    while (!bytes.IsEmpty)
                     {
-                        Custom.WriteLine($"Client {ClientId} disconnected: outbound queue limit exceeded.", ConsoleColor.Yellow);
-                        HandleDisconnection();
-                        return Task.CompletedTask;
+                        int size = Math.Min(bytes.Length, OrderedSocketSender.BatchBytes);
+                        if (!sender.TryEnqueue(bytes[..size]))
+                        {
+                            Custom.WriteLine($"Client {ClientId} disconnected: outbound queue limit exceeded.", ConsoleColor.Yellow);
+                            HandleDisconnection("socket_queue_limit");
+                            return Task.CompletedTask;
+                        }
+                        bytes = bytes[size..];
                     }
-                    bytes = bytes[size..];
                 }
-            }
+                if (Volatile.Read(ref _disconnecting) != 0) return Task.CompletedTask;
+                outgoing = FormatOutgoing(security);
+            } while (outgoing.Count != 0);
             return Task.CompletedTask;
         }
-        internal void Stop() => HandleDisconnection();
+        internal void Stop() => HandleDisconnection("stopped");
+
+        // Called after StartAsync has completed, so no startup work can create
+        // another timer or writer after the completion snapshots below.
+        internal async Task WaitForShutdownAsync()
+        {
+            await _disconnected.Task;
+            Task[] receives;
+            lock (_receiveLifecycle) receives = [.. _receiveTasks];
+            await Task.WhenAll(receives);
+            await _scriptedPackets.Completion;
+            await Task.WhenAll(_senders.OfType<OrderedSocketSender>().Select(s => s.Completion));
+        }
 
         private void ExpireConnection(string phase)
         {
@@ -541,7 +619,7 @@ namespace Module.Networking
             if (phase == "handshake" && _localSecurity.HandshakeAccepted && _remoteSecurity.HandshakeAccepted) return;
             if (phase == "login" && Volatile.Read(ref _loginCompleted) != 0) return;
             Custom.WriteLine($"Client {ClientId}: {phase} deadline exceeded.", ConsoleColor.Yellow);
-            HandleDisconnection();
+            HandleDisconnection(phase + "_timeout");
         }
 
         private void ReturnBuffer(int direction)
@@ -550,17 +628,20 @@ namespace Module.Networking
                 ArrayPool<byte>.Shared.Return(direction == RecvClient ? _localBuffer : _remoteBuffer);
         }
 
-        private void HandleDisconnection()
+        private void HandleDisconnection(string reason = "transport")
         {
             if (Interlocked.Exchange(ref _disconnecting, 1) == 1)
                 return;
 
+            NetworkMetrics.Disconnected(reason);
             foreach (var sender in _senders) sender?.Stop();
+            _scriptedPackets.Stop();
             Interlocked.Exchange(ref _handshakeTimer, null)?.Dispose();
             Interlocked.Exchange(ref _loginTimer, null)?.Dispose();
 
             FilterRegistry.LiveSessions.TryRemove(ClientId, out _);
             SessionBus.Unregister(_client);
+            DesktopDiagnostics.Current?.Unregister(ClientId);
 
             Custom.WriteLine($"Disconnecting client {ClientId} ({_client.PlayerInfo.IpInfo.Ip})", ConsoleColor.Yellow);
 
@@ -594,6 +675,7 @@ namespace Module.Networking
             }
             finally
             {
+                _clientSocket?.Dispose();
                 _clientSocket = null!;
             }
             lock (_receiveLifecycle)
@@ -601,6 +683,7 @@ namespace Module.Networking
                 for (int i = 0; i < 2; i++)
                     if (Volatile.Read(ref _receiving[i]) == 0) ReturnBuffer(i);
             }
+            _disconnected.TrySetResult();
         }
     }
 }

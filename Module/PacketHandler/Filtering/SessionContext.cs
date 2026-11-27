@@ -23,6 +23,9 @@ namespace Module.PacketHandler.Filtering
 
         public SessionData Session => _session;
 
+        /// <summary>Mark authentication complete and cancel this connection's login deadline.</summary>
+        public void MarkLoginCompleted() => _transport.MarkLoginCompleted();
+
         /// <summary>Send a packet to the client (encrypt with local security).</summary>
         public void SendToClient(Packet packet) => _transport.EnqueueClient(packet);
 
@@ -35,6 +38,7 @@ namespace Module.PacketHandler.Filtering
     /// </summary>
     internal interface ISessionTransport
     {
+        void MarkLoginCompleted();
         void EnqueueClient(Packet packet);   // to client (S -> C)
         void EnqueueServer(Packet packet);   // to server (C -> S)
     }

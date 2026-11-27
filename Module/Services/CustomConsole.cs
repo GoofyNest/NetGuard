@@ -69,6 +69,7 @@ namespace Module.Services
 
         public static void WriteLine(string message, ConsoleColor color = ConsoleColor.Green)
         {
+            Networking.DesktopDiagnostics.Current?.Log(message, color);
             _channel.Writer.TryWrite(new LogEntry(message, color, true, DateTime.Now));
         }
 
@@ -104,7 +105,7 @@ namespace Module.Services
                     while (_channel.Reader.TryRead(out var entry))
                     {
                     string formatted = Format(entry);
-                    if (ConsoleEnabled && !Main.Settings.DisableConsoleLogging)
+                    if (ConsoleEnabled && !Main.Settings.DisableConsoleLogging && Networking.DesktopDiagnostics.Current == null)
                         _consoleChannel.Writer.TryWrite((formatted, entry.Color));
 
                     if (entry.ToFile)

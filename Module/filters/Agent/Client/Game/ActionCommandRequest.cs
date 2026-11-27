@@ -206,7 +206,8 @@ namespace NetGuard.Filters.Agent.Client
 
         public PacketHandlingResult Handle(Packet packet, SessionData client, SessionContext ctx)
         {
-            Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
+            //if (PacketDiagnostics.Enabled)
+            //    Custom.WriteLine($"[C->S] [{packet.Opcode:X4}][{packet.GetBytes().Length} bytes]{(packet.Encrypted ? "[Encrypted]" : "")}{(packet.Massive ? "[Massive]" : "")}{Environment.NewLine}{Utility.HexDump(packet.GetBytes())}{Environment.NewLine}", ConsoleColor.Magenta);
             var response = new PacketHandlingResult();
 
             var h = client.Host()!;
@@ -276,7 +277,7 @@ namespace NetGuard.Filters.Agent.Client
                                                 SecurityType = SecurityType.RemoteSecurity
                                             });
 
-                                            //Custom.WriteLine("Emulating bot malformed pickup packet");
+                                            Custom.WriteLine("Emulating bot malformed pickup packet");
                                             return response;
                                         }
                                         catch (Exception ex)
@@ -316,7 +317,7 @@ namespace NetGuard.Filters.Agent.Client
                                         var RefSkill = Main.Skills;
 
                                         var Skill_ID = packet.ReadUInt32();
-                                        Custom.WriteLine($"ID: {Skill_ID}");
+                                        //if (PacketDiagnostics.Enabled) Custom.WriteLine($"ID: {Skill_ID}");
 
                                         RefSkill.TryGetValue((int)Skill_ID, out var _skill);
 
@@ -360,15 +361,15 @@ namespace NetGuard.Filters.Agent.Client
                                                 SecurityType = SecurityType.RemoteSecurity
                                             });
 
-                                            //Custom.WriteLine("Emulating bot malformed skill cast packet");
-                                            TrackScudCast(_skill, client);
+                                            Custom.WriteLine("Emulating bot malformed skill cast packet");
+                                            //TrackScudCast(_skill, client);
                                             return response;
                                         }
-                                        TrackScudCast(_skill, client);
+                                        //TrackScudCast(_skill, client);
                                     }
                                     catch (Exception ex)
                                     {
-                                        //Custom.WriteLine($"0x7074 Action.Cast exception {ex.ToString()}");
+                                        Custom.WriteLine($"0x7074 Action.Cast exception {ex.ToString()}");
                                         response.ResultType = PacketResultType.Block;
                                         return response;
                                     }

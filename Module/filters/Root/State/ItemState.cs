@@ -11,9 +11,4 @@ public sealed class ItemState
     public int MagParamNum { get; set; }
     public int Amount { get; set; } = 1;
     public byte State { get; set; }
-    // False only when a server reply omits an identity/quantity we have not observed yet.
-    public bool IsKnown { get; set; } = true;
-    public bool AmountKnown { get; set; } = true;
-
-    public ItemState Copy() => (ItemState)MemberwiseClone();
 }

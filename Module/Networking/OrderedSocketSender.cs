@@ -9,14 +9,19 @@ internal sealed class OrderedSocketSender
 {
     internal const int BatchBytes = 64 * 1024;
     internal const int MaxPendingBytes = 8 * 1024 * 1024;
-    private readonly Channel<ReadOnlyMemory<byte>> _queue = Channel.CreateBounded<ReadOnlyMemory<byte>>(
+    private readonly record struct Write(ReadOnlyMemory<byte> Bytes, TaskCompletionSource? Receipt = null);
+    private readonly Channel<Write> _queue = Channel.CreateBounded<Write>(
         new BoundedChannelOptions(4096) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
     private readonly CancellationTokenSource _stop = new();
     private int _pendingBytes;
     internal Task Completion { get; }
+    internal int PendingBytes => Math.Max(0, Volatile.Read(ref _pendingBytes));
 
     internal OrderedSocketSender(Socket socket, Action<Exception> failed)
-        => Completion = RunAsync(socket, failed);
+    {
+        NetworkMetrics.Register(this);
+        Completion = RunAsync(socket, failed);
+    }
 
     // Caller transfers ownership: backing bytes must not be changed afterwards.
     internal bool TryEnqueue(ReadOnlyMemory<byte> bytes)
@@ -28,7 +33,7 @@ internal sealed class OrderedSocketSender
             Interlocked.Add(ref _pendingBytes, -bytes.Length);
             return false;
         }
-        if (_queue.Writer.TryWrite(bytes)) return true;
+        if (_queue.Writer.TryWrite(new Write(bytes))) return true;
         Interlocked.Add(ref _pendingBytes, -bytes.Length);
         return false;
     }
@@ -37,6 +42,15 @@ internal sealed class OrderedSocketSender
     {
         _queue.Writer.TryComplete();
         _stop.Cancel();
+    }
+
+    // A FIFO barrier completes only after all preceding bytes reach the socket.
+    internal Task FlushAsync()
+    {
+        var receipt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_queue.Writer.TryWrite(new Write(default, receipt)))
+            receipt.TrySetException(new IOException("Socket writer queue is full or closed."));
+        return receipt.Task;
     }
 
     internal Task FinishAsync()
@@ -65,17 +79,18 @@ internal sealed class OrderedSocketSender
             while (await _queue.Reader.WaitToReadAsync(_stop.Token))
             {
                 if (!_queue.Reader.TryRead(out var first)) continue;
-                int size = first.Length;
-                ReadOnlyMemory<byte> output = first;
-                if (_queue.Reader.TryPeek(out var next) && size + next.Length <= BatchBytes)
+                if (first.Receipt != null) { first.Receipt.TrySetResult(); continue; }
+                int size = first.Bytes.Length;
+                ReadOnlyMemory<byte> output = first.Bytes;
+                if (_queue.Reader.TryPeek(out var next) && next.Receipt == null && size + next.Bytes.Length <= BatchBytes)
                 {
                     batch ??= ArrayPool<byte>.Shared.Rent(BatchBytes);
-                    first.CopyTo(batch);
-                    while (_queue.Reader.TryPeek(out next) && size + next.Length <= BatchBytes)
+                    first.Bytes.CopyTo(batch);
+                    while (_queue.Reader.TryPeek(out next) && next.Receipt == null && size + next.Bytes.Length <= BatchBytes)
                     {
                         if (!_queue.Reader.TryRead(out next)) break;
-                        next.CopyTo(batch.AsMemory(size));
-                        size += next.Length;
+                        next.Bytes.CopyTo(batch.AsMemory(size));
+                        size += next.Bytes.Length;
                     }
                     output = batch.AsMemory(0, size);
                 }
@@ -83,6 +98,7 @@ internal sealed class OrderedSocketSender
                 await SocketIO.SendAllAsync(socket, output, deadline.Token);
                 deadline.CancelAfter(Timeout.InfiniteTimeSpan);
                 Interlocked.Add(ref _pendingBytes, -size);
+                NetworkMetrics.Sent(size);
                 if (batch != null)
                 {
                     ArrayPool<byte>.Shared.Return(batch);
@@ -94,8 +110,9 @@ internal sealed class OrderedSocketSender
         catch (Exception ex) { failed(ex); }
         finally
         {
+            NetworkMetrics.Unregister(this);
             _queue.Writer.TryComplete();
-            while (_queue.Reader.TryRead(out _)) { }
+            while (_queue.Reader.TryRead(out var write)) write.Receipt?.TrySetCanceled();
             if (batch != null) ArrayPool<byte>.Shared.Return(batch);
         }
     }

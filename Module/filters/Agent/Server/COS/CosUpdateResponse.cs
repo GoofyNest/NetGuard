@@ -580,7 +580,6 @@ namespace NetGuard.Filters.Agent.Server
         {
             try
             {
-                NetGuard.Hot.InventoryTracking.Apply(packet, client);
                 try
                 {
                     if (packet.RemainingRead() >= 5 && client.CurrentChar()is { } character)
@@ -600,8 +599,10 @@ namespace NetGuard.Filters.Agent.Server
                         }
                     }
                 }
-                catch
+                catch(Exception ex)
                 {
+                    Custom.WriteLine("[S->C] 0x30C9 handler error: " + ex.Message, ConsoleColor.Red);
+                    return new PacketHandlingResult();
                 }
         
                 return new PacketHandlingResult();

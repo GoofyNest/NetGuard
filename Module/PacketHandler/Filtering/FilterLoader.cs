@@ -588,6 +588,7 @@ namespace Module.PacketHandler.Filtering
                 }
 
                 FilterRegistry.ExecutionGate.EnterWriteLock();
+                var publicationTime = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
                     // 5b. Register bus plugins
@@ -669,6 +670,7 @@ namespace Module.PacketHandler.Filtering
                 }
                 finally { FilterRegistry.ExecutionGate.ExitWriteLock(); }
 
+                Custom.WriteLine($"[filters] publication and session migration: {publicationTime.Elapsed.TotalMilliseconds:F1}ms", ConsoleColor.Cyan);
                 foreach (var kvp in perContext)
                     Custom.WriteLine($"[filters]   {kvp.Key}: {kvp.Value} filter(s)", ConsoleColor.Cyan);
 

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>NetGuard</AssemblyName>
+    <OutputPath>../build/$(Configuration)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/DesktopProtocol.cs" Link="DesktopProtocol.cs" />
+    <ProjectReference Include="../NetGuardLoader/NetGuardLoader.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Module/Module.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
